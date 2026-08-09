@@ -1,0 +1,17 @@
+{
+  "layout": [
+    ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+    ["a", "s", "d", "f", "g", "h", "j", "k", "l"],
+    ["z", "x", "c", "v", "b", "n", "m"]
+  ],
+  "menu": "English",
+  "flag": "🇺🇸",
+  "winMessage": "Congratulations! You won!",
+  "helpTip": "Frequently used in the language singular nouns, present form verbs, adjectives and adverbs are used for answers - much more could be used to guess a word",
+  "loseMessage": "Answer was: {word}",
+  "about": {
+    "contributorLabel": "Contributors",
+    "contributor": "Ilya Volvovski",
+    "rulesLabel": "Game Rules"
+  }
+}

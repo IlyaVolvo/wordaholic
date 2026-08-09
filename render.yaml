@@ -1,0 +1,16 @@
+# Render Blueprint — Static Site for Wordaholic
+# After deploy, attach custom domain wordaholic.com in the Render dashboard.
+services:
+  - type: web
+    name: wordaholic
+    runtime: static
+    # Game dictionaries under games/ are committed after npm run sync-dicts
+    buildCommand: npm run build
+    staticPublishPath: dist
+    headers:
+      - path: /sw.js
+        name: Cache-Control
+        value: no-cache
+      - path: /deployment-manifest.json
+        name: Cache-Control
+        value: no-cache

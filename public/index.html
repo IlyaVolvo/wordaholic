@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#1a3a4a" />
+  <link rel="manifest" href="/site.webmanifest" />
+  <title>Wordaholic</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <div id="prep-overlay" class="prep-overlay prep-overlay-corner" hidden>
+    <div class="prep-card">
+      <p id="prep-label">Preparing offline…</p>
+      <div class="prep-track"><div id="prep-bar" class="prep-bar"></div></div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <a href="/" class="brand-link">Wordaholic</a>
+  </header>
+
+  <main>
+    <section data-view="map" class="view map-view">
+      <div class="map-toolbar">
+        <div class="lang-dropdown" id="lang-dropdown">
+          <button type="button" id="btn-languages" class="btn ghost lang-btn" aria-haspopup="listbox" aria-expanded="false">
+            Languages
+            <span class="lang-caret" aria-hidden="true">▾</span>
+          </button>
+          <div id="lang-menu" class="lang-menu" hidden role="listbox" aria-multiselectable="true">
+            <p class="lang-menu-hint">Favorites stay ready for offline play.</p>
+            <div id="fav-list" class="fav-list"></div>
+            <button type="button" id="btn-save-fav" class="btn primary">Save</button>
+          </div>
+        </div>
+        <div id="game-rail" class="game-rail" aria-label="Games"></div>
+      </div>
+      <div id="map-root" class="map-root"></div>
+    </section>
+
+  </main>
+
+  <script type="module" src="/app/main.js"></script>
+</body>
+</html>

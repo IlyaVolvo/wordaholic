@@ -1,0 +1,25 @@
+{
+  "layout": [
+    ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"],
+    ["a", "s", "d", "f", "g", "h", "j", "k", "l", "ñ"],
+    ["z", "x", "c", "v", "b", "n", "m"]
+  ],
+  "menu": "Español",
+  "flag": "🇪🇸",
+  "normalization": {
+    "á": "a",
+    "é": "e",
+    "í": "i",
+    "ó": "o",
+    "úü": "u",
+    "ñ": "n"
+  },
+  "winMessage": "¡Felicitaciones! ¡Has ganado!",
+  "helpTip": "Los detalles están llegando...",
+  "loseMessage": "La respuesta era: {word}",
+  "about": {
+    "contributorLabel": "Colaboradores",
+    "rulesLabel": "Reglas del juego",
+    "contributor": "Olga Lichten"
+  }
+}

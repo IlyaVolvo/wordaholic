@@ -1,0 +1,1593 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import type { GameState, DictionaryEntry, LetterState, LanguageConfig } from '../types';
+import { GameBoard } from './GameBoard';
+import { Keyboard } from './Keyboard';
+import { Settings } from './Settings';
+import { Calendar } from './Calendar';
+import { LanguageSelector } from './LanguageSelector';
+import { loadDictionary, loadKeyboard, getKeyboardRtl, getInputPlugins, loadWinMessage, loadLoseMessage, loadAbout } from '../data/languageLoader';
+import { applyInputPlugins } from '../utils/inputPlugins';
+import { getDailyWord, getWordFromSeed, formatDate } from '../utils/dailyWord';
+import { evaluateGuess, isValidWord } from '../utils/gameLogic';
+import { normalizeForLanguage, loadNormalization, isWinningGuessForLanguage } from '../utils/characterNormalization';
+import { loadPreferences, savePreferences } from '../utils/preferences';
+import { apiClient } from '../api/client';
+import { gameCacheUtils } from '../utils/gameCache';
+
+const MAX_GUESSES = 6;
+
+interface GameProps {
+  userId: number;
+  userEmail?: string;
+  onLogout?: () => void;
+  view?: 'game' | 'statistics';
+  onViewChange?: (view: 'game' | 'statistics', statType?: string) => void;
+  onRecordPlayed?: () => void;
+  historicalDate?: string | null;
+  onHistoricalDateCleared?: () => void;
+  onViewHistoricalGame?: (date: string) => void;
+  language: string;
+  wordLength: number;
+  onLanguageChange: (language: string) => void;
+  onWordLengthChange: (wordLength: number) => void;
+  availableLanguages: LanguageConfig[];
+  allAvailableLanguages: LanguageConfig[];
+  onLanguageSelectionChange: (selectedCodes: string[]) => void;
+  onShowTutorial?: () => void;
+}
+
+export const Game: React.FC<GameProps> = ({ 
+  userId, 
+  userEmail,
+  onLogout, 
+  view: _view, 
+  onViewChange, 
+  onRecordPlayed,
+  historicalDate, 
+  onHistoricalDateCleared: _onHistoricalDateCleared, 
+  onViewHistoricalGame: _onViewHistoricalGame,
+  language,
+  wordLength,
+  onLanguageChange,
+  onWordLengthChange,
+  availableLanguages,
+  allAvailableLanguages,
+  onLanguageSelectionChange,
+  onShowTutorial
+}) => {
+  const [dictionary, setDictionary] = useState<DictionaryEntry | null>(null);
+  const [targetWord, setTargetWord] = useState<string>('');
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [letterStates, setLetterStates] = useState<Map<string, LetterState>>(new Map());
+  const [randomMode, setRandomMode] = useState<boolean>(false);
+  const initializedRef = useRef<boolean>(false);
+  /** Ref set when dictionary is loaded so load effect only runs for current language/wordLength */
+  const dictionaryForRef = useRef<{ language: string; wordLength: number } | null>(null);
+  const [selectedPlayDate, setSelectedPlayDate] = useState<string>('');
+  const [keyboardRtl, setKeyboardRtl] = useState<boolean>(false);
+  const [shakeRowIndex, setShakeRowIndex] = useState<number | null>(null);
+  const [showOptions, setShowOptions] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [showWordIndexPopup, setShowWordIndexPopup] = useState(false);
+  const [wordIndexInput, setWordIndexInput] = useState('');
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackSending, setFeedbackSending] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [showAbout, setShowAbout] = useState(false);
+  const [aboutData, setAboutData] = useState<{ contributorLabel?: string; rulesLabel?: string; contributor?: string } | null>(null);
+  const wordIndexGameStartedRef = useRef(false);
+  const [calendarGames, setCalendarGames] = useState<any[]>([]);
+  const [calendarBlinkingDates, setCalendarBlinkingDates] = useState<Set<string>>(new Set());
+  const [winMessage, setWinMessage] = useState<string>('Congratulations! You won!');
+  const [loseMessage, setLoseMessage] = useState<string>('Answer was: {word}');
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => {
+    const today = formatDate();
+    const [year, month] = today.split('-').map(Number);
+    return new Date(year, month - 1, 1);
+  });
+  const calendarMonthRef = useRef<Date>(calendarMonth);
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    calendarMonthRef.current = calendarMonth;
+  }, [calendarMonth]);
+  
+  // Swipe gesture tracking for date navigation (entire screen)
+  const touchStartRef = useRef<number | null>(null);
+  const touchEndRef = useRef<number | null>(null);
+  const swipeStartDateRef = useRef<string | null>(null); // Capture date at swipe start
+  const minSwipeDistance = 100;
+
+  // Load preferences on mount - default to Daily mode (not Training)
+  useEffect(() => {
+    const prefs = loadPreferences();
+    // Default to Daily (not Training) if not set
+    setRandomMode(prefs.randomMode === true);
+    // Initialize selected date - will be set properly when language/wordLength are available
+    // in the changeSettings useEffect
+  }, []);
+
+  const updateLetterStates = useCallback((state: GameState) => {
+    const states = new Map<string, LetterState>();
+    const lang = state.language;
+    for (const guess of state.guesses) {
+      for (const eval_ of guess.evaluations) {
+        // Use normalized (canonical) form for key so final/non-final variants share state (e.g. Hebrew ם/מ)
+        const canonicalKey = normalizeForLanguage(eval_.letter, lang);
+        const currentState = states.get(canonicalKey);
+        // Priority: correct > present > absent
+        if (!currentState ||
+            (currentState === 'absent' && eval_.state !== 'absent') ||
+            (currentState === 'present' && eval_.state === 'correct')) {
+          states.set(canonicalKey, eval_.state);
+        }
+      }
+    }
+    setLetterStates(states);
+  }, []);
+
+  /** Apply a loaded/restored game (has guesses); updates board, target, and keyboard letter states. */
+  const applyLoadedGame = useCallback((state: GameState, target: string) => {
+    setGameState(state);
+    setTargetWord(target);
+    updateLetterStates(state);
+  }, [updateLetterStates]);
+
+  /** Apply a new or reset game (no guesses yet); clears keyboard letter states. */
+  const applyNewOrResetGame = useCallback((state: GameState, target: string) => {
+    setGameState(state);
+    setTargetWord(target);
+    setLetterStates(new Map());
+  }, []);
+
+  /** Clear game display (no game for this day, or leaving Training). */
+  const clearGameDisplay = useCallback(() => {
+    setGameState(null);
+    setTargetWord('');
+    setLetterStates(new Map());
+  }, []);
+
+  // Handle historicalDate prop (legacy, might be removed)
+  useEffect(() => {
+    if (historicalDate && (!gameState || gameState.isComplete)) {
+      setSelectedPlayDate(historicalDate);
+    }
+  }, [historicalDate, gameState]);
+
+  // Load dictionary on mount (keep dictionaryForRef in sync so resolver runs for current lang/count)
+  useEffect(() => {
+    const loadDict = async () => {
+      try {
+        const dict = await loadDictionary(language, wordLength);
+        if (dict) {
+          setDictionary(dict);
+          dictionaryForRef.current = { language, wordLength };
+        }
+      } catch (err) {
+        console.error('Failed to load dictionary:', err);
+      }
+    };
+    loadDict();
+  }, [language, wordLength]);
+
+  // Load RTL once per language from language.json (static for the session)
+  useEffect(() => {
+    let cancelled = false;
+    getKeyboardRtl(language).then((rtl) => {
+      if (!cancelled) setKeyboardRtl(rtl);
+    });
+    return () => { cancelled = true; };
+  }, [language]);
+
+  // Load win message for the current language
+  useEffect(() => {
+    let cancelled = false;
+    loadWinMessage(language).then((msg) => {
+      if (!cancelled) setWinMessage(msg || 'Congratulations! You won!');
+    });
+    return () => { cancelled = true; };
+  }, [language]);
+
+  // Load lose message template for the current language
+  useEffect(() => {
+    let cancelled = false;
+    loadLoseMessage(language, '{word}').then((msg) => {
+      if (!cancelled) setLoseMessage(msg || 'Answer was: {word}');
+    });
+    return () => { cancelled = true; };
+  }, [language]);
+
+  // Load about data for the current language
+  useEffect(() => {
+    let cancelled = false;
+    loadAbout(language).then((data) => {
+      if (!cancelled) setAboutData(data);
+    });
+    return () => { cancelled = true; };
+  }, [language]);
+
+  // Initialize component - just load dictionary and normalization, don't create game
+  useEffect(() => {
+    // Re-mount (e.g. React Strict Mode): ref persists but state was reset → loading would stay true
+    if (initializedRef.current) {
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const initialize = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const [dict] = await Promise.all([
+          loadDictionary(language, wordLength),
+          loadNormalization(language),
+          loadKeyboard(language),
+        ]);
+        if (cancelled) return;
+        if (!dict) {
+          setError(`Failed to load dictionary for ${language}-${wordLength}`);
+          setLoading(false);
+          return;
+        }
+        setDictionary(dict);
+        dictionaryForRef.current = { language, wordLength };
+        initializedRef.current = true;
+        const today = formatDate();
+        setSelectedPlayDate(today);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to initialize');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    initialize();
+    return () => { cancelled = true; };
+  }, [userId, language, wordLength]);
+
+  // Store selected date per (language, wordLength) combination
+  const getDateKey = useCallback((lang: string, len: number) => {
+    return `selectedDate_${lang}_${len}`;
+  }, []);
+
+  // Load stored date for current (language, wordLength) combination
+  const loadStoredDate = useCallback((lang: string, len: number): string | null => {
+    try {
+      const key = getDateKey(lang, len);
+      const stored = localStorage.getItem(key);
+      return stored || null;
+    } catch {
+      return null;
+    }
+  }, [getDateKey]);
+
+  // Save date for current (language, wordLength) combination
+  const saveStoredDate = useCallback((lang: string, len: number, date: string) => {
+    try {
+      const key = getDateKey(lang, len);
+      localStorage.setItem(key, date);
+    } catch {
+      // Ignore storage errors
+    }
+  }, [getDateKey]);
+
+  // Handle language or word length change: reload dictionary and set selected date; game state is set by load effect
+  useEffect(() => {
+    if (!initializedRef.current || loading) return;
+
+    const changeSettings = async () => {
+      try {
+        const [dict] = await Promise.all([
+          loadDictionary(language, wordLength),
+          loadNormalization(language),
+          loadKeyboard(language),
+        ]);
+        if (dict) {
+          setDictionary(dict);
+          dictionaryForRef.current = { language, wordLength };
+        }
+        const today = formatDate();
+        const storedDate = loadStoredDate(language, wordLength);
+        let dateToUse = today;
+        if (storedDate) {
+          try {
+            const response = await apiClient.getCurrentGame({
+              language,
+              wordLength,
+              gameDate: storedDate,
+              isRandomMode: false,
+            });
+            // Use last played date only if game exists and is not finished
+            if (response.game && !response.game.is_complete) {
+              dateToUse = storedDate;
+            }
+          } catch {
+            // API error or not logged in: default to today
+          }
+        }
+        setSelectedPlayDate(dateToUse);
+        saveStoredDate(language, wordLength, dateToUse);
+      } catch (err) {
+        console.error('Failed to load dictionary:', err);
+      }
+    };
+
+    changeSettings();
+  }, [language, wordLength, initializedRef.current, loading, loadStoredDate, saveStoredDate]);
+
+  const saveGameToApi = useCallback(async (state: GameState) => {
+    if (state.isRandomMode) return;
+    if (!dictionary || !targetWord) return; // Save on Enter: create or update daily record
+    try {
+      const response = await apiClient.saveGame({
+        language: state.language,
+        wordLength: state.wordLength,
+        targetWord,
+        gameDate: state.date,
+        isRandomMode: false,
+        wordSeed: state.wordSeed,
+        guesses: state.guesses,
+        isComplete: state.isComplete,
+        isWon: state.isWon,
+      });
+      // Single source: update cache so resolver sees same data on next run
+      gameCacheUtils.updateCachedGame(state.language, state.wordLength, state.date, {
+        id: response.gameId,
+        language: state.language,
+        word_length: state.wordLength,
+        target_word: targetWord,
+        game_date: state.date,
+        is_random_mode: 0,
+        word_seed: null,
+        is_complete: state.isComplete ? 1 : 0,
+        guesses: state.guesses.map(g => ({ word: g.word, evaluations: [] })),
+        isWon: state.isWon,
+        guessesCount: state.guesses.length,
+        created_at: new Date().toISOString(),
+        completed_at: state.isComplete ? new Date().toISOString() : null,
+      });
+    } catch (error) {
+      console.error('Failed to save game to API:', error);
+    }
+  }, [dictionary, targetWord]);
+
+  /**
+   * Single source for "current game state" for the selected day/language/count.
+   * Called when game setting (language, letter count, or mode) or selected date changes.
+   * When setting changes, partial state is discarded; the new setting shows the last state stored in the DB.
+   */
+  const resolveStateForSelectedDay = useCallback(async () => {
+    if (randomMode) {
+      // Don't clear if we just started a game via word index selector
+      if (wordIndexGameStartedRef.current) {
+        wordIndexGameStartedRef.current = false;
+        return;
+      }
+      clearGameDisplay();
+      return;
+    }
+    if (!dictionary || loading) return;
+    // Only resolve when dictionary is for current (language, wordLength). Prevents using wrong dictionary
+    // (e.g. still Russian after switching to English) and wrongly wiping DB on target mismatch.
+    if (dictionaryForRef.current?.language !== language || dictionaryForRef.current?.wordLength !== wordLength) return;
+
+    const playDate = selectedPlayDate || formatDate();
+    const dateRange = gameCacheUtils.getDefaultDateRange();
+
+    // 1) Ensure 30-day cache for this language/wordLength
+    if (!gameCacheUtils.hasValidCache(language, wordLength, dateRange)) {
+      try {
+        const response = await apiClient.getBulkGames({
+          language,
+          wordLength,
+          startDate: dateRange.start,
+          endDate: dateRange.end,
+        });
+        const cachedGames: Record<string, any> = {};
+        Object.entries(response.games || {}).forEach(([date, game]: [string, any]) => {
+          cachedGames[date] = {
+            id: game.id,
+            language: game.language,
+            word_length: game.word_length,
+            target_word: game.target_word,
+            game_date: game.game_date,
+            is_random_mode: game.is_random_mode,
+            word_seed: game.word_seed,
+            is_complete: game.is_complete,
+            guesses: game.guesses || [],
+            isWon: game.isWon,
+            guessesCount: game.guessesCount || 0,
+            created_at: game.created_at,
+            completed_at: game.completed_at,
+          };
+        });
+        gameCacheUtils.setCachedGames(language, wordLength, cachedGames, dateRange);
+      } catch {
+        // Cache optional; continue to load single date from API
+      }
+    }
+
+    // 2) Resolve state for selected day from cache or API
+    const cachedGame = gameCacheUtils.getCachedGame(language, wordLength, playDate);
+    if (cachedGame) {
+      const target = cachedGame.target_word;
+      const gameDate = cachedGame.game_date;
+      const effectiveDate = gameDate || playDate;
+      const expectedTarget = getDailyWord(dictionary, effectiveDate);
+      if (cachedGame.is_complete !== 1 && target !== expectedTarget) {
+        // Target changed - fall through to API
+      } else {
+        const guessesWithEvals = (cachedGame.guesses || []).map((g: any) => ({
+          word: typeof g === 'string' ? g : g.word,
+          evaluations: evaluateGuess(typeof g === 'string' ? g : g.word, target, language),
+        }));
+        const state: GameState = {
+          guesses: guessesWithEvals,
+          currentGuess: '',
+          isComplete: cachedGame.is_complete === 1,
+          isWon: cachedGame.isWon,
+          language: cachedGame.language,
+          wordLength: cachedGame.word_length,
+          date: gameDate,
+          isRandomMode: false,
+          wordSeed: undefined,
+        };
+        applyLoadedGame(state, target);
+        return;
+      }
+    }
+
+    try {
+      const currentResponse = await apiClient.getCurrentGame({
+        language,
+        wordLength,
+        gameDate: playDate,
+        isRandomMode: false,
+      });
+      if (currentResponse.game && currentResponse.game.is_complete !== 1) {
+        const target = currentResponse.game.target_word;
+        const gameDate = currentResponse.game.game_date;
+        const effectiveDate = gameDate || playDate;
+        const expectedTarget = getDailyWord(dictionary, effectiveDate);
+        if (target !== expectedTarget) {
+          const resetState: GameState = {
+            guesses: [],
+            currentGuess: '',
+            isComplete: false,
+            isWon: false,
+            language: currentResponse.game.language,
+            wordLength: currentResponse.game.word_length,
+            date: effectiveDate,
+            isRandomMode: false,
+            wordSeed: undefined,
+          };
+          applyNewOrResetGame(resetState, expectedTarget);
+          await apiClient.saveGame({
+            language,
+            wordLength,
+            targetWord: expectedTarget,
+            gameDate: effectiveDate,
+            isRandomMode: false,
+            guesses: [],
+            isComplete: false,
+            isWon: false,
+          });
+          gameCacheUtils.updateCachedGame(language, wordLength, effectiveDate, {
+            id: currentResponse.game.id || 0,
+            language: currentResponse.game.language,
+            word_length: currentResponse.game.word_length,
+            target_word: expectedTarget,
+            game_date: effectiveDate,
+            is_random_mode: 0,
+            word_seed: null,
+            is_complete: 0,
+            guesses: [],
+            isWon: false,
+            guessesCount: 0,
+            created_at: new Date().toISOString(),
+            completed_at: null,
+          });
+          return;
+        }
+        const isValidDate = selectedPlayDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedPlayDate);
+        if (gameDate && !isValidDate) setSelectedPlayDate(gameDate);
+        const guessesWithEvals = (currentResponse.game.guesses || []).map((g: any) => ({
+          word: g.word,
+          evaluations: evaluateGuess(g.word, target, language),
+        }));
+        const currentGame: GameState = {
+          guesses: guessesWithEvals,
+          currentGuess: '',
+          isComplete: false,
+          isWon: false,
+          language: currentResponse.game.language,
+          wordLength: currentResponse.game.word_length,
+          date: gameDate,
+          isRandomMode: false,
+          wordSeed: undefined,
+        };
+        applyLoadedGame(currentGame, target);
+        gameCacheUtils.updateCachedGame(language, wordLength, gameDate, {
+          id: currentResponse.game.id,
+          language: currentResponse.game.language,
+          word_length: currentResponse.game.word_length,
+          target_word: target,
+          game_date: gameDate,
+          is_random_mode: 0,
+          word_seed: null,
+          is_complete: 0,
+          guesses: currentResponse.game.guesses || [],
+          isWon: false,
+          guessesCount: (currentResponse.game.guesses || []).length,
+          created_at: (currentResponse.game as any).created_at || new Date().toISOString(),
+          completed_at: null,
+        });
+        return;
+      }
+
+      const completedResponse = await apiClient.getCompletedGame({
+        language,
+        wordLength,
+        gameDate: playDate,
+        isRandomMode: false,
+      });
+      if (completedResponse.game) {
+        const target = completedResponse.game.target_word;
+        const guessesWithEvals = (completedResponse.game.guesses || []).map((g: any) => ({
+          word: g.word,
+          evaluations: evaluateGuess(g.word, target, language),
+        }));
+        const completedGame: GameState = {
+          guesses: guessesWithEvals,
+          currentGuess: '',
+          isComplete: completedResponse.game.is_complete === 1,
+          isWon: completedResponse.game.isWon,
+          language: completedResponse.game.language,
+          wordLength: completedResponse.game.word_length,
+          date: completedResponse.game.game_date,
+          isRandomMode: false,
+          wordSeed: undefined,
+        };
+        applyLoadedGame(completedGame, target);
+        gameCacheUtils.updateCachedGame(language, wordLength, completedResponse.game.game_date, {
+          id: completedResponse.game.id,
+          language: completedResponse.game.language,
+          word_length: completedResponse.game.word_length,
+          target_word: target,
+          game_date: completedResponse.game.game_date,
+          is_random_mode: 0,
+          word_seed: null,
+          is_complete: 1,
+          guesses: completedResponse.game.guesses || [],
+          isWon: completedResponse.game.isWon,
+          guessesCount: (completedResponse.game.guesses || []).length,
+          created_at: (completedResponse.game as any).created_at || new Date().toISOString(),
+          completed_at: (completedResponse.game as any).completed_at || new Date().toISOString(),
+        });
+        return;
+      }
+
+      clearGameDisplay();
+    } catch (err) {
+      console.error('Failed to load game:', err);
+      clearGameDisplay();
+    }
+  }, [language, wordLength, selectedPlayDate, randomMode, dictionary, loading, applyLoadedGame, applyNewOrResetGame, clearGameDisplay]);
+
+  /** Start a training game with a specific word index (modulo answer count).
+   *  Switches to Practice mode automatically if not already in it. */
+  const handleStartGameWithIndex = useCallback((index: number) => {
+    if (!dictionary) return;
+
+    // Switch to Practice mode if needed
+    if (!randomMode) {
+      const prefs = loadPreferences();
+      prefs.randomMode = true;
+      savePreferences(prefs);
+      setRandomMode(true);
+      setSelectedPlayDate('');
+    }
+
+    const answers = dictionary.answerWordsOriginal;
+    const answerCount = answers.length;
+    const effectiveIndex = ((index % answerCount) + answerCount) % answerCount; // handle negatives
+    const target = answers[effectiveIndex];
+    
+    const newState: GameState = {
+      guesses: [],
+      currentGuess: '',
+      isComplete: false,
+      isWon: false,
+      language,
+      wordLength,
+      date: Date.now().toString(),
+      isRandomMode: true,
+      wordSeed: effectiveIndex,
+    };
+
+    wordIndexGameStartedRef.current = true;
+    applyNewOrResetGame(newState, target);
+  }, [dictionary, randomMode, language, wordLength, applyNewOrResetGame]);
+
+  /** Start game; optionally pass first key so it's applied immediately. Returns true if first key was applied. */
+  const handleStartGame = useCallback(async (optionalFirstKey?: string): Promise<boolean> => {
+    if (!dictionary) return false;
+    const playDate = selectedPlayDate || formatDate();
+    let target: string;
+    let wordSeed: number | undefined;
+
+    try {
+      if (randomMode) {
+        // Training mode: always start new game (apply first key so no setTimeout race)
+        wordSeed = Date.now();
+        target = getWordFromSeed(dictionary, wordSeed);
+        
+        const newState: GameState = {
+          guesses: [],
+          currentGuess: optionalFirstKey ?? '',
+          isComplete: false,
+          isWon: false,
+          language,
+          wordLength,
+          date: Date.now().toString(),
+          isRandomMode: true,
+          wordSeed: wordSeed,
+        };
+
+        applyNewOrResetGame(newState, target);
+
+        // Don't save Training mode games to DB
+        return !!optionalFirstKey;
+      } else {
+        // Daily mode: check for existing game first
+        const currentResponse = await apiClient.getCurrentGame({
+          language,
+          wordLength,
+          gameDate: playDate,
+          isRandomMode: false,
+        });
+        if (currentResponse.game && currentResponse.game.is_complete !== 1) {
+          // Found incomplete game - continue playing it (unless daily answer changed)
+          const target = currentResponse.game.target_word;
+          const gameDate = currentResponse.game.game_date;
+          const effectiveDate = gameDate || playDate;
+          const expectedTarget = getDailyWord(dictionary, effectiveDate);
+          if (target !== expectedTarget) {
+            // The dictionary has been changed, we wipe out the started game. That should be rare!
+            const resetState: GameState = {
+              guesses: [],
+              currentGuess: optionalFirstKey ?? '',
+              isComplete: false,
+              isWon: false,
+              language: currentResponse.game.language,
+              wordLength: currentResponse.game.word_length,
+              date: effectiveDate,
+              isRandomMode: false,
+              wordSeed: undefined,
+            };
+            applyNewOrResetGame(resetState, expectedTarget);
+            await apiClient.saveGame({
+              language,
+              wordLength,
+              targetWord: expectedTarget,
+              gameDate: effectiveDate,
+              isRandomMode: false,
+              guesses: [],
+              isComplete: false,
+              isWon: false,
+            });
+            return !!optionalFirstKey;
+          }
+          // Only sync selectedPlayDate if it's empty or invalid - don't override user-initiated date changes
+          const isValidDate = selectedPlayDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedPlayDate);
+          if (gameDate && !isValidDate) {
+            setSelectedPlayDate(gameDate);
+          }
+          const guessesWithEvals = (currentResponse.game.guesses || []).map((g: any) => ({
+            word: g.word,
+            evaluations: evaluateGuess(g.word, target, language),
+          }));
+          const currentGame: GameState = {
+            guesses: guessesWithEvals,
+            currentGuess: '',
+            isComplete: false,
+            isWon: false,
+            language: currentResponse.game.language,
+            wordLength: currentResponse.game.word_length,
+            date: gameDate,
+            isRandomMode: false,
+            wordSeed: undefined,
+          };
+          applyLoadedGame(currentGame, target);
+          return false; // key not applied, caller will setTimeout to add it
+        }
+
+        // Check for completed game
+        const completedResponse = await apiClient.getCompletedGame({
+          language,
+          wordLength,
+          gameDate: playDate,
+          isRandomMode: false,
+        });
+        if (completedResponse.game) {
+          // Restore the completed game
+          const target = completedResponse.game.target_word;
+          const guessesWithEvals = (completedResponse.game.guesses || []).map((g: any) => ({
+            word: g.word,
+            evaluations: evaluateGuess(g.word, target, language),
+          }));
+          const completedGame: GameState = {
+            guesses: guessesWithEvals,
+            currentGuess: '',
+            isComplete: completedResponse.game.is_complete === 1,
+            isWon: completedResponse.game.isWon,
+            language: completedResponse.game.language,
+            wordLength: completedResponse.game.word_length,
+            date: completedResponse.game.game_date,
+            isRandomMode: false,
+            wordSeed: undefined,
+          };
+          applyLoadedGame(completedGame, target);
+          return false;
+        }
+
+        // No existing game, start a new one (DB record created on first word submitted); apply first key
+        target = getDailyWord(dictionary, playDate);
+        const newState: GameState = {
+          guesses: [],
+          currentGuess: optionalFirstKey ?? '',
+          isComplete: false,
+          isWon: false,
+          language,
+          wordLength,
+          date: playDate,
+          isRandomMode: false,
+          wordSeed: undefined,
+        };
+
+        applyNewOrResetGame(newState, target);
+        return !!optionalFirstKey;
+      }
+    } catch (err) {
+      console.error('Failed to start game:', err);
+      setError('Failed to start game');
+      return false;
+    }
+  }, [dictionary, language, wordLength, randomMode, selectedPlayDate, applyLoadedGame, applyNewOrResetGame]);
+
+  // Load games for calendar when it opens; detect and wipe stale incomplete games
+  useEffect(() => {
+    if (showCalendar && !randomMode) {
+      const loadGames = async () => {
+        try {
+          const response = await apiClient.getHistory(language, wordLength, 10000);
+          // Filter to only daily games (non-random mode)
+          const dailyGames = response.games.filter((game: any) => !game.isRandomMode);
+
+          const staleDates = new Set<string>();
+          if (dictionary) {
+            for (const game of dailyGames) {
+              const gameDate = game.game_date || game.gameDate;
+              if (!game.isComplete && game.guesses?.length > 0 && gameDate) {
+                const expectedTarget = getDailyWord(dictionary, gameDate);
+                if (game.targetWord !== expectedTarget) {
+                  staleDates.add(gameDate);
+                }
+              }
+            }
+          }
+          setCalendarGames(dailyGames);
+
+          if (staleDates.size > 0) {
+            setCalendarBlinkingDates(staleDates);
+
+            const wipePromises = dailyGames
+              .filter((g: any) => staleDates.has(g.game_date || g.gameDate))
+              .map(async (game: any) => {
+                const gameDate = game.game_date || game.gameDate;
+                const expectedTarget = dictionary ? getDailyWord(dictionary, gameDate) : game.targetWord;
+                await apiClient.saveGame({
+                  language,
+                  wordLength,
+                  targetWord: expectedTarget,
+                  gameDate,
+                  isRandomMode: false,
+                  guesses: [],
+                  isComplete: false,
+                  isWon: false,
+                });
+                gameCacheUtils.updateCachedGame(language, wordLength, gameDate, {
+                  ...game,
+                  target_word: expectedTarget,
+                  guesses: [],
+                  is_complete: 0,
+                  isWon: false,
+                  guessesCount: 0,
+                  completed_at: null,
+                });
+              });
+            Promise.all(wipePromises).catch(err => console.error('Failed to wipe stale games:', err));
+
+            setTimeout(() => {
+              setCalendarGames(prev => prev.map(g => {
+                const gd = g.game_date || g.gameDate;
+                if (staleDates.has(gd)) {
+                  return { ...g, guesses: [], isComplete: false, isWon: false };
+                }
+                return g;
+              }));
+              setCalendarBlinkingDates(new Set());
+            }, 2000);
+          }
+        } catch (err) {
+          console.error('Failed to load games for calendar:', err);
+        }
+      };
+      loadGames();
+    }
+  }, [showCalendar, language, wordLength, randomMode, dictionary]);
+
+  // Update calendar month when selectedPlayDate changes
+  useEffect(() => {
+    if (selectedPlayDate) {
+      const [year, month] = selectedPlayDate.split('-').map(Number);
+      const newMonth = new Date(year, month - 1, 1);
+      // Only update if the month actually changed to avoid unnecessary re-renders
+      const currentMonth = calendarMonthRef.current;
+      if (currentMonth.getFullYear() !== newMonth.getFullYear() || 
+          currentMonth.getMonth() !== newMonth.getMonth()) {
+        setCalendarMonth(newMonth);
+      }
+    }
+  }, [selectedPlayDate]);
+
+
+  // Auto-start game when first letter is typed (instead of Play button)
+  const handleKeyPress = useCallback(async (key: string) => {
+    const normalizedKey = key.toLowerCase();
+    const needStart = dictionary && (!gameState || (randomMode && gameState?.isComplete));
+    const currentGuess = needStart ? (gameState?.currentGuess ?? '') : (gameState?.currentGuess ?? '');
+    const plugins = getInputPlugins(language);
+    const transformedKey = plugins.length > 0
+      ? applyInputPlugins(normalizedKey, currentGuess, wordLength, keyboardRtl, plugins)
+      : normalizedKey;
+
+    if (needStart) {
+      const keyApplied = await handleStartGame(transformedKey);
+      if (!keyApplied) {
+        setTimeout(() => {
+          setGameState((currentState) => {
+            if (currentState && !currentState.isComplete && currentState.currentGuess.length < wordLength) {
+              const next = keyboardRtl ? transformedKey + currentState.currentGuess : currentState.currentGuess + transformedKey;
+              return { ...currentState, currentGuess: next };
+            }
+            return currentState;
+          });
+        }, 0);
+      }
+      return;
+    }
+
+    if (!gameState || gameState.isComplete || !dictionary) return;
+
+    if (gameState.currentGuess.length < wordLength) {
+      const newGuess = keyboardRtl ? transformedKey + gameState.currentGuess : gameState.currentGuess + transformedKey;
+      setGameState({ ...gameState, currentGuess: newGuess });
+    }
+  }, [gameState, wordLength, dictionary, language, randomMode, keyboardRtl, handleStartGame]);
+
+  const handleEnter = useCallback(() => {
+    if (!gameState || gameState.isComplete || !dictionary) return;
+
+    // RTL: word to check = letters from highest to lowest index (reverse of typing order)
+    const rawGuess = keyboardRtl ? [...gameState.currentGuess].reverse().join('') : gameState.currentGuess;
+    const guess = rawGuess.toLowerCase().trim();
+    
+    if (guess.length !== wordLength) {
+      // Show error - word not long enough
+      return;
+    }
+
+    if (!isValidWord(guess, dictionary)) {
+      // Trigger shake animation on the current row
+      const currentRowIndex = gameState.guesses.length;
+      setShakeRowIndex(currentRowIndex);
+      // Clear shake after animation completes (600ms)
+      setTimeout(() => {
+        setShakeRowIndex(null);
+      }, 600);
+      return;
+    }
+
+    // Directional rule: target is normalized; guess is compared as entered.
+    const isWon = isWinningGuessForLanguage(guess, targetWord, language);
+    // On normalized win, persist/display the canonical target form as the final guess.
+    const committedGuess = isWon ? targetWord : guess;
+    const evaluations = evaluateGuess(committedGuess, targetWord, language);
+    const newGuesses = [...gameState.guesses, { word: committedGuess, evaluations }];
+    const isComplete = isWon || newGuesses.length >= MAX_GUESSES;
+
+    const updatedState: GameState = {
+      ...gameState,
+      guesses: newGuesses,
+      currentGuess: '',
+      isComplete,
+      isWon,
+    };
+
+    setGameState(updatedState);
+    saveGameToApi(updatedState);
+    updateLetterStates(updatedState);
+    onRecordPlayed?.();
+  }, [gameState, dictionary, wordLength, targetWord, language, keyboardRtl, saveGameToApi, updateLetterStates, onRecordPlayed]);
+
+  const handleBackspace = useCallback(() => {
+    if (!gameState || gameState.isComplete) return;
+
+    if (gameState.currentGuess.length > 0) {
+      const newGuess = keyboardRtl ? gameState.currentGuess.slice(1) : gameState.currentGuess.slice(0, -1);
+      setGameState({ ...gameState, currentGuess: newGuess });
+    }
+  }, [gameState, keyboardRtl]);
+
+  const handleLanguageChange = async (newLanguage: string) => {
+    const langConfig = availableLanguages.find(l => l.code === newLanguage);
+    const newWordLength = (langConfig && !langConfig.supportedLengths.includes(wordLength))
+      ? (langConfig.supportedLengths[0] || 5)
+      : wordLength;
+    const prefs = loadPreferences();
+    prefs.language = newLanguage;
+    prefs.wordLength = newWordLength;
+    savePreferences(prefs);
+    if (newWordLength !== wordLength) {
+      onWordLengthChange(newWordLength);
+    }
+    onLanguageChange(newLanguage);
+  };
+
+  const handleWordLengthChange = async (newLength: number) => {
+    const prefs = loadPreferences();
+    prefs.wordLength = newLength;
+    savePreferences(prefs);
+    onWordLengthChange(newLength);
+  };
+
+  // Single effect: whenever settings or selected date change, resolve state from one source (cache/API or Training → null)
+  useEffect(() => {
+    resolveStateForSelectedDay();
+  }, [resolveStateForSelectedDay]);
+
+  // Handle date change
+  const handleDateChange = useCallback((date: string) => {
+    setSelectedPlayDate(date);
+    saveStoredDate(language, wordLength, date);
+  }, [language, wordLength, saveStoredDate]);
+
+  const handleSendFeedback = useCallback(async () => {
+    if (!feedbackText.trim() || feedbackSending) return;
+    setFeedbackSending(true);
+    setFeedbackMessage(null);
+    try {
+      await apiClient.sendFeedback(feedbackText.trim());
+      setFeedbackMessage('Thank you! Your feedback has been sent.');
+      setFeedbackText('');
+      setTimeout(() => {
+        setShowFeedbackModal(false);
+        setFeedbackMessage(null);
+      }, 1500);
+    } catch (err) {
+      setFeedbackMessage(err instanceof Error ? err.message : 'Failed to send feedback');
+    } finally {
+      setFeedbackSending(false);
+    }
+  }, [feedbackText, feedbackSending]);
+  
+  // Swipe gesture handlers for date navigation
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    // Only enable swipe for Daily mode (not Training)
+    if (randomMode) return;
+    
+    // Don't trigger swipe if starting on interactive elements
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || 
+        target.closest('select') || 
+        target.closest('input') ||
+        target.closest('.language-selector-overlay') ||
+        target.closest('.calendar-popup-overlay')) {
+      return;
+    }
+    
+    // Capture the current date at swipe start to prevent mid-swipe state changes
+    // Only use today as fallback if selectedPlayDate is empty or invalid
+    // Check if selectedPlayDate is a valid date string (YYYY-MM-DD format)
+    const today = formatDate();
+    const isValidDate = selectedPlayDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedPlayDate);
+    swipeStartDateRef.current = isValidDate ? selectedPlayDate : today;
+    touchStartRef.current = e.targetTouches[0].clientX;
+    touchEndRef.current = null;
+  }, [randomMode, selectedPlayDate]);
+  
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    if (randomMode || !touchStartRef.current) return;
+    touchEndRef.current = e.targetTouches[0].clientX;
+  }, [randomMode]);
+  
+  const onTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (randomMode || !touchStartRef.current || !touchEndRef.current || !swipeStartDateRef.current) {
+      touchStartRef.current = null;
+      touchEndRef.current = null;
+      swipeStartDateRef.current = null;
+      return;
+    }
+    
+    // Prevent swiping to another day if the current game is not complete
+    // Allow navigation if: no game state exists, or game is complete
+    if (gameState && !gameState.isComplete) {
+      // Game is in progress, don't allow navigation
+      touchStartRef.current = null;
+      touchEndRef.current = null;
+      swipeStartDateRef.current = null;
+      return;
+    }
+    
+    const start = touchStartRef.current;
+    const end = touchEndRef.current;
+    const distance = start - end;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    
+    // Use the date captured at swipe start, not current state
+    const currentDate = swipeStartDateRef.current;
+    const today = formatDate();
+    const isToday = currentDate === today;
+    
+    // Helper to add/subtract days from a date string
+    const addDays = (dateStr: string, days: number): string => {
+      if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        // Invalid date format, return today minus days for left swipe, today for right
+        const todayDate = new Date();
+        todayDate.setDate(todayDate.getDate() + days);
+        return formatDate(todayDate);
+      }
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const date = new Date(year, month - 1, day);
+      date.setDate(date.getDate() + days);
+      return formatDate(date);
+    };
+    
+    if (isRightSwipe) {
+      // Right swipe = previous date (chronologically earlier)
+      e.preventDefault();
+      e.stopPropagation();
+      const prevDate = addDays(currentDate, -1);
+      handleDateChange(prevDate);
+    } else if (isLeftSwipe && !isToday) {
+      // Left swipe = next date (chronologically later, but disabled if today)
+      e.preventDefault();
+      e.stopPropagation();
+      const nextDate = addDays(currentDate, 1);
+      if (nextDate <= today) {
+        handleDateChange(nextDate);
+      }
+    }
+    
+    // Reset touch state
+    touchStartRef.current = null;
+    touchEndRef.current = null;
+    swipeStartDateRef.current = null;
+  }, [randomMode, gameState, handleDateChange]);
+
+  const handleRandomModeChange = useCallback((newRandomMode: boolean) => {
+    const prefs = loadPreferences();
+    prefs.randomMode = newRandomMode;
+    savePreferences(prefs);
+    setRandomMode(newRandomMode);
+    if (!newRandomMode) {
+      setSelectedPlayDate(formatDate());
+    } else {
+      setSelectedPlayDate('');
+      clearGameDisplay();
+    }
+  }, [clearGameDisplay]);
+
+  const handleRestartPractice = useCallback(() => {
+    if (!dictionary || !randomMode) return;
+    const wordSeed = Date.now();
+    const target = getWordFromSeed(dictionary, wordSeed);
+    const newState: GameState = {
+      guesses: [],
+      currentGuess: '',
+      isComplete: false,
+      isWon: false,
+      language,
+      wordLength,
+      date: Date.now().toString(),
+      isRandomMode: true,
+      wordSeed,
+    };
+    applyNewOrResetGame(newState, target);
+  }, [dictionary, randomMode, language, wordLength, applyNewOrResetGame]);
+
+  // Handle keyboard events
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      // Ctrl+Shift+G (or Cmd+Shift+G): open word index popup — available at any time when dictionary is loaded
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'g' || e.key === 'G')) {
+        e.preventDefault();
+        if (dictionary) {
+          setWordIndexInput('');
+          setShowWordIndexPopup(true);
+        }
+        return;
+      }
+
+      // Don't process game keys when popup is open
+      if (showWordIndexPopup || showFeedbackModal || showAbout) return;
+
+      if (loading) return;
+
+      // If no game or (Training + completed game) and it's a letter, start the game first (same as handleKeyPress)
+      const needStart = dictionary && (!gameState || (randomMode && gameState?.isComplete));
+      if (needStart && e.key.length === 1 && /[a-zA-Zа-яА-ЯёЁ\u0590-\u05FF]/.test(e.key)) {
+        const normalizedKey = e.key.toLowerCase();
+        const currentGuess = gameState?.currentGuess ?? '';
+        const plugins = getInputPlugins(language);
+        const transformedKey = plugins.length > 0
+          ? applyInputPlugins(normalizedKey, currentGuess, wordLength, keyboardRtl, plugins)
+          : normalizedKey;
+        const keyApplied = await handleStartGame(transformedKey);
+        if (!keyApplied) {
+          setTimeout(() => {
+            setGameState((currentState) => {
+              if (currentState && !currentState.isComplete && currentState.currentGuess.length < wordLength) {
+                const next = keyboardRtl ? transformedKey + currentState.currentGuess : currentState.currentGuess + transformedKey;
+                return { ...currentState, currentGuess: next };
+              }
+              return currentState;
+            });
+          }, 0);
+        }
+        return;
+      }
+
+      if (!gameState || gameState.isComplete) return;
+
+      if (e.key === 'Enter') {
+        handleEnter();
+      } else if (e.key === 'Backspace') {
+        handleBackspace();
+      } else if (e.key.length === 1 && /[a-zA-Zа-яА-ЯёЁ\u0590-\u05FF]/.test(e.key)) {
+        handleKeyPress(e.key);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [loading, gameState, randomMode, dictionary, wordLength, language, keyboardRtl, handleEnter, handleBackspace, handleKeyPress, handleStartGame, showWordIndexPopup, showFeedbackModal, showAbout]);
+
+  if (loading) {
+    return <div className="loading">Loading...</div>;
+  }
+
+  if (error) {
+    return <div className="error">Error: {error}</div>;
+  }
+
+  // Simplified render - always show game board
+  if (loading) {
+    return <div className="loading">Loading...</div>;
+  }
+
+  if (error) {
+    return <div className="error">Error: {error}</div>;
+  }
+
+  return (
+    <div 
+      className="game-container"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      <div className="header-section">
+        <h1>
+          {onViewChange && (
+            <span className="header-title-icons-left">
+              <span className="header-icon-with-tooltip">
+                <span className="header-icon-tooltip header-icon-tooltip--left">Single Language Statistics</span>
+                <button
+                  type="button"
+                  className="header-icon-button"
+                  onClick={() => onViewChange('statistics')}
+                  aria-label="Single Language Statistics"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="20" x2="18" y2="10"></line>
+                    <line x1="12" y1="20" x2="12" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="14"></line>
+                  </svg>
+                </button>
+              </span>
+              <span className="header-icon-with-tooltip">
+                <span className="header-icon-tooltip header-icon-tooltip--left">Cross-Language Comparison</span>
+                <button
+                  type="button"
+                  className="header-icon-button"
+                  onClick={() => onViewChange('statistics', 'cross-language')}
+                  aria-label="Cross-Language Comparison"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                    <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                    <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                    <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                  </svg>
+                </button>
+              </span>
+            </span>
+          )}
+          <a href="/" className="header-home-link">PolyWordlot</a>
+          {onViewChange && (
+            <span className="header-title-icons">
+              <span className="header-icon-with-tooltip">
+                <span className="header-icon-tooltip">Mark one or more languages you'd like to be in language selection menu</span>
+                <button
+                  type="button"
+                  className={`header-icon-button ${showOptions ? 'active' : ''}`}
+                  onClick={() => setShowOptions(!showOptions)}
+                  title="Language selection"
+                  aria-label="Language selection"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                  </svg>
+                </button>
+              </span>
+              <span className="header-icon-with-tooltip">
+                <span className="header-icon-tooltip">Please, send comments if you find bugs, incorrect, offensive or missing words. If you'd like to add a new language, it is relatively easy - all you need is a couple of dictionaries for each word length. Please contact the author. I would gladly explain the details and work with you.</span>
+                <button
+                  type="button"
+                  className="header-icon-button"
+                  onClick={() => { setShowFeedbackModal(true); setFeedbackText(''); setFeedbackMessage(null); }}
+                  title="Send feedback"
+                  aria-label="Send feedback"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                    <polyline points="22,6 12,13 2,6"></polyline>
+                  </svg>
+                </button>
+              </span>
+              <button
+                type="button"
+                className="header-icon-button"
+                onClick={() => setShowAbout(true)}
+                title="About"
+                aria-label="About"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <line x1="12" y1="16" x2="12" y2="12"></line>
+                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                </svg>
+              </button>
+              {onLogout && (
+                <button onClick={onLogout} className="header-icon-button" title="Logout" aria-label="Logout">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                  </svg>
+                </button>
+              )}
+            </span>
+          )}
+          <span className="build-commit">{__GIT_COMMIT_HASH__ ? __GIT_COMMIT_HASH__.substring(0, 6) : ''}</span>
+        </h1>
+        {showCalendar && !randomMode && (
+          <div className="calendar-full-panel">
+            <div className="calendar-full-header">
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
+                <button 
+                  className="calendar-today-button"
+                  onClick={() => {
+                    const today = formatDate();
+                    handleDateChange(today);
+                    setShowCalendar(false);
+                  }}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '0.9rem',
+                    backgroundColor: '#667eea',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  Today
+                </button>
+                <button 
+                  className="calendar-close-button"
+                  onClick={() => setShowCalendar(false)}
+                  aria-label="Close calendar"
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '0.9rem',
+                    backgroundColor: '#ccc',
+                    color: '#333',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <Calendar
+              games={calendarGames}
+              currentMonth={calendarMonth}
+              onMonthChange={setCalendarMonth}
+              onDateClick={(date: string) => {
+                handleDateChange(date);
+                setShowCalendar(false);
+              }}
+              blinkingDates={calendarBlinkingDates}
+            />
+          </div>
+        )}
+      </div>
+      <Settings
+        userId={userId}
+        language={language}
+        wordLength={wordLength}
+        randomMode={randomMode}
+        availableLanguages={availableLanguages}
+        selectedDate={selectedPlayDate || formatDate()}
+        onLanguageChange={handleLanguageChange}
+        onWordLengthChange={handleWordLengthChange}
+        onRandomModeChange={handleRandomModeChange}
+        onRestartPractice={handleRestartPractice}
+        onDateChange={handleDateChange}
+        disabled={showCalendar}
+        showCalendar={showCalendar}
+        onShowCalendarChange={setShowCalendar}
+        calendarGames={calendarGames}
+        calendarMonth={calendarMonth}
+        onCalendarMonthChange={setCalendarMonth}
+      />
+      {!showCalendar || randomMode ? (
+        <div className={`game-play-area ${randomMode ? 'game-play-area--random' : ''}`}>
+          {randomMode && (
+            <div className="random-watermark" aria-hidden="true">
+              {Array.from({ length: 30 }).map((_, i) => (
+                <span key={i} className="random-watermark__text">Random</span>
+              ))}
+            </div>
+          )}
+          <div className="game-play-area__content">
+      {!dictionary && !loading && (
+        <GameBoard
+          guesses={[]}
+          currentGuess={''}
+          wordLength={wordLength}
+          maxGuesses={MAX_GUESSES}
+          isComplete={false}
+          isWon={false}
+          rtl={keyboardRtl}
+        />
+      )}
+      {gameState && dictionary && (
+        <>
+          <GameBoard
+            guesses={gameState.guesses}
+            currentGuess={gameState.currentGuess}
+            wordLength={wordLength}
+            maxGuesses={MAX_GUESSES}
+            targetWord={gameState.isComplete && !gameState.isWon ? targetWord : undefined}
+            isComplete={gameState.isComplete}
+            isWon={gameState.isWon}
+            shakeRowIndex={shakeRowIndex}
+            rtl={keyboardRtl}
+          />
+          {gameState.isComplete && (
+            <>
+              <div className="game-result">
+                {gameState.isWon ? (
+                  <div className="result-message success">
+                    {winMessage}
+                  </div>
+                ) : (
+                  <div className="result-message failure">
+                    {loseMessage.replace('{word}', targetWord)}
+                  </div>
+                )}
+              </div>
+              <div className="keyboard-placeholder"></div>
+            </>
+          )}
+          {!gameState.isComplete && (
+            <Keyboard
+              onKeyPress={handleKeyPress}
+              onEnter={handleEnter}
+              onBackspace={handleBackspace}
+              letterStates={letterStates}
+              language={language}
+            />
+          )}
+        </>
+      )}
+      {!gameState && dictionary && (
+        <>
+          <GameBoard
+            guesses={[]}
+            currentGuess={''}
+            wordLength={wordLength}
+            maxGuesses={MAX_GUESSES}
+            isComplete={false}
+            isWon={false}
+            rtl={keyboardRtl}
+          />
+          <Keyboard
+            onKeyPress={handleKeyPress}
+            onEnter={handleEnter}
+            onBackspace={handleBackspace}
+            letterStates={letterStates}
+            language={language}
+          />
+        </>
+      )}
+          </div>
+        </div>
+      ) : null}
+      <LanguageSelector
+        allAvailableLanguages={allAvailableLanguages}
+        isOpen={showOptions}
+        onClose={() => setShowOptions(false)}
+        onSelectionChange={onLanguageSelectionChange}
+      />
+      {showWordIndexPopup && (
+        <div className="word-index-overlay" onClick={() => setShowWordIndexPopup(false)}>
+          <div className="word-index-popup" onClick={(e) => e.stopPropagation()}>
+            <h3>Select Word by Index</h3>
+            <p className="word-index-info">
+              Enter a number (0–{dictionary ? dictionary.answerWordsOriginal.length - 1 : '?'}). 
+              Values outside this range will wrap around.
+            </p>
+            <input
+              type="number"
+              className="word-index-input"
+              value={wordIndexInput}
+              onChange={(e) => setWordIndexInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && wordIndexInput.trim()) {
+                  const num = parseInt(wordIndexInput.trim(), 10);
+                  if (!isNaN(num)) {
+                    handleStartGameWithIndex(num);
+                    setShowWordIndexPopup(false);
+                  }
+                } else if (e.key === 'Escape') {
+                  setShowWordIndexPopup(false);
+                }
+                e.stopPropagation();
+              }}
+              placeholder="Word index..."
+              autoFocus
+            />
+            <div className="word-index-buttons">
+              <button
+                className="word-index-btn word-index-btn-go"
+                onClick={() => {
+                  const num = parseInt(wordIndexInput.trim(), 10);
+                  if (!isNaN(num)) {
+                    handleStartGameWithIndex(num);
+                    setShowWordIndexPopup(false);
+                  }
+                }}
+                disabled={!wordIndexInput.trim() || isNaN(parseInt(wordIndexInput.trim(), 10))}
+              >
+                Go
+              </button>
+              <button
+                className="word-index-btn word-index-btn-cancel"
+                onClick={() => setShowWordIndexPopup(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showFeedbackModal && (
+        <div className="word-index-overlay" onClick={() => !feedbackSending && setShowFeedbackModal(false)}>
+          <div className="feedback-popup" onClick={(e) => e.stopPropagation()}>
+            <h3>Send Feedback</h3>
+            <p className="feedback-popup-info">
+              Please introduce yourself — I only know your email address. Your message will be sent to the author. Your email ({userEmail || 'registered user'}) will be used as the reply address.
+            </p>
+            <textarea
+              className="feedback-textarea"
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setShowFeedbackModal(false);
+                e.stopPropagation();
+              }}
+              placeholder="Your comments, bug reports, or suggestions..."
+              rows={5}
+              autoFocus
+              disabled={feedbackSending}
+            />
+            {feedbackMessage && (
+              <p className={`feedback-message ${feedbackMessage.includes('Thank you') ? 'success' : 'error'}`}>
+                {feedbackMessage}
+              </p>
+            )}
+            <div className="word-index-buttons">
+              <button
+                className="word-index-btn word-index-btn-go"
+                onClick={handleSendFeedback}
+                disabled={!feedbackText.trim() || feedbackSending}
+              >
+                {feedbackSending ? 'Sending...' : 'Send'}
+              </button>
+              <button
+                className="word-index-btn word-index-btn-cancel"
+                onClick={() => !feedbackSending && setShowFeedbackModal(false)}
+                disabled={feedbackSending}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showAbout && (
+        <div className="word-index-overlay" onClick={() => setShowAbout(false)}>
+          <div className="about-popup" onClick={(e) => e.stopPropagation()}>
+            <h3>PolyWordlot</h3>
+            <p className="about-author">Author: <strong>Ilya Volvovski</strong></p>
+            {aboutData?.contributor && (
+              <p className="about-contributor">
+                {aboutData.contributorLabel || 'Contributors'}: <strong>{aboutData.contributor}</strong>
+              </p>
+            )}
+            {onShowTutorial && (
+              <button
+                type="button"
+                className="about-rules-link"
+                onClick={() => {
+                  setShowAbout(false);
+                  onShowTutorial();
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+                {aboutData?.rulesLabel || 'Game Rules'}
+              </button>
+            )}
+            <button
+              className="about-close-btn"
+              onClick={() => setShowAbout(false)}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+

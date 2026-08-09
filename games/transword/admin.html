@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TransWord Admin · Wordaholic</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./admin.css" />
+  <style>
+    #gate { max-width: 360px; margin: 4rem auto; padding: 1.5rem; background: var(--surface, #161923); border-radius: 10px; }
+    #gate input { width: 100%; margin: 0.75rem 0; padding: 0.55rem; }
+    .wh-nav { padding: 0.75rem 1rem; }
+    .wh-nav a { color: var(--text-dim, #7a7e94); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="wh-nav"><a href="/">← Wordaholic</a> · <a href="./index.html">Play</a></div>
+
+  <div id="gate">
+    <h1>TransWord Admin</h1>
+    <p class="hint">Enter the admin password to continue.</p>
+    <input id="pw" type="password" autocomplete="current-password" placeholder="Password" />
+    <button id="unlock-btn">Unlock</button>
+    <p id="gate-err" class="hint" style="color:#f06068"></p>
+  </div>
+
+  <div id="controls" class="hidden">
+    <header>
+      <h1>TransWord <span class="badge">Maintainer</span></h1>
+      <p class="subtitle">Analyse corpus, generate pairs, test solutions.</p>
+    </header>
+    <div id="log"></div>
+    <section class="panel">
+      <h2>Language</h2>
+      <div class="row"><label>Language <select id="language-select"></select></label></div>
+    </section>
+    <section class="panel">
+      <h2>Analyse Graph</h2>
+      <div class="row">
+        <label>Sample size <input type="number" id="sample-size" value="200" min="10" max="2000" /></label>
+        <button id="analyse-btn">Analyse</button>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Generate Puzzle Pairs</h2>
+      <div class="row">
+        <label>Min steps <input type="number" id="min-steps" value="3" /></label>
+        <label>Max steps <input type="number" id="max-steps" value="6" /></label>
+        <label>Count <input type="number" id="pair-count" value="10" /></label>
+        <button id="generate-btn">Generate</button>
+      </div>
+      <pre id="pairs-out"></pre>
+    </section>
+    <section class="panel">
+      <h2>Solve a Pair</h2>
+      <div class="row">
+        <label>Start <input type="text" id="start-word" /></label>
+        <label>End <input type="text" id="end-word" /></label>
+        <button id="solve-btn">Solve</button>
+      </div>
+      <pre id="solve-out"></pre>
+    </section>
+  </div>
+
+  <script type="module" src="./admin.js"></script>
+</body>
+</html>
