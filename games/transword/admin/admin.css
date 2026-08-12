@@ -85,7 +85,7 @@ h1 {
   color: var(--text-dim);
 }
 
-#log::-webkit-scrollbar { width: 5px; }
+#log:empty { display: none; }
 #log::-webkit-scrollbar-track { background: transparent; }
 #log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 

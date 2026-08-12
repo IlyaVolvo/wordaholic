@@ -67,7 +67,7 @@ export function shortestPath(graph, start, end) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Generate puzzle pairs by sampling random starting words and collecting
+ * Generate puzzle pairs by sampling starting words and collecting
  * reachable words at desired distances.
  *
  * @param {import('./graph.js').WordGraph} graph
@@ -76,44 +76,49 @@ export function shortestPath(graph, start, end) {
  * @param {number}  opts.maxSteps   maximum shortest-path distance (inclusive)
  * @param {number}  [opts.count=20]    how many pairs to return
  * @param {number}  [opts.sampleSize=200] how many seed words to BFS from
+ * @param {number}  [opts.seed] optional RNG seed for deterministic Daily puzzles
  * @returns {{start: string, end: string, dist: number, path: string[]}[]}
  */
 export function generatePuzzles(graph, opts) {
-  const { minSteps, maxSteps, count = 20, sampleSize = 200 } = opts;
+  const { minSteps, maxSteps, count = 20, sampleSize = 200, seed } = opts;
+  const rng = seed == null ? Math.random : mulberry32(seed >>> 0);
   const words = graph.words;
   const puzzles = [];
   const usedStarts = new Set();
-  const usedEnds   = new Set();
-  const seen       = new Set();
+  const usedEnds = new Set();
+  const seen = new Set();
 
-  const seeds = _sample(words, Math.min(sampleSize, words.length));
+  const seeds = _sample(words, Math.min(sampleSize, words.length), rng);
 
-  for (const seed of seeds) {
+  for (const startWord of seeds) {
     if (puzzles.length >= count) break;
-    if (usedStarts.has(seed)) continue;
+    if (usedStarts.has(startWord)) continue;
 
-    const result = bfs(graph, seed, maxSteps);
+    const result = bfs(graph, startWord, maxSteps);
 
-    // Collect all valid candidates, then pick one at random per seed
     const candidates = [];
     for (const [word, { dist }] of result) {
       if (dist < minSteps || dist > maxSteps) continue;
       if (usedEnds.has(word)) continue;
-      const key = [seed, word].sort().join('|');
+      const key = [startWord, word].sort().join('|');
       if (seen.has(key)) continue;
       candidates.push({ word, dist, key });
     }
 
     if (candidates.length === 0) continue;
 
-    // Pick a random candidate (one per seed for diversity)
-    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    const pick = candidates[Math.floor(rng() * candidates.length)];
     seen.add(pick.key);
-    usedStarts.add(seed);
+    usedStarts.add(startWord);
     usedEnds.add(pick.word);
 
-    const path = reconstructPath(result, seed, pick.word);
-    puzzles.push({ start: seed, end: pick.word, dist: pick.dist, path });
+    const path = reconstructPath(result, startWord, pick.word);
+    puzzles.push({
+      start: startWord,
+      end: pick.word,
+      dist: path ? path.length - 1 : pick.dist,
+      path,
+    });
   }
 
   puzzles.sort((a, b) => a.dist - b.dist);
@@ -189,11 +194,23 @@ function _connectedComponents(graph) {
   return components;
 }
 
-function _sample(arr, n) {
+function _sample(arr, n, rng = Math.random) {
   const copy = arr.slice();
   for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy.slice(0, n);
+}
+
+/** @param {number} seed */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function next() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }

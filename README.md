@@ -38,5 +38,13 @@ Sibling repos required for `sync-dicts`:
 
 ## TransWord admin
 
-Default password: `wordaholic-admin`  
-Change hash in `games/transword/admin-password.js`.
+Hidden at `/games/transword/admin` (password gate; not linked from the play UI).
+
+On Render, set env `ADMIN_PASSWORD` to the **SHA-256 hex** of your password (hashed form — not plaintext):
+
+```bash
+node scripts/hash-admin-password.js 'your-password'
+# → paste the printed hex as ADMIN_PASSWORD
+```
+
+Build embeds that hash into the admin gate. Local builds without the env var fall back to password `sobaka12`.

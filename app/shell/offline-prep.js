@@ -34,7 +34,7 @@ export async function prepareOffline(onProgress) {
   onProgress(5, 'Registering offline worker…');
   if ('serviceWorker' in navigator) {
     try {
-      await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
       await navigator.serviceWorker.ready;
     } catch (err) {
       console.warn('SW registration failed', err);

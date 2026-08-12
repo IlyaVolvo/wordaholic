@@ -1,6 +1,5 @@
-import { WordGraph } from './graph.js';
-import { analyseGraph, generatePuzzles, shortestPath } from './solver.js';
-import { verifyAdminPassword } from './admin-password.js';
+import { WordGraph } from '../graph.js';
+import { analyseGraph, generatePuzzles, shortestPath } from '../solver.js';
 
 const $ = (sel) => document.querySelector(sel);
 const LANG_BASE = '/games/transword/data/languages';
@@ -38,19 +37,7 @@ async function loadGraph(dir) {
   log(`Graph ready: ${info.words} words, ${info.edges} edges (${info.ms}ms)`);
 }
 
-async function unlock() {
-  const ok = await verifyAdminPassword($('#pw').value);
-  if (!ok) {
-    $('#gate-err').textContent = 'Incorrect password';
-    return;
-  }
-  sessionStorage.setItem('wordaholic.twAdmin', '1');
-  $('#gate').classList.add('hidden');
-  $('#controls').classList.remove('hidden');
-  await bootAdmin();
-}
-
-async function bootAdmin() {
+export async function bootAdmin() {
   const res = await fetch(`${LANG_BASE}/index.json`);
   const list = await res.json();
   const langs = list.filter((l) => Number(l.words || 0) > 0);
@@ -78,15 +65,4 @@ async function bootAdmin() {
     $('#solve-out').textContent = result ? `${result.dist}: ${result.path.join(' → ')}` : 'No path';
   });
   await loadGraph(sel.value);
-}
-
-$('#unlock-btn').addEventListener('click', unlock);
-$('#pw').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') unlock();
-});
-
-if (sessionStorage.getItem('wordaholic.twAdmin') === '1') {
-  $('#gate').classList.add('hidden');
-  $('#controls').classList.remove('hidden');
-  bootAdmin();
 }

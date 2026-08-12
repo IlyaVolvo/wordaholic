@@ -1,5 +1,12 @@
 import { WordGraph } from './graph.js';
-import { generatePuzzles } from './solver.js';
+import { generatePuzzles, shortestPath } from './solver.js';
+import {
+  formatLocalDate,
+  getDailyPuzzle,
+  difficultyRangeFromValue,
+  isPathSolved,
+} from './dailyPuzzle.js';
+import { getDaily, upsertDaily, listDailies, computeDailyStats } from './daily-store.js';
 import { storage } from '../../app/storage/idb.js';
 import { setSessionActive } from '../../app/updates/manifest.js';
 import { notifySessionEnded } from '../../app/shell/update-ui.js';
@@ -12,6 +19,7 @@ import { languageDirForTranswordDir } from '../../app/shell/locales.js';
 import { normalizeWithMappings } from '../../app/i18n/normalize.js';
 
 const GAME_ID = 'transword';
+const PREFS_KEY = 'wordaholic-transword-prefs';
 const $ = (sel) => document.querySelector(sel);
 
 const DEFAULT_LAYOUT = [
@@ -25,16 +33,75 @@ const DEFAULT_ACTIONS = {
 };
 const OP_LABELS = { substitute: 'replaced', insert: 'added', delete: 'removed', anagram: 'anagrammed' };
 
+/** @type {{ showTime: boolean, showOptimal: boolean, mode?: 'daily'|'practice' }} */
+let displayPrefs = loadDisplayPrefs();
+
+function loadDisplayPrefs() {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (!raw) return { showTime: true, showOptimal: true, mode: 'daily' };
+    const parsed = JSON.parse(raw);
+    return {
+      showTime: parsed.showTime !== false,
+      showOptimal: parsed.showOptimal !== false,
+      mode: parsed.mode === 'practice' ? 'practice' : 'daily',
+    };
+  } catch {
+    return { showTime: true, showOptimal: true, mode: 'daily' };
+  }
+}
+
+function saveDisplayPrefs() {
+  localStorage.setItem(PREFS_KEY, JSON.stringify(displayPrefs));
+}
+
+function applyDisplayPrefs() {
+  const timeOn = displayPrefs.showTime;
+  const optOn = displayPrefs.showOptimal;
+  $('#stat-time')?.classList.toggle('stat--hidden', !timeOn);
+  $('#stat-optimal')?.classList.toggle('stat--hidden', !optOn);
+  $('#win-stat-time')?.classList.toggle('stat--hidden', !timeOn);
+  $('#win-stat-optimal')?.classList.toggle('stat--hidden', !optOn);
+  const timeCb = /** @type {HTMLInputElement | null} */ ($('#pref-show-time'));
+  const optCb = /** @type {HTMLInputElement | null} */ ($('#pref-show-optimal'));
+  if (timeCb) timeCb.checked = timeOn;
+  if (optCb) optCb.checked = optOn;
+}
+
+function wireDisplayPrefs() {
+  $('#pref-show-time')?.addEventListener('change', (e) => {
+    displayPrefs.showTime = /** @type {HTMLInputElement} */ (e.target).checked;
+    saveDisplayPrefs();
+    applyDisplayPrefs();
+    if (displayPrefs.showTime) updateTimerDisplay();
+  });
+  $('#pref-show-optimal')?.addEventListener('change', (e) => {
+    displayPrefs.showOptimal = /** @type {HTMLInputElement} */ (e.target).checked;
+    saveDisplayPrefs();
+    applyDisplayPrefs();
+  });
+  applyDisplayPrefs();
+}
+
 let corpusEntries = [];
 let fullGraph = null;
 let puzzleGraph = null;
 let puzzle = null;
 let chain = [];
-let timerStart = null;
+/** Accumulated ms while paused + current segment */
+let elapsedMsStored = 0;
+let timerSegmentStart = null;
 let timerHandle = null;
 let solved = false;
-let language = 'en'; // locale code e.g. en
-let languageDir = 'English'; // original TransWord directory name
+let readOnly = false;
+let playMode = displayPrefs.mode || 'daily';
+/** Selected daily date (local YYYY-MM-DD) */
+let selectedGameDate = formatLocalDate();
+let calendarMonth = new Date();
+calendarMonth.setDate(1);
+
+let language = 'en';
+let languageDir = 'English';
 let languageConfig = {};
 let languageOptions = [];
 
@@ -47,6 +114,27 @@ function normalizeForLanguage(word) {
 
 function selectedLevel() {
   return parseInt($('#level-select').value, 10);
+}
+
+function selectedDifficulty() {
+  return parseInt($('#difficulty').value, 10);
+}
+
+/** Shortest path in transforms (words − 1), using the same dictionary the player can use. */
+function optimalStepCount(start, end, fallback) {
+  if (!fullGraph || !start || !end) return fallback;
+  const result = shortestPath(fullGraph, start, end);
+  if (!result) return fallback;
+  return result.dist;
+}
+
+function currentCombo() {
+  return {
+    language,
+    vocabLevel: selectedLevel(),
+    difficulty: selectedDifficulty(),
+    gameDate: selectedGameDate,
+  };
 }
 
 function buildGraphs(entries) {
@@ -96,17 +184,12 @@ function isBlockedInGame(cfg) {
 
 async function loadLanguagesCatalog() {
   const preferred = new Set(getPreferredLanguageCodes());
-  const urls = [`${LANG_BASE}/index.json`];
   let list = [];
-  for (const url of urls) {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      list = await res.json();
-      break;
-    } catch {
-      /* try next */
-    }
+  try {
+    const res = await fetch(`${LANG_BASE}/index.json`);
+    if (res.ok) list = await res.json();
+  } catch {
+    /* empty */
   }
   const playable = [];
   for (const entry of list) {
@@ -132,9 +215,33 @@ async function loadLanguagesCatalog() {
   return filtered.length ? filtered : playable;
 }
 
+function applyModeChrome() {
+  const daily = playMode === 'daily';
+  $('#mode-daily')?.classList.toggle('active', daily);
+  $('#mode-practice')?.classList.toggle('active', !daily);
+  $('#btn-history')?.classList.toggle('hidden', !daily);
+  $('#btn-new-practice')?.classList.toggle('hidden', daily);
+}
+
+async function setPlayMode(mode) {
+  if (mode !== 'daily' && mode !== 'practice') return;
+  await pauseAndPersist();
+  playMode = mode;
+  displayPrefs.mode = mode;
+  saveDisplayPrefs();
+  applyModeChrome();
+  if (mode === 'daily') {
+    selectedGameDate = formatLocalDate();
+    await loadDailyForSelection();
+  } else {
+    startPracticePuzzle();
+  }
+}
+
 async function switchLanguage(code, startPuzzle = true) {
   const opt = languageOptions.find((l) => l.code === code) || languageOptions.find((l) => l.dir === code);
   if (!opt) throw new Error(`Unknown language ${code}`);
+  await pauseAndPersist();
   language = opt.code;
   languageDir = opt.dir;
   setLastLanguage(language);
@@ -146,53 +253,153 @@ async function switchLanguage(code, startPuzzle = true) {
   buildGraphs(corpusEntries);
   renderKeyboard();
   hideLoading();
-  if (startPuzzle) startNewPuzzle();
+  if (startPuzzle) {
+    if (playMode === 'daily') await loadDailyForSelection();
+    else startPracticePuzzle();
+  }
 }
 
-function difficultyRange() {
-  const v = parseInt($('#difficulty').value, 10);
-  if (v <= 3) return [2, 3];
-  if (v <= 5) return [4, 5];
-  return [6, 8];
-}
-
-function startNewPuzzle() {
-  const [min, max] = difficultyRange();
+function startPracticePuzzle() {
+  readOnly = false;
+  solved = false;
+  elapsedMsStored = 0;
+  const [min, max] = difficultyRangeFromValue(selectedDifficulty());
   const puzzles = generatePuzzles(puzzleGraph, { minSteps: min, maxSteps: max, count: 5, sampleSize: 400 });
   if (!puzzles.length) {
     alert('Could not find a puzzle for this difficulty / level.');
     return;
   }
-  puzzle = puzzles[Math.floor(Math.random() * puzzles.length)];
+  const pick = puzzles[Math.floor(Math.random() * puzzles.length)];
+  puzzle = {
+    start: pick.start,
+    end: pick.end,
+    dist: optimalStepCount(pick.start, pick.end, pick.path.length - 1),
+  };
   chain = [puzzle.start];
-  solved = false;
   setSessionActive(GAME_ID, true);
   $('#target-word').textContent = puzzle.end;
-  $('#optimal-count').textContent = puzzle.dist;
-  $('#step-count').textContent = '0';
+  $('#optimal-count').textContent = String(puzzle.dist);
   $('#win-overlay').classList.add('hidden');
   startTimer();
   renderChain();
 }
 
+async function loadDailyForSelection() {
+  readOnly = false;
+  solved = false;
+  const combo = currentCombo();
+  let record = await getDaily(combo);
+
+  if (!record) {
+    const generated = getDailyPuzzle(puzzleGraph, combo);
+    if (!generated) {
+      alert('Could not find a daily puzzle for this combination.');
+      return;
+    }
+    puzzle = {
+      start: generated.start,
+      end: generated.end,
+      dist: optimalStepCount(generated.start, generated.end, generated.path.length - 1),
+    };
+    chain = [puzzle.start];
+    elapsedMsStored = 0;
+    record = await upsertDaily({
+      ...combo,
+      start: puzzle.start,
+      end: puzzle.end,
+      optimal: puzzle.dist,
+      path: [...chain],
+      elapsedMs: 0,
+      isComplete: false,
+    });
+  } else {
+    puzzle = {
+      start: record.start,
+      end: record.end,
+      dist: optimalStepCount(record.start, record.end, record.optimal),
+    };
+    chain = Array.isArray(record.path) && record.path.length ? [...record.path] : [record.start];
+    elapsedMsStored = Number(record.elapsedMs) || 0;
+    if (record.isComplete || isPathSolved(chain, record.start, record.end)) {
+      solved = true;
+      readOnly = true;
+      stopTimer();
+      setSessionActive(GAME_ID, false);
+      $('#target-word').textContent = puzzle.end;
+      $('#optimal-count').textContent = String(puzzle.dist);
+      renderChain();
+      return;
+    }
+  }
+
+  setSessionActive(GAME_ID, true);
+  $('#target-word').textContent = puzzle.end;
+  $('#optimal-count').textContent = String(puzzle.dist);
+  $('#win-overlay').classList.add('hidden');
+  startTimer();
+  renderChain();
+}
+
+function currentElapsedMs() {
+  let total = elapsedMsStored;
+  if (timerSegmentStart != null) total += Date.now() - timerSegmentStart;
+  return Math.max(0, total);
+}
+
 function startTimer() {
-  if (timerHandle) clearInterval(timerHandle);
-  timerStart = Date.now();
+  stopTimer(false);
+  if (solved || readOnly) {
+    updateTimerDisplay();
+    return;
+  }
+  timerSegmentStart = Date.now();
   updateTimerDisplay();
   timerHandle = setInterval(updateTimerDisplay, 250);
 }
-function stopTimer() {
+
+function stopTimer(accumulate = true) {
   if (timerHandle) {
     clearInterval(timerHandle);
     timerHandle = null;
   }
+  if (accumulate && timerSegmentStart != null) {
+    elapsedMsStored += Date.now() - timerSegmentStart;
+    timerSegmentStart = null;
+  } else {
+    timerSegmentStart = null;
+  }
 }
-function elapsedStr() {
-  const s = Math.floor((Date.now() - timerStart) / 1000);
+
+function formatElapsed(ms) {
+  const s = Math.floor(ms / 1000);
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
+
+function elapsedStr() {
+  return formatElapsed(currentElapsedMs());
+}
+
 function updateTimerDisplay() {
+  if (!displayPrefs.showTime) return;
   $('#timer').textContent = elapsedStr();
+}
+
+async function pauseAndPersist() {
+  if (playMode !== 'daily' || !puzzle) {
+    stopTimer(true);
+    return;
+  }
+  stopTimer(true);
+  if (solved && readOnly) return;
+  await upsertDaily({
+    ...currentCombo(),
+    start: puzzle.start,
+    end: puzzle.end,
+    optimal: puzzle.dist,
+    path: [...chain],
+    elapsedMs: elapsedMsStored,
+    isComplete: solved || isPathSolved(chain, puzzle.start, puzzle.end),
+  });
 }
 
 function diffLetters(prev, cur, op) {
@@ -226,13 +433,21 @@ function renderChain() {
   container.innerHTML = '';
   for (let i = 0; i < chain.length; i++) {
     if (i > 0) container.appendChild(makeConnector(chain[i - 1], chain[i]));
-    container.appendChild(makeWordNode(chain[i], i === 0, chain[i] === puzzle.end, !solved && i === chain.length - 1 && i > 0, i > 0 ? chain[i - 1] : null));
+    container.appendChild(
+      makeWordNode(
+        chain[i],
+        i === 0,
+        chain[i] === puzzle.end,
+        !readOnly && !solved && i === chain.length - 1 && i > 0,
+        i > 0 ? chain[i - 1] : null
+      )
+    );
   }
-  if (!solved) {
+  if (!solved && !readOnly) {
     container.appendChild(makeConnector(null, null));
     container.appendChild(makeInputNode());
   }
-  $('#step-count').textContent = String(chain.length - 1);
+  $('#step-count').textContent = String(Math.max(0, chain.length - 1));
   const c = $('#chain-container');
   requestAnimationFrame(() => {
     c.scrollTop = c.scrollHeight;
@@ -262,10 +477,11 @@ function makeWordNode(word, isStart, isEnd, canUndo, prevWord) {
     const x = document.createElement('button');
     x.className = 'undo-x';
     x.textContent = '↑';
-    x.addEventListener('click', () => {
-      if (chain.length > 1 && !solved) {
+    x.addEventListener('click', async () => {
+      if (chain.length > 1 && !solved && !readOnly) {
         chain.pop();
         renderChain();
+        await persistDailyProgress();
       }
     });
     wrap.appendChild(x);
@@ -316,7 +532,22 @@ function makeInputNode() {
   return node;
 }
 
-function submitWord(word) {
+async function persistDailyProgress() {
+  if (playMode !== 'daily' || !puzzle) return;
+  const complete = solved || isPathSolved(chain, puzzle.start, puzzle.end);
+  await upsertDaily({
+    ...currentCombo(),
+    start: puzzle.start,
+    end: puzzle.end,
+    optimal: puzzle.dist,
+    path: [...chain],
+    elapsedMs: currentElapsedMs(),
+    isComplete: complete,
+  });
+}
+
+async function submitWord(word) {
+  if (readOnly || solved) return;
   const input = $('#word-input');
   const hint = $('#error-hint');
   if (!word) return;
@@ -327,16 +558,29 @@ function submitWord(word) {
   const op = fullGraph.classifyOp(prev, normalizedWord);
   if (!op) return flashError(input, hint, 'Not a valid single-step transform');
   chain.push(normalizedWord);
-  if (normalizedWord === puzzle.end) {
+  if (normalizedWord === puzzle.end || isPathSolved(chain, puzzle.start, puzzle.end)) {
     solved = true;
-    stopTimer();
+    stopTimer(true);
     setSessionActive(GAME_ID, false);
     notifySessionEnded();
     renderChain();
-    showWin();
+    if (playMode === 'daily') {
+      readOnly = true;
+      await upsertDaily({
+        ...currentCombo(),
+        start: puzzle.start,
+        end: puzzle.end,
+        optimal: puzzle.dist,
+        path: [...chain],
+        elapsedMs: elapsedMsStored,
+        isComplete: true,
+      });
+    }
+    showWin(true);
     return;
   }
   renderChain();
+  await persistDailyProgress();
 }
 
 function flashError(input, hint, msg) {
@@ -354,19 +598,20 @@ function renderKeyboard() {
   const actions = languageConfig?.actions || DEFAULT_ACTIONS;
   const rtl = !!languageConfig?.rtl;
   const lastRow = Math.max(layout.length - 1, 0);
-  const enterCfg = { label: actions?.enter?.label || 'ENTER', position: actions?.enter?.position || 'start', row: Number.isInteger(actions?.enter?.row) ? actions.enter.row : lastRow };
-  const backCfg = { label: actions?.backspace?.label || '⌫', position: actions?.backspace?.position || 'end', row: Number.isInteger(actions?.backspace?.row) ? actions.backspace.row : lastRow };
+  const enterCfg = {
+    label: actions?.enter?.label || 'ENTER',
+    position: actions?.enter?.position || 'start',
+    row: Number.isInteger(actions?.enter?.row) ? actions.enter.row : lastRow,
+  };
+  const backCfg = {
+    label: actions?.backspace?.label || '⌫',
+    position: actions?.backspace?.position || 'end',
+    row: Number.isInteger(actions?.backspace?.row) ? actions.backspace.row : lastRow,
+  };
 
   for (let rowIndex = 0; rowIndex < layout.length; rowIndex++) {
     const rowEl = document.createElement('div');
     rowEl.className = 'keyboard-row';
-    const addAction = (cfg, type) => {
-      if (cfg.row !== rowIndex || cfg.position === 'none') return;
-      if (cfg.position === 'start' || cfg.position === 'end') {
-        /* added below in order */
-      }
-    };
-    void addAction;
     const maybe = (cfg, type, pos) => {
       if (cfg.row !== rowIndex || cfg.position !== pos) return;
       const btn = document.createElement('button');
@@ -375,7 +620,7 @@ function renderKeyboard() {
       btn.textContent = cfg.label;
       btn.addEventListener('click', () => {
         const input = $('#word-input');
-        if (!input || solved) return;
+        if (!input || solved || readOnly) return;
         if (type === 'enter') submitWord(input.value.trim().toLowerCase());
         else input.value = rtl ? input.value.slice(1) : input.value.slice(0, -1);
       });
@@ -390,7 +635,7 @@ function renderKeyboard() {
       btn.textContent = String(key).toUpperCase();
       btn.addEventListener('click', () => {
         const input = $('#word-input');
-        if (!input || solved) return;
+        if (!input || solved || readOnly) return;
         input.value = (rtl ? `${key}${input.value}` : `${input.value}${key}`).toLowerCase();
         input.focus();
       });
@@ -402,33 +647,23 @@ function renderKeyboard() {
   }
 }
 
-async function showWin() {
-  const steps = chain.length - 1;
-  $('#win-steps').textContent = steps;
-  $('#win-optimal').textContent = puzzle.dist;
-  $('#win-time').textContent = elapsedStr();
-  $('#win-path').innerHTML = chain
-    .map((w, i) => {
-      if (i === 0) return `<strong>${w}</strong>`;
-      const op = fullGraph.classifyOp(chain[i - 1], w);
-      const badge = op ? `<span class="op-inline ${op}">${OP_LABELS[op]}</span>` : '';
-      return ` → ${badge} <strong>${w}</strong>`;
-    })
-    .join('');
+/**
+ * @param {boolean} [freshSolve]
+ */
+function showWin(freshSolve = true) {
+  const steps = Math.max(0, chain.length - 1);
+  $('#win-steps').textContent = String(steps);
+  $('#win-optimal').textContent = String(puzzle.dist);
+  $('#win-time').textContent = formatElapsed(elapsedMsStored || currentElapsedMs());
+
+  const winNew = $('#win-new-btn');
+  if (playMode === 'practice') {
+    winNew?.classList.remove('hidden');
+  } else {
+    winNew?.classList.add('hidden');
+  }
   $('#win-overlay').classList.remove('hidden');
-  await storage.putResult(GAME_ID, language, {
-    storageSchema: 1,
-    start: puzzle.start,
-    end: puzzle.end,
-    steps,
-    optimal: puzzle.dist,
-    path: [...chain],
-    elapsedMs: Date.now() - timerStart,
-  });
-  const stats = (await storage.getStatistics(GAME_ID)) || { solved: 0, totalSteps: 0 };
-  stats.solved += 1;
-  stats.totalSteps += steps;
-  await storage.setStatistics(GAME_ID, stats);
+  void freshSolve;
 }
 
 function setLoading(msg) {
@@ -445,18 +680,141 @@ function hideLoading() {
   setTimeout(() => $('#loading').classList.add('hidden'), 400);
 }
 
-export const plugin = {
-  id: GAME_ID,
-  name: 'TransWord',
-  storageSchema: 1,
-  languages: [],
-  async initialize() {},
-  start() { startNewPuzzle(); },
-  saveState() { return { language, chain, puzzle, solved }; },
-  restoreState() {},
-  getStatistics() { return storage.getStatistics(GAME_ID); },
-  isSessionActive() { return !solved && chain.length > 1; },
-};
+/* ---------- History calendar ---------- */
+
+function openHistory() {
+  const overlay = $('#history-overlay');
+  if (!overlay) return;
+  const combo = currentCombo();
+  const diffLabel =
+    combo.difficulty <= 3 ? 'Easy' : combo.difficulty <= 5 ? 'Medium' : 'Hard';
+  const vocabLabel = combo.vocabLevel <= 1 ? 'Basic' : 'Standard';
+  $('#history-combo-label').textContent = `${language} · ${vocabLabel} · ${diffLabel}`;
+  overlay.hidden = false;
+  overlay.classList.remove('hidden');
+  void renderCalendar();
+}
+
+function closeHistory() {
+  const overlay = $('#history-overlay');
+  if (!overlay) return;
+  overlay.hidden = true;
+  overlay.classList.add('hidden');
+}
+
+async function renderCalendar() {
+  const label = $('#cal-month-label');
+  const grid = $('#calendar-grid');
+  if (!label || !grid) return;
+  label.textContent = calendarMonth.toLocaleString(undefined, { month: 'long', year: 'numeric' });
+
+  const combo = currentCombo();
+  const rows = await listDailies({
+    language: combo.language,
+    vocabLevel: combo.vocabLevel,
+    difficulty: combo.difficulty,
+  });
+  const byDate = new Map(rows.map((r) => [r.gameDate, r]));
+
+  const year = calendarMonth.getFullYear();
+  const month = calendarMonth.getMonth();
+  const first = new Date(year, month, 1);
+  const startPad = first.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = formatLocalDate();
+
+  grid.innerHTML = '';
+  for (let i = 0; i < startPad; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'calendar-day other';
+    grid.appendChild(cell);
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'calendar-day';
+    cell.textContent = String(day);
+    if (dateStr === today) cell.classList.add('today');
+    if (dateStr > today) {
+      cell.classList.add('future');
+      cell.disabled = true;
+    } else {
+      const rec = byDate.get(dateStr);
+      if (rec?.isComplete) cell.classList.add('won');
+      else if (rec && (rec.path?.length || 0) > 1) cell.classList.add('incomplete');
+      cell.addEventListener('click', async () => {
+        closeHistory();
+        await pauseAndPersist();
+        selectedGameDate = dateStr;
+        playMode = 'daily';
+        displayPrefs.mode = 'daily';
+        saveDisplayPrefs();
+        applyModeChrome();
+        await loadDailyForSelection();
+      });
+    }
+    grid.appendChild(cell);
+  }
+}
+
+/* ---------- Stats ---------- */
+
+function openStats() {
+  const overlay = $('#stats-overlay');
+  if (!overlay) return;
+  const langSel = $('#stats-lang');
+  if (langSel && langSel.options.length <= 1) {
+    for (const l of languageOptions) {
+      const opt = document.createElement('option');
+      opt.value = l.code;
+      opt.textContent = `${l.flag || ''} ${l.menu}`.trim();
+      langSel.appendChild(opt);
+    }
+  }
+  if (langSel) langSel.value = language;
+  const vocab = $('#stats-vocab');
+  const diff = $('#stats-diff');
+  if (vocab) vocab.value = String(selectedLevel());
+  if (diff) diff.value = String(selectedDifficulty());
+  overlay.hidden = false;
+  overlay.classList.remove('hidden');
+  void refreshStats();
+}
+
+function closeStats() {
+  const overlay = $('#stats-overlay');
+  if (!overlay) return;
+  overlay.hidden = true;
+  overlay.classList.add('hidden');
+}
+
+async function refreshStats() {
+  const filters = {
+    language: $('#stats-lang')?.value || 'all',
+    vocabLevel: $('#stats-vocab')?.value || 'all',
+    difficulty: $('#stats-diff')?.value || 'all',
+  };
+  const rows = await listDailies(filters);
+  const stats = computeDailyStats(rows, filters);
+  $('#stats-played').textContent = String(stats.played);
+  $('#stats-winrate').textContent = stats.played ? '100%' : '—';
+  $('#stats-streak').textContent = stats.streak == null ? '—' : String(stats.streak);
+  $('#stats-avg-steps').textContent = stats.played ? stats.avgSteps.toFixed(1) : '—';
+  $('#stats-avg-optimal').textContent = stats.played ? stats.avgOptimal.toFixed(1) : '—';
+  $('#stats-avg-time').textContent = stats.played ? formatElapsed(stats.avgElapsedMs) : '—';
+}
+
+async function onComboControlsChanged() {
+  await pauseAndPersist();
+  buildGraphs(corpusEntries);
+  if (playMode === 'daily') {
+    selectedGameDate = formatLocalDate();
+    await loadDailyForSelection();
+  } else {
+    startPracticePuzzle();
+  }
+}
 
 async function init() {
   await storage.open();
@@ -474,20 +832,53 @@ async function init() {
   if (!picked) throw new Error('No TransWord languages available');
   sel.value = picked;
   $('#game').classList.remove('hidden');
-  $('#new-btn').addEventListener('click', () => startNewPuzzle());
-  $('#win-new-btn').addEventListener('click', () => {
+  wireDisplayPrefs();
+  applyModeChrome();
+
+  $('#mode-daily')?.addEventListener('click', () => setPlayMode('daily'));
+  $('#mode-practice')?.addEventListener('click', () => setPlayMode('practice'));
+  $('#btn-history')?.addEventListener('click', () => openHistory());
+  $('#btn-new-practice')?.addEventListener('click', () => startPracticePuzzle());
+  $('#btn-stats')?.addEventListener('click', () => openStats());
+  $('#win-new-btn')?.addEventListener('click', () => {
     $('#win-overlay').classList.add('hidden');
-    startNewPuzzle();
+    startPracticePuzzle();
   });
-  $('#level-select').addEventListener('change', () => {
-    showLoading('Rebuilding graph…');
-    requestAnimationFrame(() => {
-      buildGraphs(corpusEntries);
-      hideLoading();
-      startNewPuzzle();
-    });
+  $('#win-close-btn')?.addEventListener('click', () => {
+    $('#win-overlay').classList.add('hidden');
   });
+  document.querySelectorAll('[data-history-close]').forEach((el) => el.addEventListener('click', closeHistory));
+  document.querySelectorAll('[data-stats-close]').forEach((el) => el.addEventListener('click', closeStats));
+  $('#history-overlay')?.addEventListener('click', (e) => {
+    if (e.target === $('#history-overlay')) closeHistory();
+  });
+  $('#stats-overlay')?.addEventListener('click', (e) => {
+    if (e.target === $('#stats-overlay')) closeStats();
+  });
+  $('#cal-prev')?.addEventListener('click', () => {
+    calendarMonth.setMonth(calendarMonth.getMonth() - 1);
+    void renderCalendar();
+  });
+  $('#cal-next')?.addEventListener('click', () => {
+    calendarMonth.setMonth(calendarMonth.getMonth() + 1);
+    void renderCalendar();
+  });
+  ['stats-lang', 'stats-vocab', 'stats-diff'].forEach((id) => {
+    $(`#${id}`)?.addEventListener('change', () => void refreshStats());
+  });
+
+  $('#level-select').addEventListener('change', () => void onComboControlsChanged());
+  $('#difficulty').addEventListener('change', () => void onComboControlsChanged());
   sel.addEventListener('change', (e) => switchLanguage(e.target.value, true));
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) void pauseAndPersist();
+    else if (playMode === 'daily' && !solved && !readOnly) startTimer();
+  });
+  window.addEventListener('pagehide', () => {
+    void pauseAndPersist();
+  });
+
   await switchLanguage(picked, true);
 }
 

@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { buildLanguagesCatalog } from './build-languages-catalog.js';
+import { embedAdminPassword } from './embed-admin-password.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -77,6 +78,7 @@ function main() {
 
   // TransWord stays static; PolyWordlot is a Vite+React build of the mlw UI.
   copyDir(path.join(ROOT, 'games/transword'), path.join(DIST, 'games/transword'));
+  embedAdminPassword(path.join(DIST, 'games/transword/admin'));
   console.log('Building PolyWordlot (mlw React port)…');
   execSync('npx vite build --config games/polywordlot/vite.config.ts', {
     cwd: ROOT,

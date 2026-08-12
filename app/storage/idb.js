@@ -1,5 +1,5 @@
 const DB_NAME = 'wordaholic';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 /**
  * Platform IndexedDB wrapper.
@@ -33,6 +33,13 @@ export class WordaholicStorage {
         }
         if (!db.objectStoreNames.contains('metadata')) {
           db.createObjectStore('metadata', { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains('dailies')) {
+          const dailies = db.createObjectStore('dailies', { keyPath: 'id' });
+          dailies.createIndex('byGame', 'gameId', { unique: false });
+          dailies.createIndex('byGameCombo', ['gameId', 'language', 'vocabLevel', 'difficulty'], {
+            unique: false,
+          });
         }
       };
       req.onsuccess = () => resolve(req.result);
@@ -80,7 +87,12 @@ export class WordaholicStorage {
     return new Promise((resolve, reject) => {
       const tx = db.transaction('results', 'readwrite');
       const req = tx.objectStore('results').add(record);
-      req.onsuccess = () => resolve(req.result);
+      let id = null;
+      req.onsuccess = () => {
+        id = req.result;
+      };
+      tx.oncomplete = () => resolve(id);
+      tx.onerror = () => reject(tx.error);
       req.onerror = () => reject(req.error);
     });
   }
@@ -158,15 +170,43 @@ export class WordaholicStorage {
     });
   }
 
+  async putDaily(record) {
+    await this._tx('dailies', 'readwrite', (store) => {
+      store.put(record);
+    });
+  }
+
+  async getDaily(id) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('dailies', 'readonly');
+      const req = tx.objectStore('dailies').get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async listDailies(gameId) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('dailies', 'readonly');
+      const idx = tx.objectStore('dailies').index('byGame');
+      const req = idx.getAll(gameId);
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
   /**
    * Per-game export envelope (smart merge rules later).
    * @param {string} gameId
    */
   async exportGame(gameId) {
-    const [results, statistics, stateKeys] = await Promise.all([
+    const [results, statistics, stateKeys, dailies] = await Promise.all([
       this.listResults(gameId),
       this.getStatistics(gameId),
       this._listGameStates(gameId),
+      this.listDailies(gameId),
     ]);
     return {
       format: 'wordaholic-game-backup',
@@ -176,6 +216,7 @@ export class WordaholicStorage {
       statistics,
       results,
       gameState: stateKeys,
+      dailies,
     };
   }
 
@@ -214,6 +255,13 @@ export class WordaholicStorage {
       for (const row of payload.gameState) {
         const key = String(row.key || '').replace(new RegExp(`^${gameId}:`), '');
         if (key) await this.setGameState(gameId, key, row.value);
+      }
+    }
+    if (Array.isArray(payload.dailies)) {
+      for (const row of payload.dailies) {
+        if (!row || typeof row !== 'object') continue;
+        const id = row.id || `${gameId}:${row.language}:${row.vocabLevel}:${row.difficulty}:${row.gameDate}`;
+        await this.putDaily({ ...row, id, gameId });
       }
     }
     return { gameId, importedResults: payload.results?.length || 0 };

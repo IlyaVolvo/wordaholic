@@ -21,14 +21,18 @@
 
     <header id="header">
       <div class="header-left">
-        <h1><a class="title-home" href="/" title="Wordaholic home">TransWord</a></h1>
+        <a href="/" class="header-brand-home" title="Wordaholic home" aria-label="Wordaholic home">
+          <img class="header-brand-home-svg" src="/brand/wordaholic-mark.svg" width="34" height="34" alt="" />
+        </a>
+        <span class="header-game-name">TransWord</span>
       </div>
       <div class="header-center">
         <div class="target-label">Target</div>
         <div id="target-word" class="target-word"></div>
       </div>
       <div class="header-right">
-        <div class="stat">
+        <button type="button" id="btn-stats" class="icon-btn" title="Statistics" aria-label="Statistics">Stats</button>
+        <div class="stat" id="stat-time" data-pref="showTime">
           <span class="stat-label">Time</span>
           <span id="timer" class="stat-value">0:00</span>
         </div>
@@ -36,7 +40,7 @@
           <span class="stat-label">Steps</span>
           <span id="step-count" class="stat-value">0</span>
         </div>
-        <div class="stat">
+        <div class="stat" id="stat-optimal" data-pref="showOptimal">
           <span class="stat-label">Optimal</span>
           <span id="optimal-count" class="stat-value">–</span>
         </div>
@@ -48,8 +52,25 @@
     </div>
 
     <footer id="toolbar">
-      <button id="new-btn">New Puzzle</button>
+      <div class="mode-controls">
+        <div class="mode-toggle" role="group" aria-label="Play mode">
+          <button type="button" class="mode-btn active" data-mode="daily" id="mode-daily">Daily</button>
+          <button type="button" class="mode-btn" data-mode="practice" id="mode-practice">Practice</button>
+        </div>
+        <button type="button" id="btn-history" class="btn-secondary">History</button>
+        <button type="button" id="btn-new-practice" class="btn-secondary hidden">New practice</button>
+      </div>
       <div class="toolbar-right">
+        <div class="display-prefs" role="group" aria-label="Display options">
+          <label class="pref-toggle" title="Show timer while playing">
+            <input type="checkbox" id="pref-show-time" />
+            <span>Time</span>
+          </label>
+          <label class="pref-toggle" title="Show optimal step count (spoilers for some players)">
+            <input type="checkbox" id="pref-show-optimal" />
+            <span>Optimal</span>
+          </label>
+        </div>
         <div class="difficulty-pick">
           <label>Difficulty
             <select id="difficulty">
@@ -83,13 +104,75 @@
       <div class="win-title">Solved!</div>
       <div class="win-stats">
         <div class="win-stat"><span class="win-num" id="win-steps">0</span><span class="win-label">steps</span></div>
-        <div class="win-stat"><span class="win-num" id="win-optimal">0</span><span class="win-label">optimal</span></div>
-        <div class="win-stat"><span class="win-num" id="win-time">0:00</span><span class="win-label">time</span></div>
+        <div class="win-stat" id="win-stat-optimal"><span class="win-num" id="win-optimal">0</span><span class="win-label">optimal</span></div>
+        <div class="win-stat" id="win-stat-time"><span class="win-num" id="win-time">0:00</span><span class="win-label">time</span></div>
       </div>
-      <div id="win-path" class="win-path"></div>
       <div class="win-actions">
-        <button id="win-new-btn">New Puzzle</button>
+        <button type="button" id="win-new-btn" class="hidden">New practice</button>
+        <button type="button" id="win-close-btn">Close</button>
       </div>
+    </div>
+  </div>
+
+  <div id="history-overlay" class="panel-overlay hidden" hidden>
+    <div class="panel-card history-card" role="dialog" aria-modal="true" aria-labelledby="history-title">
+      <div class="panel-header">
+        <h2 id="history-title">Daily history</h2>
+        <button type="button" class="panel-close" data-history-close aria-label="Close">×</button>
+      </div>
+      <p class="panel-sub" id="history-combo-label"></p>
+      <div class="calendar-nav">
+        <button type="button" id="cal-prev" aria-label="Previous month">‹</button>
+        <div id="cal-month-label" class="calendar-month-label"></div>
+        <button type="button" id="cal-next" aria-label="Next month">›</button>
+      </div>
+      <div class="calendar-weekdays" aria-hidden="true">
+        <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+      </div>
+      <div id="calendar-grid" class="calendar-grid"></div>
+      <div class="calendar-legend">
+        <span><i class="leg won"></i> Solved</span>
+        <span><i class="leg incomplete"></i> In progress</span>
+        <span><i class="leg today"></i> Today</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="stats-overlay" class="panel-overlay hidden" hidden>
+    <div class="panel-card stats-card" role="dialog" aria-modal="true" aria-labelledby="stats-title">
+      <div class="panel-header">
+        <h2 id="stats-title">Statistics</h2>
+        <button type="button" class="panel-close" data-stats-close aria-label="Close">×</button>
+      </div>
+      <div class="stats-filters">
+        <label>Language
+          <select id="stats-lang"><option value="all">All</option></select>
+        </label>
+        <label>Vocabulary
+          <select id="stats-vocab">
+            <option value="all">All</option>
+            <option value="1">Basic</option>
+            <option value="2">Standard</option>
+          </select>
+        </label>
+        <label>Difficulty
+          <select id="stats-diff">
+            <option value="all">All</option>
+            <option value="3">Easy</option>
+            <option value="4">Medium</option>
+            <option value="6">Hard</option>
+          </select>
+        </label>
+      </div>
+      <dl class="stats-grid">
+        <div><dt>Played</dt><dd id="stats-played">0</dd></div>
+        <div><dt>Win rate</dt><dd id="stats-winrate">—</dd></div>
+        <div><dt>Streak</dt><dd id="stats-streak">—</dd></div>
+        <div><dt>Avg steps</dt><dd id="stats-avg-steps">—</dd></div>
+        <div><dt>Avg time</dt><dd id="stats-avg-time">—</dd></div>
+        <div><dt>Avg optimal</dt><dd id="stats-avg-optimal">—</dd></div>
+      </dl>
+      <p class="panel-hint">Daily stats use the filters above. Streak needs a specific language, vocabulary, and difficulty.</p>
     </div>
   </div>
 

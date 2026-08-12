@@ -1,3 +1,9 @@
+# Render Blueprint — Node web service for Wordaholic
+# After deploy, attach custom domain wordaholic.com in the Render dashboard.
+#
+# Set ADMIN_PASSWORD in the Render dashboard to the SHA-256 hex of your admin
+# password (not plaintext). Generate with:
+#   node scripts/hash-admin-password.js 'your-password'
 services:
   - type: web
     name: wordaholic
@@ -12,3 +18,5 @@ services:
         value: 0.0.0.0
       - key: PORT
         value: 10000
+      - key: ADMIN_PASSWORD
+        sync: false

@@ -54,7 +54,11 @@ const server = http.createServer((req, res) => {
     return;
   }
   const ext = path.extname(filePath);
-  res.writeHead(200, { 'Content-Type': TYPES[ext] || 'application/octet-stream' });
+  const headers = { 'Content-Type': TYPES[ext] || 'application/octet-stream' };
+  if (urlPath === '/sw.js' || urlPath.startsWith('/games/transword/admin')) {
+    headers['Cache-Control'] = 'no-store';
+  }
+  res.writeHead(200, headers);
   fs.createReadStream(filePath).pipe(res);
 });
 
