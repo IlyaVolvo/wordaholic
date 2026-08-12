@@ -1471,8 +1471,8 @@ a.header-brand-home:focus-visible {
 .header-menu-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 6px 8px;
+  justify-content: center;
+  padding: 6px;
   background: #f3f4f8;
   color: #4453c5;
   border: 1px solid #c5cbe8;
@@ -1492,14 +1492,6 @@ a.header-brand-home:focus-visible {
   color: #fff;
 }
 
-.header-menu-caret {
-  transition: transform 0.15s ease;
-}
-
-.header-menu-trigger.active .header-menu-caret {
-  transform: rotate(180deg);
-}
-
 .header-menu-dropdown {
   position: absolute;
   top: calc(100% + 4px);
@@ -1511,7 +1503,7 @@ a.header-brand-home:focus-visible {
   padding: 0.4rem;
   z-index: 30;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   gap: 0.3rem;
 }
 
@@ -1537,9 +1529,9 @@ a.header-brand-home:focus-visible {
 
 .header-menu-item-tip {
   position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+  top: 50%;
+  right: calc(100% + 6px);
+  transform: translateY(-50%);
   background: rgba(40, 44, 52, 0.92);
   color: #fff;
   font-size: 0.72rem;
