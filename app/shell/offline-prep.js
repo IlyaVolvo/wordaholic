@@ -70,9 +70,11 @@ export async function prepareOffline(onProgress) {
   onProgress(55, 'Caching favorite language dictionaries…');
   const wordUrls = [];
   for (const lang of favLangs) {
+    if (lang.wordDir) {
+      wordUrls.push(`/word-data/${lang.wordDir}/language.json`);
+    }
     if ((lang.games || []).includes('polywordlot') && lang.polyDir) {
       const dir = lang.polyDir;
-      wordUrls.push(`/games/polywordlot/dict/${dir}/language.json`);
       for (const len of lang.polywordlotLengths || []) {
         wordUrls.push(`/games/polywordlot/dict/${dir}/answers-${len}.txt`);
         wordUrls.push(`/games/polywordlot/dict/${dir}/dictionary-${len}.txt`);
@@ -81,7 +83,6 @@ export async function prepareOffline(onProgress) {
     if ((lang.games || []).includes('transword')) {
       const dir = lang.transwordDir;
       if (dir) {
-        wordUrls.push(`/games/transword/data/languages/${dir}/language.json`);
         wordUrls.push(`/games/transword/data/languages/${dir}/corpus.txt`);
       }
     }

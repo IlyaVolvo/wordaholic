@@ -71,6 +71,8 @@ function main() {
 
   copyDir(path.join(ROOT, 'public'), DIST);
   copyDir(path.join(ROOT, 'app'), path.join(DIST, 'app'));
+  // Shared language definitions for all games
+  copyDir(path.join(ROOT, 'word-data'), path.join(DIST, 'word-data'));
   fs.copyFileSync(path.join(ROOT, 'app/updates/service-worker.js'), path.join(DIST, 'sw.js'));
 
   // TransWord stays static; PolyWordlot is a Vite+React build of the mlw UI.
@@ -90,14 +92,18 @@ function main() {
     polywordlot: hashTree(path.join(DIST, 'games', 'polywordlot')),
     transword: hashTree(path.join(DIST, 'games', 'transword')),
   };
+  const wordDataHashes = hashTree(path.join(DIST, 'word-data'));
 
   const siteFiles = hashTree(DIST);
   const siteHash = crypto.createHash('sha256').update(JSON.stringify(siteFiles)).digest('hex').slice(0, 16);
 
   const words = {};
   for (const lang of catalog) {
-    if (lang.polyDir) words[`polywordlot:${lang.code}`] = gameHashes.polywordlot[`dict/${lang.polyDir}/language.json`] || siteHash;
+    const langJsonRel = lang.wordDir ? `${lang.wordDir}/language.json` : null;
+    const langHash = langJsonRel ? wordDataHashes[langJsonRel] : null;
+    if (lang.polyDir) words[`polywordlot:${lang.code}`] = langHash || gameHashes.polywordlot[`dict/${lang.polyDir}/answers-5.txt`] || siteHash;
     if (lang.transwordDir) words[`transword:${lang.code}`] = gameHashes.transword[`data/languages/${lang.transwordDir}/corpus.txt`] || siteHash;
+    if (langHash) words[`language:${lang.code}`] = langHash;
   }
 
   const commit = gitCommit();

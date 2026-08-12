@@ -37,6 +37,18 @@ let languageConfig = {};
 let languageOptions = [];
 
 const LANG_BASE = '/games/transword/data/languages';
+const WORD_DATA_BASE = '/word-data';
+
+/** TransWord folder name → word-data Language/locale */
+const WORD_DIRS = {
+  English: 'English/en',
+  Spanish: 'Spanish/es',
+  French: 'French/fr',
+  German: 'German/de',
+  Russian: 'Russian/ru',
+  Hebrew: 'Hebrew/he',
+  Armenian: 'Armenian/hy',
+};
 
 function normalizeForLanguage(word) {
   if (!languageConfig?.normalization) return word;
@@ -82,7 +94,8 @@ async function loadCorpus(dir) {
 }
 
 async function loadLanguageConfig(dir) {
-  const res = await fetch(`${LANG_BASE}/${dir}/language.json`);
+  const wordDir = WORD_DIRS[dir] || `${dir}/${(dir || '').slice(0, 2).toLowerCase()}`;
+  const res = await fetch(`${WORD_DATA_BASE}/${wordDir}/language.json`);
   if (!res.ok) throw new Error(`Failed to load language config for ${dir}`);
   return res.json();
 }

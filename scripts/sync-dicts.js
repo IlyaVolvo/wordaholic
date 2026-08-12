@@ -2,6 +2,9 @@
  * Copy dictionaries from sibling old repos into each game with the original layout:
  *   games/polywordlot/dict/<Language>/<locale>/...
  *   games/transword/data/languages/<Dir>/...
+ *
+ * language.json is NOT synced into games — shared definitions live in
+ * word-data/<Language>/<locale>/language.json
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,14 +23,25 @@ function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
 
-function copyDir(src, dest) {
+function copyDir(src, dest, { skipNames = [] } = {}) {
   ensureDir(dest);
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
     if (entry.name === '.DS_Store') continue;
+    if (skipNames.includes(entry.name)) continue;
     const from = path.join(src, entry.name);
     const to = path.join(dest, entry.name);
-    if (entry.isDirectory()) copyDir(from, to);
+    if (entry.isDirectory()) copyDir(from, to, { skipNames });
     else fs.copyFileSync(from, to);
+  }
+}
+
+/** Remove any language.json left under a tree (shared defs are in word-data). */
+function stripLanguageJson(dir) {
+  if (!fs.existsSync(dir)) return;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) stripLanguageJson(full);
+    else if (entry.name === 'language.json') fs.unlinkSync(full);
   }
 }
 
@@ -44,15 +58,17 @@ function main() {
   const pwDict = path.join(ROOT, 'games/polywordlot/dict');
   const twData = path.join(ROOT, 'games/transword/data/languages');
 
-  console.log('Syncing PolyWordlot dict → games/polywordlot/dict');
+  console.log('Syncing PolyWordlot dict → games/polywordlot/dict (skip language.json)');
   rmrf(pwDict);
-  copyDir(MLW_DICT, pwDict);
+  copyDir(MLW_DICT, pwDict, { skipNames: ['language.json'] });
+  stripLanguageJson(pwDict);
 
-  console.log('Syncing TransWord languages → games/transword/data/languages');
+  console.log('Syncing TransWord languages → games/transword/data/languages (skip language.json)');
   rmrf(twData);
-  copyDir(TW_LANGS, twData);
+  copyDir(TW_LANGS, twData, { skipNames: ['language.json'] });
+  stripLanguageJson(twData);
 
-  console.log('Done.');
+  console.log('Done. Edit shared language defs in word-data/<Language>/<locale>/language.json');
 }
 
 main();

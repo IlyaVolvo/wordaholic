@@ -1,6 +1,8 @@
 import type { DictionaryEntry, LanguageConfig } from '../types';
 
 const DICT_BASE = `${import.meta.env.BASE_URL}dict/`;
+/** Shared language definitions: /word-data/<Language>/<locale>/language.json */
+const WORD_DATA_BASE = '/word-data/';
 
 // Cache for loaded dictionaries
 const dictionaryCache = new Map<string, DictionaryEntry>();
@@ -148,7 +150,7 @@ async function loadLanguageMeta(
   fallbackName: string
 ): Promise<{ menu: string; flag?: string }> {
   try {
-    const response = await fetch(`${DICT_BASE}${languageDir}/language.json`);
+    const response = await fetch(`${WORD_DATA_BASE}${languageDir}/language.json`);
     if (!response.ok || response.headers.get('content-type')?.includes('text/html')) {
       return { menu: fallbackName };
     }
@@ -405,7 +407,7 @@ export async function loadKeyboard(language: string): Promise<string[][] | null>
     return null;
   }
 
-  const languagePath = `${DICT_BASE}${languageDir}/language.json`;
+  const languagePath = `${WORD_DATA_BASE}${languageDir}/language.json`;
 
   try {
     const response = await fetch(languagePath, { cache: 'no-store' });

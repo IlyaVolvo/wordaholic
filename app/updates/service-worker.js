@@ -1,5 +1,5 @@
 /* Wordaholic service worker — cache shell + requested wordsets */
-const CACHE_SHELL = 'wordaholic-shell-v6';
+const CACHE_SHELL = 'wordaholic-shell-v7';
 const CACHE_DATA = 'wordaholic-data-v2';
 
 const PRECACHE = [
@@ -91,8 +91,10 @@ self.addEventListener('fetch', (event) => {
       if (cached) return cached;
       try {
         const res = await fetch(req);
-        if (res.ok && (url.pathname.startsWith('/data/') || url.pathname.startsWith('/games/') || url.pathname.startsWith('/app/'))) {
-          const cache = await caches.open(url.pathname.startsWith('/data/') ? CACHE_DATA : CACHE_SHELL);
+        if (res.ok && (url.pathname.startsWith('/data/') || url.pathname.startsWith('/word-data/') || url.pathname.startsWith('/games/') || url.pathname.startsWith('/app/'))) {
+          const cache = await caches.open(
+            url.pathname.startsWith('/data/') || url.pathname.startsWith('/word-data/') ? CACHE_DATA : CACHE_SHELL
+          );
           cache.put(req, res.clone());
         }
         return res;

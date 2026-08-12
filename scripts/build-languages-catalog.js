@@ -1,22 +1,13 @@
 /**
- * Build shell /data/languages.json by scanning each game's native dictionary layout.
+ * Build shell /data/languages.json by scanning game word trees + shared word-data language.json.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LOCALE_PATHS, languageDirForCode } from '../app/shell/locales.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
-
-const LOCALE_PATHS = {
-  en: { language: 'English', locale: 'en' },
-  ru: { language: 'Russian', locale: 'ru' },
-  fr: { language: 'French', locale: 'fr' },
-  es: { language: 'Spanish', locale: 'es' },
-  de: { language: 'German', locale: 'de' },
-  he: { language: 'Hebrew', locale: 'he' },
-  hy: { language: 'Armenian', locale: 'hy' },
-};
 
 const MAP_COORDS = {
   en: { lat: 39, lon: -98 },
@@ -40,12 +31,14 @@ function polyLengths(dictRoot, language, locale) {
 
 export function buildLanguagesCatalog() {
   const pwDict = path.join(ROOT, 'games/polywordlot/dict');
+  const wordData = path.join(ROOT, 'word-data');
   const twIndexPath = path.join(ROOT, 'games/transword/data/languages/index.json');
   /** @type {Map<string, any>} */
   const byCode = new Map();
 
   for (const [code, { language, locale }] of Object.entries(LOCALE_PATHS)) {
-    const langJsonPath = path.join(pwDict, language, locale, 'language.json');
+    const wordDir = languageDirForCode(code);
+    const langJsonPath = path.join(wordData, language, locale, 'language.json');
     const lengths = polyLengths(pwDict, language, locale);
     if (!lengths.length && !fs.existsSync(langJsonPath)) continue;
     let meta = { menu: language, flag: '' };
@@ -63,6 +56,7 @@ export function buildLanguagesCatalog() {
       games,
       polywordlotLengths: lengths,
       polyDir: `${language}/${locale}`,
+      wordDir,
     });
   }
 
@@ -73,6 +67,7 @@ export function buildLanguagesCatalog() {
       const corpusPath = path.join(ROOT, 'games/transword/data/languages', entry.dir, 'corpus.txt');
       const hasWords = fs.existsSync(corpusPath) && fs.statSync(corpusPath).size > 0;
       if (!hasWords) continue;
+      const wordDir = languageDirForCode(code) || `${entry.dir}/${code}`;
       const existing = byCode.get(code) || {
         code,
         menu: entry.menu,
@@ -81,9 +76,11 @@ export function buildLanguagesCatalog() {
         lon: (MAP_COORDS[code] || {}).lon || 0,
         games: [],
         polywordlotLengths: [],
+        wordDir,
       };
       if (!existing.games.includes('transword')) existing.games.push('transword');
       existing.transwordDir = entry.dir;
+      existing.wordDir = existing.wordDir || wordDir;
       existing.menu = existing.menu || entry.menu;
       existing.flag = existing.flag || entry.flag || '';
       byCode.set(code, existing);
