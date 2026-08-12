@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" role="img" aria-label="Wordaholic">
+  <circle cx="20" cy="20" r="19" fill="#1a3a4a"/>
+  <circle cx="20" cy="20" r="14.5" fill="none" stroke="#6fa8c9" stroke-width="1.4"/>
+  <path d="M10 14.5 L14.2 27.2 L20 16.8 L25.8 27.2 L30 14.5" fill="none" stroke="#fff8f3" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="14.3" cy="17.6" r="1.55" fill="#fff8f3"/>
+  <circle cx="25.7" cy="17.6" r="1.55" fill="#fff8f3"/>
+  <circle cx="14.3" cy="17.75" r="0.75" fill="#1a3a4a"/>
+  <circle cx="25.7" cy="17.75" r="0.75" fill="#1a3a4a"/>
+  <circle cx="20" cy="20" r="2.1" fill="#c45c26"/>
+</svg>

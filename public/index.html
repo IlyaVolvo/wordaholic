@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#1a3a4a" />
   <link rel="manifest" href="/site.webmanifest" />
   <title>Wordaholic</title>
@@ -19,30 +19,56 @@
     </div>
   </div>
 
-  <header class="topbar">
-    <a href="/" class="brand-link">Wordaholic</a>
-  </header>
-
   <main>
     <section data-view="map" class="view map-view">
       <div class="map-toolbar">
-        <div class="lang-dropdown" id="lang-dropdown">
-          <button type="button" id="btn-languages" class="btn ghost lang-btn" aria-haspopup="listbox" aria-expanded="false">
-            Languages
-            <span class="lang-caret" aria-hidden="true">▾</span>
-          </button>
-          <div id="lang-menu" class="lang-menu" hidden role="listbox" aria-multiselectable="true">
-            <p class="lang-menu-hint">Favorites stay ready for offline play.</p>
-            <div id="fav-list" class="fav-list"></div>
-            <button type="button" id="btn-save-fav" class="btn primary">Save</button>
-          </div>
+        <div class="map-toolbar-start">
+          <div id="fav-chips" class="fav-chips" aria-label="Selected languages"></div>
         </div>
-        <div id="game-rail" class="game-rail" aria-label="Games"></div>
+
+        <button type="button" id="btn-about" class="brand-mark" title="About Wordaholic" aria-label="About Wordaholic">
+          <img class="brand-mark-svg" src="/brand/wordaholic-mark.svg" width="40" height="40" alt="" />
+        </button>
+
+        <div class="map-toolbar-end">
+          <div id="game-rail" class="game-rail" aria-label="Games"></div>
+        </div>
       </div>
       <div id="map-root" class="map-root"></div>
     </section>
-
   </main>
+
+  <div id="about-dialog" class="about-dialog" hidden>
+    <div class="about-dialog-backdrop" data-about-close></div>
+    <div class="about-dialog-card" role="dialog" aria-modal="true" aria-labelledby="about-title">
+      <div class="about-hero">
+        <span class="about-hero-mark" aria-hidden="true">
+          <img src="/brand/wordaholic-mark.svg" width="56" height="56" alt="" />
+        </span>
+        <div>
+          <h2 id="about-title">Wordaholic</h2>
+          <p class="about-lead">Offline multi-language word games — play anywhere, keep your favorites ready.</p>
+        </div>
+      </div>
+      <dl class="about-meta">
+        <div>
+          <dt>Author</dt>
+          <dd>Ilya Volvovski</dd>
+        </div>
+        <div>
+          <dt>Build</dt>
+          <dd id="about-built">—</dd>
+        </div>
+        <div>
+          <dt>Commit</dt>
+          <dd id="about-commit">—</dd>
+        </div>
+      </dl>
+      <div class="about-actions">
+        <button type="button" class="btn primary" data-about-close>Close</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="/app/main.js"></script>
 </body>

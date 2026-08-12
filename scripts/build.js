@@ -12,6 +12,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 
+function gitCommit() {
+  try {
+    return execSync('git rev-parse --short HEAD', { cwd: ROOT, encoding: 'utf8' }).trim();
+  } catch {
+    return '';
+  }
+}
+
 function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
@@ -92,9 +100,11 @@ function main() {
     if (lang.transwordDir) words[`transword:${lang.code}`] = gameHashes.transword[`data/languages/${lang.transwordDir}/corpus.txt`] || siteHash;
   }
 
+  const commit = gitCommit();
   const manifest = {
     builtAt: new Date().toISOString(),
     siteHash,
+    commit,
     games: {
       polywordlot: {
         hash: crypto.createHash('sha256').update(JSON.stringify(gameHashes.polywordlot)).digest('hex').slice(0, 16),

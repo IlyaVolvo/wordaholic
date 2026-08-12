@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Game } from './components/Game';
 import { Statistics } from './components/Statistics';
 import { getLanguageConfigs } from './data/languageLoader';
@@ -22,12 +22,10 @@ export const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'game' | 'statistics'>('game');
   const [initialStatisticType, setInitialStatisticType] = useState<string | undefined>();
-  const [allAvailableLanguages, setAllAvailableLanguages] = useState<LanguageConfig[]>([]);
   const [availableLanguages, setAvailableLanguages] = useState<LanguageConfig[]>([]);
   const [historicalDate, setHistoricalDate] = useState<string | null>(null);
   const [language, setLanguage] = useState('en');
   const [wordLength, setWordLength] = useState(5);
-  const allConfigsRef = useRef<LanguageConfig[]>([]);
 
   useEffect(() => {
     const prefs = loadPreferences();
@@ -36,23 +34,14 @@ export const App: React.FC = () => {
     const boot = async () => {
       try {
         const allConfigs = await getLanguageConfigs();
-        allConfigsRef.current = allConfigs;
-        setAllAvailableLanguages(allConfigs);
 
-        let selectedCodes =
-          prefs.selectedLanguages && prefs.selectedLanguages.length > 0
-            ? prefs.selectedLanguages
-            : allConfigs.map((c) => c.code);
-
+        // Language set comes from Wordaholic favorites (?langs=), not an in-game picker.
+        let filtered = allConfigs;
         if (urlLangs.length > 0) {
           const urlSet = new Set(urlLangs);
-          const fromUrl = allConfigs.filter((c) => urlSet.has(c.code)).map((c) => c.code);
-          if (fromUrl.length > 0) selectedCodes = fromUrl;
+          const fromUrl = allConfigs.filter((c) => urlSet.has(c.code));
+          if (fromUrl.length > 0) filtered = fromUrl;
         }
-
-        const selectedSet = new Set(selectedCodes);
-        let filtered = allConfigs.filter((c) => selectedSet.has(c.code));
-        if (filtered.length === 0) filtered = allConfigs;
 
         const startLang =
           (urlLang && filtered.find((c) => c.code === urlLang)?.code) ||
@@ -73,8 +62,6 @@ export const App: React.FC = () => {
           ...prefs,
           language: startLang,
           wordLength: startLength,
-          selectedLanguages:
-            selectedCodes.length === allConfigs.length ? undefined : selectedCodes,
         });
       } catch (err) {
         console.error('Failed to load language configs:', err);
@@ -123,22 +110,6 @@ export const App: React.FC = () => {
     savePreferences({ ...prefs, wordLength: newLength });
   };
 
-  const handleLanguageSelectionChange = (selectedCodes: string[]) => {
-    const allConfigs = allAvailableLanguages;
-    const selectedSet = new Set(selectedCodes);
-    const filtered = allConfigs.filter((lang) => selectedSet.has(lang.code));
-    setAvailableLanguages(filtered.length > 0 ? filtered : allConfigs);
-
-    const prefs = loadPreferences();
-    prefs.selectedLanguages =
-      selectedCodes.length === allConfigs.length ? undefined : selectedCodes;
-    if (!filtered.find((l) => l.code === language) && filtered[0]) {
-      setLanguage(filtered[0].code);
-      prefs.language = filtered[0].code;
-    }
-    savePreferences(prefs);
-  };
-
   return (
     <div className="app-container">
       {view === 'statistics' ? (
@@ -170,8 +141,6 @@ export const App: React.FC = () => {
           onLanguageChange={handleLanguageChange}
           onWordLengthChange={handleWordLengthChange}
           availableLanguages={availableLanguages}
-          allAvailableLanguages={allAvailableLanguages}
-          onLanguageSelectionChange={handleLanguageSelectionChange}
         />
       )}
     </div>

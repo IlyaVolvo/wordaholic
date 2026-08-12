@@ -43,10 +43,11 @@ function showUpdateDialog(host, changes, remote) {
   const dialog = document.createElement('div');
   dialog.className = 'update-dialog';
   dialog.innerHTML = `
-    <div class="update-dialog-card" role="alertdialog" aria-labelledby="upd-title">
+    <div class="update-dialog-backdrop" data-action="backdrop"></div>
+    <div class="update-dialog-card" role="alertdialog" aria-modal="true" aria-labelledby="upd-title">
       <h2 id="upd-title">Update available</h2>
-      <p>These updates are required.</p>
-      <ul>${changes.map((c) => `<li>${c.detail}</li>`).join('')}</ul>
+      <p class="update-lead">A newer offline package is ready. Apply it to keep playing with the latest content.</p>
+      <ul class="update-list">${changes.map((c) => `<li>${c.detail}</li>`).join('')}</ul>
       <div class="update-actions">
         <button type="button" class="btn primary" data-action="now">Update now</button>
         ${active ? '<button type="button" class="btn" data-action="later">Update when this game ends</button>' : ''}

@@ -4,6 +4,7 @@ import { renderWorldMap, renderGameRail } from './shell/map.js';
 import { prepareOffline } from './shell/offline-prep.js';
 import { checkForUpdates } from './shell/update-ui.js';
 import {
+  initFavorites,
   getFavoriteLanguages,
   setFavoriteLanguages,
   getLastLanguage,
@@ -66,9 +67,54 @@ function favoriteLanguageObjects() {
   return allLanguages.filter((l) => fav.has(l.code));
 }
 
+function renderFavoriteChips() {
+  const host = $('#fav-chips');
+  if (!host) return;
+  const favorites = favoriteLanguageObjects();
+  if (!favorites.length) {
+    host.innerHTML = `<span class="fav-chips-empty">Click a country to pick languages</span>`;
+    return;
+  }
+  host.innerHTML = favorites
+    .map(
+      (l) => `
+      <span class="fav-chip" title="${l.menu}" data-code="${l.code}">
+        <span class="fav-chip-flag">${l.flag || ''}</span>
+        <span class="fav-chip-name">${l.menu}</span>
+      </span>`
+    )
+    .join('');
+}
+
 async function renderGateway() {
   const favorites = favoriteLanguageObjects();
-  await renderWorldMap($('#map-root'), { favoriteLanguages: favorites });
+  renderFavoriteChips();
+  const languageMenus = Object.fromEntries(allLanguages.map((l) => [l.code, l.menu]));
+  await renderWorldMap($('#map-root'), {
+    favoriteLanguages: favorites,
+    supportedLanguageCodes: allLanguages.map((l) => l.code),
+    languageMenus,
+    onFavoriteLanguages: async (codes) => {
+      const current = getFavoriteLanguages();
+      const next = [...current];
+      for (const code of codes) {
+        if (!next.includes(code)) next.push(code);
+      }
+      if (next.length === current.length) return;
+      await setFavoriteLanguages(next);
+      await renderGateway();
+      showPreparing().catch((err) => console.warn('Offline prep failed', err));
+    },
+    onUnfavoriteLanguages: async (codes) => {
+      const remove = new Set(codes);
+      const current = getFavoriteLanguages();
+      const next = current.filter((code) => !remove.has(code));
+      if (next.length === current.length) return;
+      await setFavoriteLanguages(next);
+      await renderGateway();
+      showPreparing().catch((err) => console.warn('Offline prep failed', err));
+    },
+  });
   renderGameRail($('#game-rail'), {
     games: listGames(),
     favoriteLanguages: favorites,
@@ -81,13 +127,13 @@ async function renderGateway() {
  * @param {string} gameId
  * @param {string[]} langCodes
  */
-function openGame(gameId, langCodes) {
+async function openGame(gameId, langCodes) {
   const game = listGames().find((g) => g.id === gameId);
   if (!game || !langCodes.length) return;
 
   const last = getLastLanguage();
   const primary = langCodes.includes(last) ? last : langCodes[0];
-  setLastLanguage(primary);
+  await setLastLanguage(primary);
   const qs = new URLSearchParams({
     lang: primary,
     langs: langCodes.join(','),
@@ -95,55 +141,47 @@ function openGame(gameId, langCodes) {
   location.href = `/games/${gameId}/?${qs.toString()}`;
 }
 
-function renderLanguageMenu() {
-  const fav = new Set(getFavoriteLanguages());
-  const box = $('#fav-list');
-  box.innerHTML = allLanguages
-    .map(
-      (l) => `
-      <label class="fav-row">
-        <input type="checkbox" value="${l.code}" ${fav.has(l.code) ? 'checked' : ''}/>
-        <span>${l.flag || ''} ${l.menu}</span>
-      </label>`
-    )
-    .join('');
-}
-
-function setLanguagesMenuOpen(open) {
-  const menu = $('#lang-menu');
-  const btn = $('#btn-languages');
-  menu.hidden = !open;
-  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-}
-
 async function boot() {
   await storage.open();
+  await initFavorites();
 
   allLanguages = await loadLanguages();
-  renderLanguageMenu();
   await renderGateway();
   showView('map');
 
   showPreparing().catch((err) => console.warn('Offline prep failed', err));
 
-  $('#btn-languages').addEventListener('click', (e) => {
-    e.stopPropagation();
-    const open = $('#lang-menu').hidden;
-    if (open) renderLanguageMenu();
-    setLanguagesMenuOpen(open);
+  const aboutDialog = $('#about-dialog');
+  const openAbout = async () => {
+    aboutDialog.hidden = false;
+    try {
+      const res = await fetch('/deployment-manifest.json', { cache: 'no-store' });
+      if (res.ok) {
+        const manifest = await res.json();
+        const commitEl = $('#about-commit');
+        const builtEl = $('#about-built');
+        if (commitEl) commitEl.textContent = manifest.commit || '—';
+        if (builtEl) {
+          builtEl.textContent = manifest.builtAt
+            ? new Date(manifest.builtAt).toLocaleString()
+            : '—';
+        }
+      }
+    } catch {
+      /* keep placeholders */
+    }
+  };
+  const closeAbout = () => {
+    aboutDialog.hidden = true;
+  };
+  $('#btn-about')?.addEventListener('click', () => {
+    void openAbout();
   });
-
-  $('#btn-save-fav').addEventListener('click', async () => {
-    const codes = [...$('#fav-list').querySelectorAll('input:checked')].map((el) => el.value);
-    setFavoriteLanguages(codes);
-    setLanguagesMenuOpen(false);
-    await renderGateway();
-    showPreparing().catch((err) => console.warn('Offline prep failed', err));
+  aboutDialog?.querySelectorAll('[data-about-close]').forEach((el) => {
+    el.addEventListener('click', closeAbout);
   });
-
-  document.addEventListener('click', (e) => {
-    const dd = $('#lang-dropdown');
-    if (!dd.contains(e.target)) setLanguagesMenuOpen(false);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && aboutDialog && !aboutDialog.hidden) closeAbout();
   });
 
   checkForUpdates(document.body).catch(() => {});
@@ -152,5 +190,8 @@ async function boot() {
 boot().catch((err) => {
   console.error(err);
   const label = $('#prep-label');
-  if (label) label.textContent = `Startup error: ${err.message}`;
+  if (label) {
+    label.textContent = `Startup error: ${err.message}`;
+    $('#prep-overlay').hidden = false;
+  }
 });

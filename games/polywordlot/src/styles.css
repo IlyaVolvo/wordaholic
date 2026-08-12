@@ -10,8 +10,10 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  /* Match main map ocean / water */
+  background: #6fa8c9;
   min-height: 100vh;
+  min-height: 100dvh;
   min-height: -webkit-fill-available;
   display: flex;
   justify-content: center;
@@ -470,7 +472,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
 .cell {
   width: 60px;
   height: 60px;
-  border: 2px solid #ddd;
+  border: 2px solid #c4c7ca;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -484,14 +486,20 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .cell.empty {
-  border-color: #ddd;
+  border-color: #c4c7ca;
   background: white;
 }
 
 .cell.typing {
-  border-color: #ddd;
+  border-color: #a6a9ac;
   background: white;
   color: #333;
+}
+
+.cell.cell-active,
+.cell.empty.cell-active {
+  border-color: #a6a9ac;
+  box-shadow: inset 0 0 0 1px #a6a9ac;
 }
 
 .cell.correct {
@@ -974,7 +982,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
   }
 
   .settings {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 6px;
     margin-bottom: 8px;
     justify-content: center;
@@ -1334,12 +1342,70 @@ h1 .logout-wrapper:hover .logout-tooltip {
   margin-bottom: 24px;
 }
 
-/* Icons next to title (language + statistics) */
+.game-header-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.5rem;
+  width: 100%;
+  min-height: 44px;
+}
+
+.game-header-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.game-header-left {
+  justify-content: flex-start;
+}
+
+.game-header-right {
+  position: relative;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+a.header-brand-home {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(20, 35, 43, 0.18);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+a.header-brand-home:hover,
+a.header-brand-home:focus-visible {
+  transform: translateY(-1px) scale(1.04);
+  box-shadow: 0 6px 16px rgba(20, 35, 43, 0.24);
+  outline: none;
+}
+.header-brand-home-svg {
+  width: 34px;
+  height: 34px;
+  display: block;
+}
+
+.game-header-bar .header-home-link {
+  justify-self: center;
+  text-align: center;
+  font-size: clamp(1.35rem, 4.5vw, 2.1rem);
+  font-weight: 700;
+  line-height: 1.15;
+  max-width: 100%;
+  padding: 0 0.25rem;
+}
+
+/* Legacy class names kept for Statistics */
 .header-title-icons-left {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-right: 20px;
   vertical-align: middle;
 }
 
@@ -1347,7 +1413,6 @@ h1 .logout-wrapper:hover .logout-tooltip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-left: 10px;
   vertical-align: middle;
 }
 
@@ -1389,6 +1454,115 @@ h1 .logout-wrapper:hover .logout-tooltip {
   left: 0;
   min-width: auto;
   white-space: nowrap;
+}
+
+.header-icon-tooltip--center {
+  left: 50%;
+  right: auto;
+  transform: translate(-50%, -4px);
+  text-align: center;
+  min-width: 220px;
+}
+
+.header-icon-with-tooltip:hover .header-icon-tooltip--center {
+  transform: translate(-50%, 0);
+}
+
+.header-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 8px;
+  background: #f3f4f8;
+  color: #4453c5;
+  border: 1px solid #c5cbe8;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.header-menu-trigger:hover {
+  background: rgba(102, 126, 234, 0.12);
+  border-color: #667eea;
+}
+
+.header-menu-trigger.active {
+  background: #667eea;
+  border-color: #667eea;
+  color: #fff;
+}
+
+.header-menu-caret {
+  transition: transform 0.15s ease;
+}
+
+.header-menu-trigger.active .header-menu-caret {
+  transform: rotate(180deg);
+}
+
+.header-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: #fff;
+  border: 1px solid #d0d4da;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+  padding: 0.4rem;
+  z-index: 30;
+  display: flex;
+  flex-direction: row;
+  gap: 0.3rem;
+}
+
+.header-menu-item {
+  position: relative;
+  appearance: none;
+  border: 1px solid transparent;
+  background: #f6f7fb;
+  color: #4453c5;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.header-menu-item:hover {
+  background: rgba(102, 126, 234, 0.14);
+  border-color: #c5cbe8;
+}
+
+.header-menu-item-tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(40, 44, 52, 0.92);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.28rem 0.45rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 31;
+}
+
+.header-menu-item:hover .header-menu-item-tip,
+.header-menu-item:focus-visible .header-menu-item-tip {
+  opacity: 1;
+}
+
+.header-transfer-message {
+  margin: 0.35rem 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: #556;
 }
 
 .header-icon-button {
@@ -2811,72 +2985,6 @@ h1 .logout-wrapper:hover .logout-tooltip {
 
 .feedback-popup .word-index-buttons {
   margin-top: 16px;
-}
-
-/* About popup */
-.about-popup {
-  background: white;
-  border-radius: 12px;
-  padding: 20px 24px;
-  min-width: 220px;
-  max-width: 320px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  text-align: center;
-}
-
-.about-popup h3 {
-  margin: 0 0 12px 0;
-  font-size: 1.15rem;
-  color: #333;
-  font-weight: 700;
-}
-
-.about-author {
-  margin: 0 0 6px 0;
-  font-size: 0.85rem;
-  color: #888;
-}
-
-.about-contributor {
-  margin: 0 0 14px 0;
-  font-size: 0.9rem;
-  color: #555;
-}
-
-.about-rules-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: none;
-  color: #667eea;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 6px 0;
-  margin-bottom: 14px;
-  transition: color 0.2s;
-}
-
-.about-rules-link:hover {
-  color: #5a6fd6;
-}
-
-.about-close-btn {
-  width: 100%;
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  background: #e5e7eb;
-  color: #333;
-  transition: background 0.2s;
-}
-
-.about-close-btn:hover {
-  background: #d1d5db;
 }
 
 /* Tutorial styles */

@@ -4,8 +4,7 @@ import { GameBoard } from './GameBoard';
 import { Keyboard } from './Keyboard';
 import { Settings } from './Settings';
 import { Calendar } from './Calendar';
-import { LanguageSelector } from './LanguageSelector';
-import { loadDictionary, loadKeyboard, getKeyboardRtl, getInputPlugins, loadWinMessage, loadLoseMessage, loadAbout } from '../data/languageLoader';
+import { loadDictionary, loadKeyboard, getKeyboardRtl, getInputPlugins, loadWinMessage, loadLoseMessage } from '../data/languageLoader';
 import { applyInputPlugins } from '../utils/inputPlugins';
 import { getDailyWord, getWordFromSeed, formatDate } from '../utils/dailyWord';
 import { evaluateGuess, isValidWord } from '../utils/gameLogic';
@@ -31,8 +30,6 @@ interface GameProps {
   onLanguageChange: (language: string) => void;
   onWordLengthChange: (wordLength: number) => void;
   availableLanguages: LanguageConfig[];
-  allAvailableLanguages: LanguageConfig[];
-  onLanguageSelectionChange: (selectedCodes: string[]) => void;
   onShowTutorial?: () => void;
 }
 
@@ -51,8 +48,6 @@ export const Game: React.FC<GameProps> = ({
   onLanguageChange,
   onWordLengthChange,
   availableLanguages,
-  allAvailableLanguages,
-  onLanguageSelectionChange,
   onShowTutorial
 }) => {
   const [dictionary, setDictionary] = useState<DictionaryEntry | null>(null);
@@ -68,7 +63,6 @@ export const Game: React.FC<GameProps> = ({
   const [selectedPlayDate, setSelectedPlayDate] = useState<string>('');
   const [keyboardRtl, setKeyboardRtl] = useState<boolean>(false);
   const [shakeRowIndex, setShakeRowIndex] = useState<number | null>(null);
-  const [showOptions, setShowOptions] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showWordIndexPopup, setShowWordIndexPopup] = useState(false);
   const [wordIndexInput, setWordIndexInput] = useState('');
@@ -76,8 +70,10 @@ export const Game: React.FC<GameProps> = ({
   const [feedbackText, setFeedbackText] = useState('');
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
-  const [showAbout, setShowAbout] = useState(false);
-  const [aboutData, setAboutData] = useState<{ contributorLabel?: string; rulesLabel?: string; contributor?: string } | null>(null);
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [transferMessage, setTransferMessage] = useState<string | null>(null);
+  const headerMenuRef = useRef<HTMLSpanElement | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const wordIndexGameStartedRef = useRef(false);
   const [calendarGames, setCalendarGames] = useState<any[]>([]);
   const [calendarBlinkingDates, setCalendarBlinkingDates] = useState<Set<string>>(new Set());
@@ -196,15 +192,6 @@ export const Game: React.FC<GameProps> = ({
     let cancelled = false;
     loadLoseMessage(language, '{word}').then((msg) => {
       if (!cancelled) setLoseMessage(msg || 'Answer was: {word}');
-    });
-    return () => { cancelled = true; };
-  }, [language]);
-
-  // Load about data for the current language
-  useEffect(() => {
-    let cancelled = false;
-    loadAbout(language).then((data) => {
-      if (!cancelled) setAboutData(data);
     });
     return () => { cancelled = true; };
   }, [language]);
@@ -1127,7 +1114,7 @@ export const Game: React.FC<GameProps> = ({
       }
 
       // Don't process game keys when popup is open
-      if (showWordIndexPopup || showFeedbackModal || showAbout) return;
+      if (showWordIndexPopup || showFeedbackModal || showHeaderMenu) return;
 
       if (loading) return;
 
@@ -1168,17 +1155,50 @@ export const Game: React.FC<GameProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [loading, gameState, randomMode, dictionary, wordLength, language, keyboardRtl, handleEnter, handleBackspace, handleKeyPress, handleStartGame, showWordIndexPopup, showFeedbackModal, showAbout]);
+  }, [loading, gameState, randomMode, dictionary, wordLength, language, keyboardRtl, handleEnter, handleBackspace, handleKeyPress, handleStartGame, showWordIndexPopup, showFeedbackModal, showHeaderMenu]);
 
-  if (loading) {
-    return <div className="loading">Loading...</div>;
-  }
+  useEffect(() => {
+    if (!showHeaderMenu) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!headerMenuRef.current?.contains(e.target as Node)) {
+        setShowHeaderMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [showHeaderMenu]);
 
-  if (error) {
-    return <div className="error">Error: {error}</div>;
-  }
+  const handleExport = () => {
+    try {
+      const blob = new Blob([apiClient.exportData()], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `polywordlot-export-${formatDate()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setTransferMessage('Exported game history.');
+      setShowHeaderMenu(false);
+    } catch (err) {
+      setTransferMessage(err instanceof Error ? err.message : 'Export failed');
+    }
+  };
 
-  // Simplified render - always show game board
+  const handleImportFile = async (file: File | null) => {
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const result = apiClient.importData(text);
+      setTransferMessage(`Imported. ${result.games} games stored.`);
+      setShowHeaderMenu(false);
+      window.location.reload();
+    } catch (err) {
+      setTransferMessage(err instanceof Error ? err.message : 'Import failed');
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = '';
+    }
+  };
+
   if (loading) {
     return <div className="loading">Loading...</div>;
   }
@@ -1195,102 +1215,149 @@ export const Game: React.FC<GameProps> = ({
       onTouchEnd={onTouchEnd}
     >
       <div className="header-section">
-        <h1>
-          {onViewChange && (
-            <span className="header-title-icons-left">
-              <span className="header-icon-with-tooltip">
-                <span className="header-icon-tooltip header-icon-tooltip--left">Single Language Statistics</span>
-                <button
-                  type="button"
-                  className="header-icon-button"
-                  onClick={() => onViewChange('statistics')}
-                  aria-label="Single Language Statistics"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="20" x2="18" y2="10"></line>
-                    <line x1="12" y1="20" x2="12" y2="4"></line>
-                    <line x1="6" y1="20" x2="6" y2="14"></line>
-                  </svg>
-                </button>
-              </span>
-              <span className="header-icon-with-tooltip">
-                <span className="header-icon-tooltip header-icon-tooltip--left">Cross-Language Comparison</span>
-                <button
-                  type="button"
-                  className="header-icon-button"
-                  onClick={() => onViewChange('statistics', 'cross-language')}
-                  aria-label="Cross-Language Comparison"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-                    <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-                    <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-                    <rect x="14" y="14" width="7" height="7" rx="1"></rect>
-                  </svg>
-                </button>
-              </span>
-            </span>
-          )}
+        <div className="game-header-bar">
+          <div className="game-header-side game-header-left">
+            {onViewChange && (
+              <>
+                <span className="header-icon-with-tooltip">
+                  <span className="header-icon-tooltip header-icon-tooltip--left">Single Language Statistics</span>
+                  <button
+                    type="button"
+                    className="header-icon-button"
+                    onClick={() => onViewChange('statistics')}
+                    aria-label="Single Language Statistics"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="20" x2="18" y2="10"></line>
+                      <line x1="12" y1="20" x2="12" y2="4"></line>
+                      <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                  </button>
+                </span>
+                <span className="header-icon-with-tooltip">
+                  <span className="header-icon-tooltip header-icon-tooltip--left">Cross-Language Comparison</span>
+                  <button
+                    type="button"
+                    className="header-icon-button"
+                    onClick={() => onViewChange('statistics', 'cross-language')}
+                    aria-label="Cross-Language Comparison"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                      <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                      <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                      <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                    </svg>
+                  </button>
+                </span>
+              </>
+            )}
+          </div>
+
           <a href="/" className="header-home-link">PolyWordlot</a>
-          {onViewChange && (
-            <span className="header-title-icons">
-              <span className="header-icon-with-tooltip">
-                <span className="header-icon-tooltip">Mark one or more languages you'd like to be in language selection menu</span>
+
+          <div className="game-header-side game-header-right" ref={headerMenuRef}>
+            <a
+              href="/"
+              className="header-brand-home"
+              title="Wordaholic home"
+              aria-label="Wordaholic home"
+            >
+              <img
+                className="header-brand-home-svg"
+                src="/brand/wordaholic-mark.svg"
+                width={34}
+                height={34}
+                alt=""
+              />
+            </a>
+            {onViewChange && (
+              <>
                 <button
                   type="button"
-                  className={`header-icon-button ${showOptions ? 'active' : ''}`}
-                  onClick={() => setShowOptions(!showOptions)}
-                  title="Language selection"
-                  aria-label="Language selection"
+                  className={`header-menu-trigger ${showHeaderMenu ? 'active' : ''}`}
+                  onClick={() => setShowHeaderMenu((open) => !open)}
+                  title="More"
+                  aria-label="More"
+                  aria-haspopup="menu"
+                  aria-expanded={showHeaderMenu}
                 >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"></circle>
-                    <line x1="2" y1="12" x2="22" y2="12"></line>
-                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <circle cx="5" cy="12" r="1.8"></circle>
+                    <circle cx="12" cy="12" r="1.8"></circle>
+                    <circle cx="19" cy="12" r="1.8"></circle>
+                  </svg>
+                  <svg className="header-menu-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
                 </button>
-              </span>
-              <span className="header-icon-with-tooltip">
-                <span className="header-icon-tooltip">Please, send comments if you find bugs, incorrect, offensive or missing words. If you'd like to add a new language, it is relatively easy - all you need is a couple of dictionaries for each word length. Please contact the author. I would gladly explain the details and work with you.</span>
-                <button
-                  type="button"
-                  className="header-icon-button"
-                  onClick={() => { setShowFeedbackModal(true); setFeedbackText(''); setFeedbackMessage(null); }}
-                  title="Send feedback"
-                  aria-label="Send feedback"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                    <polyline points="22,6 12,13 2,6"></polyline>
-                  </svg>
-                </button>
-              </span>
-              <button
-                type="button"
-                className="header-icon-button"
-                onClick={() => setShowAbout(true)}
-                title="About"
-                aria-label="About"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"></circle>
-                  <line x1="12" y1="16" x2="12" y2="12"></line>
-                  <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                </svg>
-              </button>
-              {onLogout && (
-                <button onClick={onLogout} className="header-icon-button" title="Logout" aria-label="Logout">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-                    <polyline points="16 17 21 12 16 7"></polyline>
-                    <line x1="21" y1="12" x2="9" y2="12"></line>
-                  </svg>
-                </button>
-              )}
-            </span>
-          )}
-          <span className="build-commit">{__GIT_COMMIT_HASH__ ? __GIT_COMMIT_HASH__.substring(0, 6) : ''}</span>
-        </h1>
+                {showHeaderMenu && (
+                  <div className="header-menu-dropdown" role="menu">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="header-menu-item"
+                      title="Email"
+                      aria-label="Email"
+                      onClick={() => {
+                        setShowHeaderMenu(false);
+                        setShowFeedbackModal(true);
+                        setFeedbackText('');
+                        setFeedbackMessage(null);
+                      }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                        <polyline points="22,6 12,13 2,6"></polyline>
+                      </svg>
+                      <span className="header-menu-item-tip">Email</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="header-menu-item"
+                      title="Export"
+                      aria-label="Export"
+                      onClick={handleExport}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                      </svg>
+                      <span className="header-menu-item-tip">Export</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="header-menu-item"
+                      title="Import"
+                      aria-label="Import"
+                      onClick={() => importInputRef.current?.click()}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                      </svg>
+                      <span className="header-menu-item-tip">Import</span>
+                    </button>
+                  </div>
+                )}
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  hidden
+                  onChange={(e) => void handleImportFile(e.target.files?.[0] || null)}
+                />
+              </>
+            )}
+          </div>
+        </div>
+        {transferMessage && (
+          <p className="header-transfer-message" role="status">{transferMessage}</p>
+        )}
         {showCalendar && !randomMode && (
           <div className="calendar-full-panel">
             <div className="calendar-full-header">
@@ -1450,12 +1517,6 @@ export const Game: React.FC<GameProps> = ({
           </div>
         </div>
       ) : null}
-      <LanguageSelector
-        allAvailableLanguages={allAvailableLanguages}
-        isOpen={showOptions}
-        onClose={() => setShowOptions(false)}
-        onSelectionChange={onLanguageSelectionChange}
-      />
       {showWordIndexPopup && (
         <div className="word-index-overlay" onClick={() => setShowWordIndexPopup(false)}>
           <div className="word-index-popup" onClick={(e) => e.stopPropagation()}>
@@ -1549,41 +1610,6 @@ export const Game: React.FC<GameProps> = ({
                 Cancel
               </button>
             </div>
-          </div>
-        </div>
-      )}
-      {showAbout && (
-        <div className="word-index-overlay" onClick={() => setShowAbout(false)}>
-          <div className="about-popup" onClick={(e) => e.stopPropagation()}>
-            <h3>PolyWordlot</h3>
-            <p className="about-author">Author: <strong>Ilya Volvovski</strong></p>
-            {aboutData?.contributor && (
-              <p className="about-contributor">
-                {aboutData.contributorLabel || 'Contributors'}: <strong>{aboutData.contributor}</strong>
-              </p>
-            )}
-            {onShowTutorial && (
-              <button
-                type="button"
-                className="about-rules-link"
-                onClick={() => {
-                  setShowAbout(false);
-                  onShowTutorial();
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                </svg>
-                {aboutData?.rulesLabel || 'Game Rules'}
-              </button>
-            )}
-            <button
-              className="about-close-btn"
-              onClick={() => setShowAbout(false)}
-            >
-              OK
-            </button>
           </div>
         </div>
       )}

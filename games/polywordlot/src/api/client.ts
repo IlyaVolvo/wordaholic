@@ -328,6 +328,51 @@ class ApiClient {
   async updateReleaseSeen(_index: number): Promise<{ success: boolean }> {
     return { success: true };
   }
+
+  exportData(): string {
+    const store = loadStore();
+    return JSON.stringify(
+      {
+        format: 'wordaholic-polywordlot',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        store,
+      },
+      null,
+      2
+    );
+  }
+
+  importData(jsonText: string): { success: boolean; games: number } {
+    const parsed = JSON.parse(jsonText) as { store?: Store } & Partial<Store>;
+    const incoming = parsed.store || (parsed as Store);
+    if (!incoming || !Array.isArray(incoming.games)) {
+      throw new Error('Invalid PolyWordlot export file');
+    }
+    const current = loadStore();
+    const byKey = new Map<string, StoredGame>();
+    const keyOf = (g: StoredGame) =>
+      `${g.language}|${g.word_length}|${g.game_date}|${g.is_random_mode}|${g.word_seed ?? ''}`;
+    for (const g of current.games) byKey.set(keyOf(g), g);
+    for (const g of incoming.games) {
+      if (!g || typeof g !== 'object') continue;
+      byKey.set(keyOf(g as StoredGame), g as StoredGame);
+    }
+    const games = [...byKey.values()];
+    const nextId = Math.max(
+      current.nextId,
+      incoming.nextId || 1,
+      ...games.map((g) => (g.id || 0) + 1),
+      1
+    );
+    saveStore({
+      nextId,
+      games,
+      selectedLanguages: incoming.selectedLanguages ?? current.selectedLanguages,
+      feedback: current.feedback,
+    });
+    return { success: true, games: games.length };
+  }
 }
 
 export const apiClient = new ApiClient();

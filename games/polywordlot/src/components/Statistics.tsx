@@ -458,7 +458,6 @@ export const Statistics: React.FC<StatisticsProps> = ({
       <div className="header-section">
         <h1>
           <a href="/" className="header-home-link">PolyWordlot</a>
-          <span className="build-commit">{__GIT_COMMIT_HASH__ ? __GIT_COMMIT_HASH__.substring(0, 6) : ''}</span>
           {onViewChange && (
             <button
               type="button"
