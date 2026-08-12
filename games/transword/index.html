@@ -31,7 +31,13 @@
         <div id="target-word" class="target-word"></div>
       </div>
       <div class="header-right">
-        <button type="button" id="btn-stats" class="icon-btn" title="Statistics" aria-label="Statistics">Stats</button>
+        <button type="button" id="btn-stats" class="icon-btn" title="Statistics" aria-label="Statistics">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+        </button>
         <div class="stat" id="stat-time" data-pref="showTime">
           <span class="stat-label">Time</span>
           <span id="timer" class="stat-value">0:00</span>
@@ -52,47 +58,54 @@
     </div>
 
     <footer id="toolbar">
-      <div class="mode-controls">
-        <div class="mode-toggle" role="group" aria-label="Play mode">
-          <button type="button" class="mode-btn active" data-mode="daily" id="mode-daily">Daily</button>
-          <button type="button" class="mode-btn" data-mode="practice" id="mode-practice">Practice</button>
-        </div>
-        <button type="button" id="btn-history" class="btn-secondary">History</button>
-        <button type="button" id="btn-new-practice" class="btn-secondary hidden">New practice</button>
+      <div class="display-prefs" role="group" aria-label="Display options">
+        <label class="pref-toggle" title="Show timer while playing">
+          <input type="checkbox" id="pref-show-time" />
+          <span>Time</span>
+        </label>
+        <label class="pref-toggle" title="Show optimal step count (spoilers for some players)">
+          <input type="checkbox" id="pref-show-optimal" />
+          <span>Optimal</span>
+        </label>
       </div>
-      <div class="toolbar-right">
-        <div class="display-prefs" role="group" aria-label="Display options">
-          <label class="pref-toggle" title="Show timer while playing">
-            <input type="checkbox" id="pref-show-time" />
-            <span>Time</span>
-          </label>
-          <label class="pref-toggle" title="Show optimal step count (spoilers for some players)">
-            <input type="checkbox" id="pref-show-optimal" />
-            <span>Optimal</span>
-          </label>
+      <div class="toolbar-picks">
+        <select id="difficulty" title="Difficulty" aria-label="Difficulty">
+          <option value="3">Easy (2–3)</option>
+          <option value="4" selected>Medium (4–5)</option>
+          <option value="6">Hard (6–8)</option>
+        </select>
+        <select id="level-select" title="Vocabulary" aria-label="Vocabulary">
+          <option value="1">Basic</option>
+          <option value="2" selected>Standard</option>
+        </select>
+        <div class="language-dropdown" id="language-dropdown">
+          <button type="button" class="language-dropdown-trigger" id="language-trigger" title="Language" aria-label="Language" aria-haspopup="listbox" aria-expanded="false">
+            <span class="language-dropdown-flag" id="language-flag" aria-hidden="true"></span>
+            <span class="language-dropdown-chevron" aria-hidden="true">▼</span>
+          </button>
+          <ul class="language-dropdown-list hidden" id="language-list" role="listbox" aria-label="Select language"></ul>
         </div>
-        <div class="difficulty-pick">
-          <label>Difficulty
-            <select id="difficulty">
-              <option value="3">Easy (2–3)</option>
-              <option value="4" selected>Medium (4–5)</option>
-              <option value="6">Hard (6–8)</option>
-            </select>
-          </label>
-        </div>
-        <div class="difficulty-pick">
-          <label>Vocabulary
-            <select id="level-select">
-              <option value="1">Basic</option>
-              <option value="2" selected>Standard</option>
-            </select>
-          </label>
-        </div>
-        <div class="difficulty-pick">
-          <label>Language
-            <select id="language-select"></select>
-          </label>
-        </div>
+      </div>
+      <div class="toolbar-mode">
+        <select id="mode-select" class="mode-select" aria-label="Game mode: Daily or Practice">
+          <option value="daily">Daily</option>
+          <option value="practice">Practice</option>
+        </select>
+        <button type="button" id="btn-new-practice" class="restart-practice-button hidden" title="New practice game" aria-label="New practice game">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+        </button>
+        <button type="button" id="btn-calendar" class="date-picker-btn" title="Calendar" aria-label="Choose daily date">
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+          <span id="date-display">today</span>
+        </button>
       </div>
     </footer>
     <div id="keyboard" class="keyboard"></div>

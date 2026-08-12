@@ -217,10 +217,73 @@ async function loadLanguagesCatalog() {
 
 function applyModeChrome() {
   const daily = playMode === 'daily';
-  $('#mode-daily')?.classList.toggle('active', daily);
-  $('#mode-practice')?.classList.toggle('active', !daily);
-  $('#btn-history')?.classList.toggle('hidden', !daily);
+  const modeSel = /** @type {HTMLSelectElement | null} */ ($('#mode-select'));
+  if (modeSel) modeSel.value = playMode;
+  $('#btn-calendar')?.classList.toggle('hidden', !daily);
   $('#btn-new-practice')?.classList.toggle('hidden', daily);
+  updateDateDisplay();
+}
+
+function formatDateDisplay(selectedDate, today) {
+  if (!selectedDate || selectedDate === today) return 'today';
+  const [ys, ms, ds] = selectedDate.split('-').map(Number);
+  const selected = new Date(ys, ms - 1, ds);
+  const [yt, mt, dt] = today.split('-').map(Number);
+  const todayObj = new Date(yt, mt - 1, dt);
+  const diffDays = Math.round((todayObj.getTime() - selected.getTime()) / 86400000);
+  if (diffDays === 1) return 'yesterday';
+  const startOfWeek = new Date(todayObj);
+  startOfWeek.setDate(todayObj.getDate() - todayObj.getDay());
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  if (selected >= startOfWeek && selected <= endOfWeek) {
+    return selected.toLocaleDateString('en-US', { weekday: 'long' });
+  }
+  const month = selected.toLocaleDateString('en-US', { month: 'short' });
+  const day = selected.getDate();
+  if (selected.getFullYear() === todayObj.getFullYear()) return `${month} ${day}`;
+  return `${month} ${day}, ${selected.getFullYear()}`;
+}
+
+function updateDateDisplay() {
+  const el = $('#date-display');
+  if (!el) return;
+  el.textContent = formatDateDisplay(selectedGameDate, formatLocalDate());
+}
+
+function currentLanguageOption() {
+  return languageOptions.find((l) => l.code === language);
+}
+
+function renderLanguageDropdown() {
+  const flag = $('#language-flag');
+  const trigger = $('#language-trigger');
+  const list = $('#language-list');
+  const cur = currentLanguageOption();
+  if (flag) flag.textContent = cur?.flag || '🌐';
+  if (trigger) {
+    const name = cur?.menu || 'Language';
+    trigger.title = name;
+    trigger.setAttribute('aria-label', `Language: ${name}`);
+  }
+  if (!list) return;
+  list.innerHTML = languageOptions
+    .map(
+      (l) =>
+        `<li role="option" class="language-dropdown-option${l.code === language ? ' selected' : ''}" data-code="${l.code}" aria-selected="${l.code === language}">` +
+        `<span class="language-dropdown-option-flag">${l.flag || ''}</span>` +
+        `<span class="language-dropdown-option-name">${l.menu}</span></li>`
+    )
+    .join('');
+}
+
+function setLanguageMenuOpen(open) {
+  const list = $('#language-list');
+  const trigger = $('#language-trigger');
+  const chev = trigger?.querySelector('.language-dropdown-chevron');
+  list?.classList.toggle('hidden', !open);
+  trigger?.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (chev) chev.textContent = open ? '▲' : '▼';
 }
 
 async function setPlayMode(mode) {
@@ -252,6 +315,7 @@ async function switchLanguage(code, startPuzzle = true) {
   await new Promise((r) => requestAnimationFrame(r));
   buildGraphs(corpusEntries);
   renderKeyboard();
+  renderLanguageDropdown();
   hideLoading();
   if (startPuzzle) {
     if (playMode === 'daily') await loadDailyForSelection();
@@ -287,6 +351,7 @@ function startPracticePuzzle() {
 async function loadDailyForSelection() {
   readOnly = false;
   solved = false;
+  updateDateDisplay();
   const combo = currentCombo();
   let record = await getDaily(combo);
 
@@ -689,7 +754,11 @@ function openHistory() {
   const diffLabel =
     combo.difficulty <= 3 ? 'Easy' : combo.difficulty <= 5 ? 'Medium' : 'Hard';
   const vocabLabel = combo.vocabLevel <= 1 ? 'Basic' : 'Standard';
-  $('#history-combo-label').textContent = `${language} · ${vocabLabel} · ${diffLabel}`;
+  $('#history-combo-label').textContent = `${vocabLabel} · ${diffLabel}`;
+  if (selectedGameDate) {
+    const [y, m] = selectedGameDate.split('-').map(Number);
+    calendarMonth = new Date(y, m - 1, 1);
+  }
   overlay.hidden = false;
   overlay.classList.remove('hidden');
   void renderCalendar();
@@ -820,26 +889,39 @@ async function init() {
   await storage.open();
   showLoading('Loading languages…');
   languageOptions = await loadLanguagesCatalog();
-  const sel = $('#language-select');
-  sel.innerHTML = languageOptions
-    .map((l) => `<option value="${l.code}">${l.flag || ''} ${l.menu}</option>`)
-    .join('');
   const preferred = getPreferredLanguageCodes();
   const picked = pickActiveLanguage(
     preferred,
     languageOptions.map((l) => l.code)
   );
   if (!picked) throw new Error('No TransWord languages available');
-  sel.value = picked;
+  language = picked;
+  renderLanguageDropdown();
   $('#game').classList.remove('hidden');
   wireDisplayPrefs();
   applyModeChrome();
 
-  $('#mode-daily')?.addEventListener('click', () => setPlayMode('daily'));
-  $('#mode-practice')?.addEventListener('click', () => setPlayMode('practice'));
-  $('#btn-history')?.addEventListener('click', () => openHistory());
+  $('#mode-select')?.addEventListener('change', (e) => {
+    void setPlayMode(/** @type {HTMLSelectElement} */ (e.target).value);
+  });
+  $('#btn-calendar')?.addEventListener('click', () => openHistory());
   $('#btn-new-practice')?.addEventListener('click', () => startPracticePuzzle());
   $('#btn-stats')?.addEventListener('click', () => openStats());
+  $('#language-trigger')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const list = $('#language-list');
+    setLanguageMenuOpen(!!list?.classList.contains('hidden'));
+  });
+  $('#language-list')?.addEventListener('click', (e) => {
+    const item = /** @type {HTMLElement} */ (e.target).closest('[data-code]');
+    if (!item) return;
+    setLanguageMenuOpen(false);
+    void switchLanguage(item.getAttribute('data-code'), true);
+  });
+  document.addEventListener('click', (e) => {
+    const dd = $('#language-dropdown');
+    if (dd && !dd.contains(/** @type {Node} */ (e.target))) setLanguageMenuOpen(false);
+  });
   $('#win-new-btn')?.addEventListener('click', () => {
     $('#win-overlay').classList.add('hidden');
     startPracticePuzzle();
@@ -869,7 +951,6 @@ async function init() {
 
   $('#level-select').addEventListener('change', () => void onComboControlsChanged());
   $('#difficulty').addEventListener('change', () => void onComboControlsChanged());
-  sel.addEventListener('change', (e) => switchLanguage(e.target.value, true));
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) void pauseAndPersist();
