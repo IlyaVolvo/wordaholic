@@ -1,4 +1,5 @@
 import type { DictionaryEntry, LanguageConfig } from '../types';
+import { LOCALE_PATHS, languageDirForCode } from '@wordaholic/locales';
 
 const DICT_BASE = `${import.meta.env.BASE_URL}dict/`;
 /** Shared language definitions: /word-data/<Language>/<locale>/language.json */
@@ -76,18 +77,9 @@ const loseMessageCache = new Map<string, string>();
 const aboutCache = new Map<string, { contributorLabel?: string; rulesLabel?: string; contributor?: string }>();
 
 /**
- * Locale to directory path (language name + locale). Used for getLanguageDir and discovery.
+ * Locale paths come from app/shell/locales.js (shared with shell + TransWord).
  * Menu display name comes from each locale's language.json "menu" field.
  */
-const LOCALE_PATHS: Record<string, { language: string; locale: string }> = {
-  en: { language: 'English', locale: 'en' },
-  ru: { language: 'Russian', locale: 'ru' },
-  fr: { language: 'French', locale: 'fr' },
-  es: { language: 'Spanish', locale: 'es' },
-  de: { language: 'German', locale: 'de' },
-  he: { language: 'Hebrew', locale: 'he' },
-  hy: { language: 'Armenian', locale: 'hy' }, 
-};
 
 /**
  * Loads a dictionary file as text with support for comments (#) and empty lines
@@ -222,9 +214,7 @@ async function discoverLanguages(): Promise<LanguageConfig[]> {
  * Gets the directory path for a language/locale
  */
 export function getLanguageDir(locale: string): string | null {
-  const info = LOCALE_PATHS[locale];
-  if (!info) return null;
-  return `${info.language}/${info.locale}`;
+  return languageDirForCode(locale);
 }
 
 export async function loadWinMessage(language: string): Promise<string | null> {

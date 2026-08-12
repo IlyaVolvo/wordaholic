@@ -18,6 +18,12 @@ export default defineConfig({
   root: __dirname,
   plugins: [react()],
   base: '/games/polywordlot/',
+  resolve: {
+    alias: {
+      '@wordaholic/locales': path.resolve(__dirname, '../../app/shell/locales.js'),
+      '@wordaholic/normalize': path.resolve(__dirname, '../../app/i18n/normalize.js'),
+    },
+  },
   define: {
     __GIT_COMMIT_HASH__: JSON.stringify(getGitCommitHash()),
   },

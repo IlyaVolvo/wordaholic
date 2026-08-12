@@ -34,3 +34,11 @@ export function languageDirForTranswordDir(dirName) {
   }
   return null;
 }
+
+/** Reverse map: Language folder → locale code (en, es, …). */
+export function codeForLanguageName(dirName) {
+  for (const [code, info] of Object.entries(LOCALE_PATHS)) {
+    if (info.language === dirName) return code;
+  }
+  return null;
+}
