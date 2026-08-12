@@ -130,7 +130,6 @@ export const App: React.FC = () => {
       ) : (
         <Game
           userId={LOCAL_USER.id}
-          userEmail={LOCAL_USER.email}
           view={view}
           onViewChange={handleViewChange}
           historicalDate={historicalDate}

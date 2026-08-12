@@ -11,6 +11,8 @@ import {
   setLastLanguage,
 } from './i18n-prefs/favorites.js';
 import { storage } from './storage/idb.js';
+import { AUTHOR_EMAIL } from './shell/author.js';
+import { downloadSiteBackup, exportSiteBackup, importSiteBackup } from './shell/site-backup.js';
 
 registerGame({
   id: 'polywordlot',
@@ -114,6 +116,41 @@ async function renderGateway() {
       await renderGateway();
       showPreparing().catch((err) => console.warn('Offline prep failed', err));
     },
+    onExportData: async () => {
+      try {
+        const payload = await exportSiteBackup();
+        downloadSiteBackup(payload);
+      } catch (err) {
+        console.error(err);
+        alert(err instanceof Error ? err.message : 'Export failed');
+      }
+    },
+    onImportData: async (file) => {
+      try {
+        const text = await file.text();
+        await importSiteBackup(JSON.parse(text));
+        await renderGateway();
+        showPreparing().catch((err) => console.warn('Offline prep failed', err));
+        alert('Import complete');
+      } catch (err) {
+        console.error(err);
+        alert(err instanceof Error ? err.message : 'Import failed');
+      }
+    },
+    onFeedback: () => {
+      const dialog = $('#feedback-dialog');
+      const text = $('#feedback-text');
+      const status = $('#feedback-status');
+      const emailEl = $('#feedback-author-email');
+      if (emailEl) emailEl.textContent = AUTHOR_EMAIL;
+      if (text) text.value = '';
+      if (status) {
+        status.hidden = true;
+        status.textContent = '';
+        status.classList.remove('feedback-status--hint');
+      }
+      if (dialog) dialog.hidden = false;
+    },
   });
   renderGameRail($('#game-rail'), {
     games: listGames(),
@@ -181,7 +218,57 @@ async function boot() {
     el.addEventListener('click', closeAbout);
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && aboutDialog && !aboutDialog.hidden) closeAbout();
+    if (e.key !== 'Escape') return;
+    if (aboutDialog && !aboutDialog.hidden) closeAbout();
+    const feedbackDialog = $('#feedback-dialog');
+    if (feedbackDialog && !feedbackDialog.hidden) feedbackDialog.hidden = true;
+  });
+
+  const feedbackDialog = $('#feedback-dialog');
+  const feedbackText = /** @type {HTMLTextAreaElement | null} */ ($('#feedback-text'));
+  const feedbackStatus = $('#feedback-status');
+
+  /**
+   * @param {string} value
+   * @param {string} okMessage
+   */
+  async function copyText(value, okMessage) {
+    try {
+      await navigator.clipboard.writeText(value);
+      if (feedbackStatus) {
+        feedbackStatus.hidden = false;
+        feedbackStatus.textContent = okMessage;
+        feedbackStatus.classList.add('feedback-status--hint');
+      }
+    } catch {
+      if (feedbackStatus) {
+        feedbackStatus.hidden = false;
+        feedbackStatus.textContent = value;
+        feedbackStatus.classList.remove('feedback-status--hint');
+      }
+    }
+  }
+
+  const closeFeedback = () => {
+    if (feedbackDialog) feedbackDialog.hidden = true;
+  };
+  feedbackDialog?.querySelectorAll('[data-feedback-close]').forEach((el) => {
+    el.addEventListener('click', closeFeedback);
+  });
+  $('#btn-feedback-copy')?.addEventListener('click', () => {
+    void copyText(AUTHOR_EMAIL, `Copied ${AUTHOR_EMAIL}`);
+  });
+  $('#btn-feedback-copy-note')?.addEventListener('click', () => {
+    const note = (feedbackText?.value || '').trim();
+    if (!note) {
+      if (feedbackStatus) {
+        feedbackStatus.hidden = false;
+        feedbackStatus.textContent = 'Write a note first, or just copy the address.';
+        feedbackStatus.classList.remove('feedback-status--hint');
+      }
+      return;
+    }
+    void copyText(note, 'Note copied — paste it into your email.');
   });
 
   checkForUpdates(document.body).catch(() => {});

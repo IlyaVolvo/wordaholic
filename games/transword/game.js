@@ -489,20 +489,6 @@ async function init() {
     });
   });
   sel.addEventListener('change', (e) => switchLanguage(e.target.value, true));
-  $('#btn-export')?.addEventListener('click', async () => {
-    const payload = await storage.exportGame(GAME_ID);
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `wordaholic-${GAME_ID}-backup.json`;
-    a.click();
-  });
-  $('#import-file')?.addEventListener('change', async (e) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
-    await storage.importGame(JSON.parse(await f.text()));
-    alert('Import complete');
-  });
   await switchLanguage(picked, true);
 }
 

@@ -42,6 +42,9 @@ async function loadMapSvg() {
  *   languageMenus?: Record<string, string>,
  *   onFavoriteLanguages?: (codes: string[]) => void | Promise<void>,
  *   onUnfavoriteLanguages?: (codes: string[]) => void | Promise<void>,
+ *   onExportData?: () => void | Promise<void>,
+ *   onImportData?: (file: File) => void | Promise<void>,
+ *   onFeedback?: () => void,
  * }} [opts]
  */
 export async function renderWorldMap(container, opts = {}) {
@@ -65,10 +68,34 @@ export async function renderWorldMap(container, opts = {}) {
       <div class="world-map-layer" aria-hidden="true">
         <div class="world-map-svg">${mapSvg}</div>
       </div>
-      <div class="map-zoom-controls" role="group" aria-label="Map zoom">
-        <button type="button" class="map-zoom-btn" data-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
-        <button type="button" class="map-zoom-btn" data-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
-        <button type="button" class="map-zoom-btn" data-zoom="reset" title="Reset zoom" aria-label="Reset zoom">⌂</button>
+      <div class="map-zoom-controls" role="group" aria-label="Map tools">
+        <div class="map-transfer-controls">
+          <button type="button" class="map-zoom-btn" data-transfer="export" title="Export all game data" aria-label="Export all game data">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </button>
+          <button type="button" class="map-zoom-btn" data-transfer="import" title="Import game data" aria-label="Import game data">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+          </button>
+          <button type="button" class="map-zoom-btn" data-transfer="feedback" title="Send feedback" aria-label="Send feedback">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </button>
+          <input data-transfer-file type="file" accept="application/json,.json" hidden />
+        </div>
+        <div class="map-zoom-stack" role="group" aria-label="Map zoom">
+          <button type="button" class="map-zoom-btn" data-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
+          <button type="button" class="map-zoom-btn" data-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
+          <button type="button" class="map-zoom-btn" data-zoom="reset" title="Reset zoom" aria-label="Reset zoom">⌂</button>
+        </div>
       </div>
       <div class="map-lang-tooltip" hidden></div>
       <div class="map-fav-toast" hidden role="status"></div>
@@ -145,6 +172,28 @@ export async function renderWorldMap(container, opts = {}) {
       else if (action === 'out') zoomAt(1 / 1.25, cx, cy);
       else if (action === 'reset') resetMapView();
     });
+  });
+
+  const transferFile = stage?.querySelector('[data-transfer-file]');
+  stage?.querySelectorAll('[data-transfer]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const action = btn.getAttribute('data-transfer');
+      if (action === 'export' && typeof opts.onExportData === 'function') {
+        void opts.onExportData();
+      } else if (action === 'import') {
+        transferFile?.click();
+      } else if (action === 'feedback' && typeof opts.onFeedback === 'function') {
+        opts.onFeedback();
+      }
+    });
+  });
+  transferFile?.addEventListener('change', () => {
+    const file = transferFile.files?.[0];
+    if (file && typeof opts.onImportData === 'function') {
+      void opts.onImportData(file);
+    }
+    transferFile.value = '';
   });
 
   stage?.addEventListener(

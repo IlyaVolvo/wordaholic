@@ -17,7 +17,6 @@ const MAX_GUESSES = 6;
 
 interface GameProps {
   userId: number;
-  userEmail?: string;
   onLogout?: () => void;
   view?: 'game' | 'statistics';
   onViewChange?: (view: 'game' | 'statistics', statType?: string) => void;
@@ -35,7 +34,6 @@ interface GameProps {
 
 export const Game: React.FC<GameProps> = ({ 
   userId, 
-  userEmail,
   onLogout, 
   view: _view, 
   onViewChange, 
@@ -66,14 +64,6 @@ export const Game: React.FC<GameProps> = ({
   const [showCalendar, setShowCalendar] = useState(false);
   const [showWordIndexPopup, setShowWordIndexPopup] = useState(false);
   const [wordIndexInput, setWordIndexInput] = useState('');
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [feedbackText, setFeedbackText] = useState('');
-  const [feedbackSending, setFeedbackSending] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
-  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
-  const [transferMessage, setTransferMessage] = useState<string | null>(null);
-  const headerMenuRef = useRef<HTMLSpanElement | null>(null);
-  const importInputRef = useRef<HTMLInputElement | null>(null);
   const wordIndexGameStartedRef = useRef(false);
   const [calendarGames, setCalendarGames] = useState<any[]>([]);
   const [calendarBlinkingDates, setCalendarBlinkingDates] = useState<Set<string>>(new Set());
@@ -954,25 +944,6 @@ export const Game: React.FC<GameProps> = ({
     setSelectedPlayDate(date);
     saveStoredDate(language, wordLength, date);
   }, [language, wordLength, saveStoredDate]);
-
-  const handleSendFeedback = useCallback(async () => {
-    if (!feedbackText.trim() || feedbackSending) return;
-    setFeedbackSending(true);
-    setFeedbackMessage(null);
-    try {
-      await apiClient.sendFeedback(feedbackText.trim());
-      setFeedbackMessage('Thank you! Your feedback has been sent.');
-      setFeedbackText('');
-      setTimeout(() => {
-        setShowFeedbackModal(false);
-        setFeedbackMessage(null);
-      }, 1500);
-    } catch (err) {
-      setFeedbackMessage(err instanceof Error ? err.message : 'Failed to send feedback');
-    } finally {
-      setFeedbackSending(false);
-    }
-  }, [feedbackText, feedbackSending]);
   
   // Swipe gesture handlers for date navigation
   const onTouchStart = useCallback((e: React.TouchEvent) => {
@@ -1114,7 +1085,7 @@ export const Game: React.FC<GameProps> = ({
       }
 
       // Don't process game keys when popup is open
-      if (showWordIndexPopup || showFeedbackModal || showHeaderMenu) return;
+      if (showWordIndexPopup) return;
 
       if (loading) return;
 
@@ -1155,49 +1126,7 @@ export const Game: React.FC<GameProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [loading, gameState, randomMode, dictionary, wordLength, language, keyboardRtl, handleEnter, handleBackspace, handleKeyPress, handleStartGame, showWordIndexPopup, showFeedbackModal, showHeaderMenu]);
-
-  useEffect(() => {
-    if (!showHeaderMenu) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (!headerMenuRef.current?.contains(e.target as Node)) {
-        setShowHeaderMenu(false);
-      }
-    };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, [showHeaderMenu]);
-
-  const handleExport = () => {
-    try {
-      const blob = new Blob([apiClient.exportData()], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `polywordlot-export-${formatDate()}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setTransferMessage('Exported game history.');
-      setShowHeaderMenu(false);
-    } catch (err) {
-      setTransferMessage(err instanceof Error ? err.message : 'Export failed');
-    }
-  };
-
-  const handleImportFile = async (file: File | null) => {
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const result = apiClient.importData(text);
-      setTransferMessage(`Imported. ${result.games} games stored.`);
-      setShowHeaderMenu(false);
-      window.location.reload();
-    } catch (err) {
-      setTransferMessage(err instanceof Error ? err.message : 'Import failed');
-    } finally {
-      if (importInputRef.current) importInputRef.current.value = '';
-    }
-  };
+  }, [loading, gameState, randomMode, dictionary, wordLength, language, keyboardRtl, handleEnter, handleBackspace, handleKeyPress, handleStartGame, showWordIndexPopup]);
 
   if (loading) {
     return <div className="loading">Loading...</div>;
@@ -1256,7 +1185,7 @@ export const Game: React.FC<GameProps> = ({
 
           <a href="/" className="header-home-link">PolyWordlot</a>
 
-          <div className="game-header-side game-header-right" ref={headerMenuRef}>
+          <div className="game-header-side game-header-right">
             <a
               href="/"
               className="header-brand-home"
@@ -1271,90 +1200,8 @@ export const Game: React.FC<GameProps> = ({
                 alt=""
               />
             </a>
-            {onViewChange && (
-              <>
-                <button
-                  type="button"
-                  className={`header-menu-trigger ${showHeaderMenu ? 'active' : ''}`}
-                  onClick={() => setShowHeaderMenu((open) => !open)}
-                  title="More"
-                  aria-label="More"
-                  aria-haspopup="menu"
-                  aria-expanded={showHeaderMenu}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <circle cx="12" cy="5" r="1.8"></circle>
-                    <circle cx="12" cy="12" r="1.8"></circle>
-                    <circle cx="12" cy="19" r="1.8"></circle>
-                  </svg>
-                </button>
-                {showHeaderMenu && (
-                  <div className="header-menu-dropdown" role="menu">
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="header-menu-item"
-                      title="Email"
-                      aria-label="Email"
-                      onClick={() => {
-                        setShowHeaderMenu(false);
-                        setShowFeedbackModal(true);
-                        setFeedbackText('');
-                        setFeedbackMessage(null);
-                      }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                        <polyline points="22,6 12,13 2,6"></polyline>
-                      </svg>
-                      <span className="header-menu-item-tip">Email</span>
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="header-menu-item"
-                      title="Export"
-                      aria-label="Export"
-                      onClick={handleExport}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                      </svg>
-                      <span className="header-menu-item-tip">Export</span>
-                    </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      className="header-menu-item"
-                      title="Import"
-                      aria-label="Import"
-                      onClick={() => importInputRef.current?.click()}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="17 8 12 3 7 8"></polyline>
-                        <line x1="12" y1="3" x2="12" y2="15"></line>
-                      </svg>
-                      <span className="header-menu-item-tip">Import</span>
-                    </button>
-                  </div>
-                )}
-                <input
-                  ref={importInputRef}
-                  type="file"
-                  accept="application/json,.json"
-                  hidden
-                  onChange={(e) => void handleImportFile(e.target.files?.[0] || null)}
-                />
-              </>
-            )}
           </div>
         </div>
-        {transferMessage && (
-          <p className="header-transfer-message" role="status">{transferMessage}</p>
-        )}
         {showCalendar && !randomMode && (
           <div className="calendar-full-panel">
             <div className="calendar-full-header">
@@ -1559,50 +1406,6 @@ export const Game: React.FC<GameProps> = ({
               <button
                 className="word-index-btn word-index-btn-cancel"
                 onClick={() => setShowWordIndexPopup(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {showFeedbackModal && (
-        <div className="word-index-overlay" onClick={() => !feedbackSending && setShowFeedbackModal(false)}>
-          <div className="feedback-popup" onClick={(e) => e.stopPropagation()}>
-            <h3>Send Feedback</h3>
-            <p className="feedback-popup-info">
-              Please introduce yourself — I only know your email address. Your message will be sent to the author. Your email ({userEmail || 'registered user'}) will be used as the reply address.
-            </p>
-            <textarea
-              className="feedback-textarea"
-              value={feedbackText}
-              onChange={(e) => setFeedbackText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') setShowFeedbackModal(false);
-                e.stopPropagation();
-              }}
-              placeholder="Your comments, bug reports, or suggestions..."
-              rows={5}
-              autoFocus
-              disabled={feedbackSending}
-            />
-            {feedbackMessage && (
-              <p className={`feedback-message ${feedbackMessage.includes('Thank you') ? 'success' : 'error'}`}>
-                {feedbackMessage}
-              </p>
-            )}
-            <div className="word-index-buttons">
-              <button
-                className="word-index-btn word-index-btn-go"
-                onClick={handleSendFeedback}
-                disabled={!feedbackText.trim() || feedbackSending}
-              >
-                {feedbackSending ? 'Sending...' : 'Send'}
-              </button>
-              <button
-                className="word-index-btn word-index-btn-cancel"
-                onClick={() => !feedbackSending && setShowFeedbackModal(false)}
-                disabled={feedbackSending}
               >
                 Cancel
               </button>
