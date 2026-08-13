@@ -12,6 +12,7 @@ import {
 } from './i18n-prefs/favorites.js';
 import { AUTHOR_EMAIL } from './shell/author.js';
 import { downloadSiteBackup, exportSiteBackup, importSiteBackup } from './shell/site-backup.js';
+import { reloadLatestFromServer } from './updates/reload-latest.js';
 
 registerGame({
   id: 'polywordlot',
@@ -68,6 +69,13 @@ function favoriteLanguageObjects() {
   return allLanguages.filter((l) => fav.has(l.code));
 }
 
+function gameNamesForLanguage(lang) {
+  const games = listGames();
+  return (lang.games || [])
+    .map((id) => games.find((g) => g.id === id)?.name)
+    .filter(Boolean);
+}
+
 function renderFavoriteChips() {
   const host = $('#fav-chips');
   if (!host) return;
@@ -77,13 +85,22 @@ function renderFavoriteChips() {
     return;
   }
   host.innerHTML = favorites
-    .map(
-      (l) => `
-      <span class="fav-chip" title="${l.menu}" data-code="${l.code}">
+    .map((l) => {
+      const gameNames = gameNamesForLanguage(l);
+      const gamesLabel = gameNames.join(', ');
+      const title = gamesLabel ? `${l.menu} — ${gamesLabel}` : l.menu;
+      const gamesHtml = gamesLabel
+        ? `<span class="fav-chip-games">${gamesLabel}</span>`
+        : '';
+      return `
+      <span class="fav-chip" title="${title}" data-code="${l.code}">
         <span class="fav-chip-flag">${l.flag || ''}</span>
-        <span class="fav-chip-name">${l.menu}</span>
-      </span>`
-    )
+        <span class="fav-chip-text">
+          <span class="fav-chip-name">${l.menu}</span>
+          ${gamesHtml}
+        </span>
+      </span>`;
+    })
     .join('');
 }
 
@@ -139,6 +156,14 @@ async function renderGateway() {
       } catch (err) {
         console.error(err);
         alert(err instanceof Error ? err.message : 'Import failed');
+      }
+    },
+    onReloadLatest: async () => {
+      try {
+        await reloadLatestFromServer();
+      } catch (err) {
+        console.error(err);
+        alert(err instanceof Error ? err.message : 'Reload failed');
       }
     },
     onFeedback: () => {

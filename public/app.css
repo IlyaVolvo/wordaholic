@@ -38,8 +38,8 @@ body {
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 68px;
+  height: 68px;
   border: none;
   padding: 0;
   border-radius: 999px;
@@ -57,8 +57,8 @@ body {
   outline: none;
 }
 .brand-mark-svg {
-  width: 34px;
-  height: 34px;
+  width: 68px;
+  height: 68px;
   display: block;
   border-radius: 999px;
 }
@@ -157,7 +157,7 @@ main {
   align-items: center;
   gap: 0.28rem;
   padding: 0.28rem 0.55rem;
-  border-radius: 999px;
+  border-radius: 12px;
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(20, 35, 43, 0.14);
   box-shadow: 0 4px 12px rgba(20, 35, 43, 0.12);
@@ -168,10 +168,24 @@ main {
   white-space: nowrap;
 }
 .fav-chip-flag { font-size: 1rem; line-height: 1; }
+.fav-chip-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 0.08rem;
+}
 .fav-chip-name {
-  max-width: 7rem;
+  max-width: 9rem;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.fav-chip-games {
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--muted);
 }
 .fav-chips-empty {
   color: #000;
@@ -389,8 +403,8 @@ main {
 .world-map-svg path,
 .world-map-svg polygon,
 .world-map-svg polyline {
-  fill: #c5d4a8 !important;
-  stroke: #6b7d52 !important;
+  fill: #a8adb3 !important;
+  stroke: #6f757c !important;
   stroke-width: 0.35 !important;
   transition: fill 0.12s ease, stroke 0.12s ease;
 }
@@ -403,9 +417,11 @@ main {
 }
 .world-map-svg .map-country--supported {
   fill: #b7c996 !important;
+  stroke: #6b7d52 !important;
 }
 .world-map-svg .map-country--favorite {
   fill: #9eb87a !important;
+  stroke: #6b7d52 !important;
 }
 .world-map-svg .map-country--hover {
   fill: #e8d48b !important;
@@ -572,8 +588,8 @@ main {
   .map-stage { min-height: min(48dvh, 420px); }
   .brand-mark,
   .brand-mark-svg {
-    width: 34px;
-    height: 34px;
+    width: 68px;
+    height: 68px;
   }
   /* Edge stacks instead of one crowded row */
   .map-toolbar {
@@ -603,7 +619,8 @@ main {
     align-items: flex-start;
     flex-wrap: nowrap;
   }
-  .fav-chip-name { max-width: 7.5rem; }
+  .fav-chip-name,
+  .fav-chip-games { max-width: 7.5rem; }
   .fav-chips-empty {
     white-space: normal;
     max-width: 9.5rem;
@@ -664,7 +681,8 @@ main {
   .map-toolbar-end {
     max-width: min(46vw, 9.5rem);
   }
-  .fav-chip-name { max-width: 5.75rem; }
+  .fav-chip-name,
+  .fav-chip-games { max-width: 5.75rem; }
   .map-game-name {
     max-width: 5.5rem;
     overflow: hidden;

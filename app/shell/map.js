@@ -19,6 +19,7 @@ let selectedCountryId = null;
 let mapTooltipPinned = false;
 const MIN_SCALE = 1;
 const MAX_SCALE = 10;
+const TOOLTIP_FOCUS_DELAY_MS = 1000;
 
 async function loadMapSvg() {
   const res = await fetch('/map/world.svg');
@@ -28,7 +29,7 @@ async function loadMapSvg() {
   if (!svg.includes('wh-map-style')) {
     svg = svg.replace(
       /<svg([^>]*)>/,
-      `<svg$1><rect id="ocean" width="100%" height="100%" fill="#6fa8c9"/><style id="wh-map-style">path,polygon,polyline{fill:#c5d4a8!important;stroke:#6b7d52!important;stroke-width:0.35!important}</style>`
+      `<svg$1><rect id="ocean" width="100%" height="100%" fill="#6fa8c9"/><style id="wh-map-style">path,polygon,polyline{fill:#a8adb3!important;stroke:#6f757c!important;stroke-width:0.35!important}</style>`
     );
   }
   return svg;
@@ -45,6 +46,7 @@ async function loadMapSvg() {
  *   onExportData?: () => void | Promise<void>,
  *   onImportData?: (file: File) => void | Promise<void>,
  *   onFeedback?: () => void,
+ *   onReloadLatest?: () => void | Promise<void>,
  * }} [opts]
  */
 export async function renderWorldMap(container, opts = {}) {
@@ -70,6 +72,12 @@ export async function renderWorldMap(container, opts = {}) {
       </div>
       <div class="map-zoom-controls" role="group" aria-label="Map tools">
         <div class="map-transfer-controls">
+          <button type="button" class="map-zoom-btn" data-transfer="reload" title="Reload latest version" aria-label="Reload latest version">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+          </button>
           <button type="button" class="map-zoom-btn" data-transfer="export" title="Export all game data" aria-label="Export all game data">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -179,7 +187,9 @@ export async function renderWorldMap(container, opts = {}) {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const action = btn.getAttribute('data-transfer');
-      if (action === 'export' && typeof opts.onExportData === 'function') {
+      if (action === 'reload' && typeof opts.onReloadLatest === 'function') {
+        void opts.onReloadLatest();
+      } else if (action === 'export' && typeof opts.onExportData === 'function') {
         void opts.onExportData();
       } else if (action === 'import') {
         transferFile?.click();
@@ -354,7 +364,7 @@ export async function renderWorldMap(container, opts = {}) {
     shape.classList.add('map-country');
     if (playable.length) {
       shape.classList.add('map-country--supported');
-      if (playable.every((code) => favoriteCodes.has(code))) {
+      if (playable.some((code) => favoriteCodes.has(code))) {
         shape.classList.add('map-country--favorite');
       }
     }
@@ -467,6 +477,7 @@ export async function renderWorldMap(container, opts = {}) {
   let hoverShape = null;
   /** @type {SVGElement | null} */
   let selectedShape = null;
+  let hoverTooltipTimer = 0;
 
   function setHoverShape(shape) {
     if (hoverShape === shape) return;
@@ -481,8 +492,15 @@ export async function renderWorldMap(container, opts = {}) {
     selectedShape?.classList.add('map-country--selected');
   }
 
-  function hideLanguageSelector() {
-    mapTooltipPinned = false;
+  function clearHoverTooltipTimer() {
+    if (!hoverTooltipTimer) return;
+    window.clearTimeout(hoverTooltipTimer);
+    hoverTooltipTimer = 0;
+  }
+
+  function hideHoverTooltip() {
+    clearHoverTooltipTimer();
+    if (mapTooltipPinned) return;
     if (tooltip) {
       tooltip.hidden = true;
       tooltip.classList.remove('map-lang-tooltip--pinned');
@@ -490,6 +508,24 @@ export async function renderWorldMap(container, opts = {}) {
     selectedShape?.classList.remove('map-country--selected');
     selectedShape = null;
     selectedCountryId = null;
+  }
+
+  function hideLanguageSelector() {
+    mapTooltipPinned = false;
+    hideHoverTooltip();
+  }
+
+  /**
+   * @param {{ clientX: number, clientY: number }} e
+   * @param {SVGElement} shape
+   */
+  function scheduleHoverTooltip(e, shape) {
+    clearHoverTooltipTimer();
+    const { clientX, clientY } = e;
+    hoverTooltipTimer = window.setTimeout(() => {
+      hoverTooltipTimer = 0;
+      openLanguageSelector({ clientX, clientY }, shape, { pin: false, reposition: true });
+    }, TOOLTIP_FOCUS_DELAY_MS);
   }
 
   stage.addEventListener('pointermove', (e) => {
@@ -505,12 +541,14 @@ export async function renderWorldMap(container, opts = {}) {
       return;
     }
 
-    // Hover preview: show while over a country, hide as soon as you leave it.
+    // Focus highlight is immediate; country/language tooltip waits, then hides at once.
     if (hit && hit !== 'tooltip') {
       const changed = hoverShape !== hit;
       setHoverShape(hit);
-      setSelectedShape(hit);
-      openLanguageSelector(e, hit, { pin: false, reposition: changed });
+      if (changed) {
+        hideHoverTooltip();
+        scheduleHoverTooltip(e, hit);
+      }
       return;
     }
 
@@ -536,6 +574,7 @@ export async function renderWorldMap(container, opts = {}) {
       hideLanguageSelector();
       return;
     }
+    clearHoverTooltipTimer();
     setHoverShape(hit);
     setSelectedShape(hit);
     openLanguageSelector(e, hit, { pin: true, reposition: true });
