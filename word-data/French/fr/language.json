@@ -1,0 +1,67 @@
+{
+  "code": "fr",
+  "menu": "Français",
+  "flag": "🇫🇷",
+  "layout": [
+    [
+      "a",
+      "z",
+      "e",
+      "r",
+      "t",
+      "y",
+      "u",
+      "i",
+      "o",
+      "p"
+    ],
+    [
+      "q",
+      "s",
+      "d",
+      "f",
+      "g",
+      "h",
+      "j",
+      "k",
+      "l",
+      "m"
+    ],
+    [
+      "w",
+      "x",
+      "c",
+      "v",
+      "b",
+      "n"
+    ]
+  ],
+  "rtl": false,
+  "actions": {
+    "enter": {
+      "label": "ENTER",
+      "position": "start"
+    },
+    "backspace": {
+      "label": "⌫",
+      "position": "end"
+    }
+  },
+  "normalization": {
+    "àáâä": "a",
+    "èéêë": "e",
+    "ìíîï": "i",
+    "òóôöœ": "o",
+    "ùúûü": "u",
+    "ýÿ": "y",
+    "ç": "c"
+  },
+  "winMessage": "Félicitations ! Vous avez gagné !",
+  "helpTip": "Les détails arrivent...",
+  "loseMessage": "La réponse était : {word}",
+  "about": {
+    "contributorLabel": "Contributeurs",
+    "rulesLabel": "Règles du jeu",
+    "contributor": "Tanya Levshina"
+  }
+}

@@ -29,13 +29,16 @@ function rmrf(p) {
   fs.rmSync(p, { recursive: true, force: true });
 }
 
-function copyDir(src, dest) {
+function copyDir(src, dest, { skipNames = ['.DS_Store'] } = {}) {
+  if (!fs.existsSync(src)) {
+    throw new Error(`Missing directory: ${src}`);
+  }
   ensureDir(dest);
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    if (entry.name === '.DS_Store') continue;
+    if (skipNames.includes(entry.name)) continue;
     const from = path.join(src, entry.name);
     const to = path.join(dest, entry.name);
-    if (entry.isDirectory()) copyDir(from, to);
+    if (entry.isDirectory()) copyDir(from, to, { skipNames });
     else fs.copyFileSync(from, to);
   }
 }
@@ -72,8 +75,10 @@ function main() {
 
   copyDir(path.join(ROOT, 'public'), DIST);
   copyDir(path.join(ROOT, 'app'), path.join(DIST, 'app'));
-  // Shared language definitions for all games
-  copyDir(path.join(ROOT, 'word-data'), path.join(DIST, 'word-data'));
+  // Shared language definitions for all games (skip local master.json lists)
+  copyDir(path.join(ROOT, 'word-data'), path.join(DIST, 'word-data'), {
+    skipNames: ['.DS_Store', 'master.json'],
+  });
   fs.copyFileSync(path.join(ROOT, 'app/updates/service-worker.js'), path.join(DIST, 'sw.js'));
 
   // TransWord stays static; PolyWordlot is a Vite+React build of the mlw UI.
