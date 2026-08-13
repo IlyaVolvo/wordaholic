@@ -14,8 +14,8 @@
   --border: #2a2e3e;
   --text: #e2e4ec;
   --text-dim: #7a7e94;
-  --text-on-water: #102a3d;
-  --text-on-water-dim: #1a3a52;
+  --text-on-water: #000;
+  --text-on-water-dim: #000;
   --accent: #6c8cff;
   --accent-glow: rgba(108, 140, 255, 0.25);
   --green: #3ddba0;
@@ -32,7 +32,7 @@ html { font-size: 15px; background: var(--water); }
 body {
   font-family: var(--font-body);
   background: var(--water);
-  color: var(--text);
+  color: var(--text-on-water);
   min-height: 100vh;
   padding: 2rem 2.5rem;
   max-width: 960px;
@@ -115,6 +115,7 @@ h1 {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 1rem 1.2rem;
+  color: var(--text);
 }
 
 .panel h2 {

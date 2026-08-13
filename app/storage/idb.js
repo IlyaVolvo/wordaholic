@@ -1,5 +1,5 @@
 const DB_NAME = 'wordaholic';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 /**
  * Platform IndexedDB wrapper.
@@ -14,6 +14,7 @@ export class WordaholicStorage {
     /** @type {Promise<IDBDatabase>|null} */
     this._opening = null;
     this._lifecycleHooked = false;
+    this._dailiesCopied = false;
   }
 
   _hookLifecycle() {
@@ -40,12 +41,13 @@ export class WordaholicStorage {
    * @param {{ timeoutMs?: number }} [opts]
    */
   async open(opts = {}) {
-    if (this.db) return this.db;
+    if (this.db && this._dailiesCopied) return this.db;
     this._hookLifecycle();
     if (this._opening) return this._opening;
 
     const timeoutMs = opts.timeoutMs ?? OPEN_TIMEOUT_MS;
-    this._opening = new Promise((resolve, reject) => {
+    this._opening = (async () => {
+      const db = await new Promise((resolve, reject) => {
       let settled = false;
       const timer = window.setTimeout(() => {
         if (settled) return;
@@ -54,8 +56,10 @@ export class WordaholicStorage {
       }, timeoutMs);
 
       const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = () => {
+      req.onupgradeneeded = (event) => {
         const db = req.result;
+        const tx = req.transaction;
+        const oldVersion = /** @type {IDBVersionChangeEvent} */ (event).oldVersion || 0;
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'key' });
         }
@@ -73,12 +77,27 @@ export class WordaholicStorage {
         if (!db.objectStoreNames.contains('metadata')) {
           db.createObjectStore('metadata', { keyPath: 'key' });
         }
-        if (!db.objectStoreNames.contains('dailies')) {
-          const dailies = db.createObjectStore('dailies', { keyPath: 'id' });
-          dailies.createIndex('byGame', 'gameId', { unique: false });
-          dailies.createIndex('byGameCombo', ['gameId', 'language', 'vocabLevel', 'difficulty'], {
-            unique: false,
-          });
+        if (!db.objectStoreNames.contains('records')) {
+          const records = db.createObjectStore('records', { keyPath: 'id' });
+          records.createIndex('byGame', 'gameId', { unique: false });
+        }
+        // v2 dailies → generic records (same document: id + gameId + payload).
+        if (
+          oldVersion < 3 &&
+          db.objectStoreNames.contains('dailies') &&
+          db.objectStoreNames.contains('records') &&
+          tx
+        ) {
+          const source = tx.objectStore('dailies');
+          const dest = tx.objectStore('records');
+          const cursorReq = source.openCursor();
+          cursorReq.onsuccess = () => {
+            const cursor = cursorReq.result;
+            if (!cursor) return;
+            const row = cursor.value;
+            if (row && row.id) dest.put(row);
+            cursor.continue();
+          };
         }
       };
       req.onsuccess = () => {
@@ -100,6 +119,9 @@ export class WordaholicStorage {
         reject(req.error || new Error('IndexedDB open failed'));
       };
     });
+      await this._copyLegacyDailiesIfNeeded();
+      return db;
+    })();
 
     try {
       return await this._opening;
@@ -230,31 +252,89 @@ export class WordaholicStorage {
     });
   }
 
-  async putDaily(record) {
-    await this._tx('dailies', 'readwrite', (store) => {
+  async _copyLegacyDailiesIfNeeded() {
+    if (this._dailiesCopied) return;
+    const db = this.db;
+    if (!db || !db.objectStoreNames.contains('dailies') || !db.objectStoreNames.contains('records')) {
+      this._dailiesCopied = true;
+      return;
+    }
+
+    const already = await new Promise((resolve, reject) => {
+      const tx = db.transaction('metadata', 'readonly');
+      const req = tx.objectStore('metadata').get('dailies-copied-to-records');
+      req.onsuccess = () => resolve(req.result ? req.result.value : false);
+      req.onerror = () => reject(req.error);
+    });
+    if (already) {
+      this._dailiesCopied = true;
+      return;
+    }
+
+    const legacy = await new Promise((resolve, reject) => {
+      const tx = db.transaction('dailies', 'readonly');
+      const req = tx.objectStore('dailies').getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(['records', 'metadata'], 'readwrite');
+      const rec = tx.objectStore('records');
+      for (const row of legacy) {
+        if (row?.id) rec.put(row);
+      }
+      tx.objectStore('metadata').put({ key: 'dailies-copied-to-records', value: true });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    this._dailiesCopied = true;
+  }
+
+  /**
+   * Generic per-game documents (completed and in-progress share this store).
+   * @param {{ id: string, gameId: string }} record
+   */
+  async putRecord(record) {
+    if (!record?.id || !record?.gameId) {
+      throw new Error('Record requires id and gameId');
+    }
+    await this._tx('records', 'readwrite', (store) => {
       store.put(record);
     });
   }
 
-  async getDaily(id) {
+  async getRecord(id) {
     const db = await this.open();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction('dailies', 'readonly');
-      const req = tx.objectStore('dailies').get(id);
+      const tx = db.transaction('records', 'readonly');
+      const req = tx.objectStore('records').get(id);
       req.onsuccess = () => resolve(req.result || null);
       req.onerror = () => reject(req.error);
     });
   }
 
-  async listDailies(gameId) {
+  async listRecords(gameId) {
     const db = await this.open();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction('dailies', 'readonly');
-      const idx = tx.objectStore('dailies').index('byGame');
+      const tx = db.transaction('records', 'readonly');
+      const idx = tx.objectStore('records').index('byGame');
       const req = idx.getAll(gameId);
       req.onsuccess = () => resolve(req.result || []);
       req.onerror = () => reject(req.error);
     });
+  }
+
+  async putDaily(record) {
+    await this.putRecord(record);
+  }
+
+  async getDaily(id) {
+    return this.getRecord(id);
+  }
+
+  async listDailies(gameId) {
+    return this.listRecords(gameId);
   }
 
   /**
@@ -262,11 +342,11 @@ export class WordaholicStorage {
    * @param {string} gameId
    */
   async exportGame(gameId) {
-    const [results, statistics, stateKeys, dailies] = await Promise.all([
+    const [results, statistics, stateKeys, records] = await Promise.all([
       this.listResults(gameId),
       this.getStatistics(gameId),
       this._listGameStates(gameId),
-      this.listDailies(gameId),
+      this.listRecords(gameId),
     ]);
     return {
       format: 'wordaholic-game-backup',
@@ -276,7 +356,8 @@ export class WordaholicStorage {
       statistics,
       results,
       gameState: stateKeys,
-      dailies,
+      records,
+      dailies: records,
     };
   }
 
@@ -317,12 +398,15 @@ export class WordaholicStorage {
         if (key) await this.setGameState(gameId, key, row.value);
       }
     }
-    if (Array.isArray(payload.dailies)) {
-      for (const row of payload.dailies) {
-        if (!row || typeof row !== 'object') continue;
-        const id = row.id || `${gameId}:${row.language}:${row.vocabLevel}:${row.difficulty}:${row.gameDate}`;
-        await this.putDaily({ ...row, id, gameId });
-      }
+    const docs = Array.isArray(payload.records)
+      ? payload.records
+      : Array.isArray(payload.dailies)
+        ? payload.dailies
+        : [];
+    for (const row of docs) {
+      if (!row || typeof row !== 'object') continue;
+      const id = row.id || `${gameId}:${row.language}:${row.vocabLevel}:${row.difficulty}:${row.gameDate}`;
+      await this.putRecord({ ...row, id, gameId });
     }
     return { gameId, importedResults: payload.results?.length || 0 };
   }

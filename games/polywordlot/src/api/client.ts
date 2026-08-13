@@ -1,4 +1,17 @@
 import { deriveGameOutcome } from '../utils/gameOutcome';
+import {
+  appendFeedback,
+  gameIdentity,
+  getFeedback,
+  getMeta,
+  getPrefs,
+  ingestLegacyStore,
+  listStoredGames,
+  putStoredGame,
+  setMeta,
+  setPrefs,
+  type StoredGame,
+} from '../storage/platform';
 
 export interface User {
   id: number;
@@ -30,51 +43,7 @@ export interface GameResponse {
   } | null;
 }
 
-type StoredGame = {
-  id: number;
-  language: string;
-  word_length: number;
-  target_word: string;
-  game_date: string;
-  is_random_mode: number;
-  word_seed: number | null;
-  is_complete: number;
-  guesses: Array<{ word: string; evaluations: unknown[] }>;
-  updated_at: string;
-  completed_at: string | null;
-};
-
-type Store = {
-  nextId: number;
-  games: StoredGame[];
-  selectedLanguages: string[] | null;
-  feedback: string[];
-};
-
-const STORAGE_KEY = 'wordaholic-polywordlot-v1';
 const LOCAL_USER: User = { id: 1, email: 'local@wordaholic', verified: 1 };
-
-function loadStore(): Store {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Store;
-      return {
-        nextId: parsed.nextId || 1,
-        games: Array.isArray(parsed.games) ? parsed.games : [],
-        selectedLanguages: parsed.selectedLanguages ?? null,
-        feedback: Array.isArray(parsed.feedback) ? parsed.feedback : [],
-      };
-    }
-  } catch {
-    /* ignore */
-  }
-  return { nextId: 1, games: [], selectedLanguages: null, feedback: [] };
-}
-
-function saveStore(store: Store) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-}
 
 function matchesGame(
   game: StoredGame,
@@ -150,9 +119,7 @@ class ApiClient {
   }
 
   async sendFeedback(comments: string): Promise<{ success: boolean; message: string }> {
-    const store = loadStore();
-    store.feedback.push(comments);
-    saveStore(store);
+    await appendFeedback(comments);
     return { success: true, message: 'Saved locally (offline).' };
   }
 
@@ -163,10 +130,8 @@ class ApiClient {
     isRandomMode?: boolean;
     wordSeed?: number;
   }): Promise<GameResponse> {
-    const store = loadStore();
-    const found = store.games.find((g) =>
-      matchesGame(g, { ...params, isComplete: false })
-    );
+    const games = await listStoredGames();
+    const found = games.find((g) => matchesGame(g, { ...params, isComplete: false }));
     if (!found) return { game: null };
     return { game: await withOutcome(found) };
   }
@@ -178,10 +143,8 @@ class ApiClient {
     isRandomMode?: boolean;
     wordSeed?: number;
   }): Promise<GameResponse> {
-    const store = loadStore();
-    const found = store.games.find((g) =>
-      matchesGame(g, { ...params, isComplete: true })
-    );
+    const games = await listStoredGames();
+    const found = games.find((g) => matchesGame(g, { ...params, isComplete: true }));
     if (!found) return { game: null };
     return { game: await withOutcome(found) };
   }
@@ -197,35 +160,34 @@ class ApiClient {
     isComplete: boolean;
     isWon: boolean;
   }): Promise<{ success: boolean; gameId: number }> {
-    const store = loadStore();
+    const games = await listStoredGames();
     const isRandom = gameData.isRandomMode ? 1 : 0;
     const seed = gameData.wordSeed ?? null;
-    const idx = store.games.findIndex(
-      (g) =>
-        g.language === gameData.language &&
-        g.word_length === gameData.wordLength &&
-        g.game_date === gameData.gameDate &&
-        g.is_random_mode === isRandom &&
-        g.word_seed === seed
-    );
-
+    const identity = gameIdentity({
+      language: gameData.language,
+      word_length: gameData.wordLength,
+      game_date: gameData.gameDate,
+      is_random_mode: isRandom,
+      word_seed: seed,
+    });
+    const existing = games.find((g) => gameIdentity(g) === identity);
     const now = new Date().toISOString();
-    if (idx >= 0) {
-      const existing = store.games[idx];
-      store.games[idx] = {
+    if (existing) {
+      await putStoredGame({
         ...existing,
         target_word: gameData.targetWord,
         guesses: gameData.guesses || [],
         is_complete: gameData.isComplete ? 1 : 0,
         updated_at: now,
         completed_at: gameData.isComplete ? now : null,
-      };
-      saveStore(store);
+      });
       return { success: true, gameId: existing.id };
     }
 
-    const id = store.nextId++;
-    store.games.push({
+    const meta = await getMeta();
+    const id = meta.nextId;
+    await setMeta({ nextId: id + 1 });
+    await putStoredGame({
       id,
       language: gameData.language,
       word_length: gameData.wordLength,
@@ -238,7 +200,6 @@ class ApiClient {
       updated_at: now,
       completed_at: gameData.isComplete ? now : null,
     });
-    saveStore(store);
     return { success: true, gameId: id };
   }
 
@@ -247,8 +208,8 @@ class ApiClient {
     wordLength?: number,
     limit?: number
   ): Promise<{ games: unknown[] }> {
-    const store = loadStore();
-    let games = store.games.filter((g) => {
+    let games = await listStoredGames();
+    games = games.filter((g) => {
       if (language && g.language !== language) return false;
       if (wordLength != null && g.word_length !== wordLength) return false;
       return true;
@@ -295,9 +256,9 @@ class ApiClient {
     startDate: string;
     endDate: string;
   }): Promise<{ games: Record<string, unknown> }> {
-    const store = loadStore();
+    const all = await listStoredGames();
     const entries = await Promise.all(
-      store.games
+      all
         .filter(
           (g) =>
             g.language === params.language &&
@@ -315,13 +276,20 @@ class ApiClient {
   }
 
   async getPreferences(): Promise<{ selectedLanguages: string[] | null }> {
-    return { selectedLanguages: loadStore().selectedLanguages };
+    const prefs = await getPrefs();
+    return { selectedLanguages: prefs?.selectedLanguages ?? null };
   }
 
   async savePreferences(selectedLanguages: string[] | null): Promise<{ success: boolean }> {
-    const store = loadStore();
-    store.selectedLanguages = selectedLanguages;
-    saveStore(store);
+    const prefs = (await getPrefs()) || {
+      randomMode: false,
+      language: 'en',
+      wordLength: 5,
+    };
+    await setPrefs({
+      ...prefs,
+      selectedLanguages: selectedLanguages || undefined,
+    });
     return { success: true };
   }
 
@@ -329,49 +297,40 @@ class ApiClient {
     return { success: true };
   }
 
-  exportData(): string {
-    const store = loadStore();
+  async exportData(): Promise<string> {
+    const [games, meta, prefs, feedback] = await Promise.all([
+      listStoredGames(),
+      getMeta(),
+      getPrefs(),
+      getFeedback(),
+    ]);
     return JSON.stringify(
       {
         format: 'wordaholic-polywordlot',
         version: 1,
         exportedAt: new Date().toISOString(),
-        store,
+        store: {
+          nextId: meta.nextId,
+          games,
+          selectedLanguages: prefs?.selectedLanguages ?? null,
+          feedback,
+        },
       },
       null,
       2
     );
   }
 
-  importData(jsonText: string): { success: boolean; games: number } {
-    const parsed = JSON.parse(jsonText) as { store?: Store } & Partial<Store>;
-    const incoming = parsed.store || (parsed as Store);
+  async importData(jsonText: string): Promise<{ success: boolean; games: number }> {
+    const parsed = JSON.parse(jsonText) as {
+      store?: { nextId?: number; games?: StoredGame[]; selectedLanguages?: string[] | null };
+    } & { games?: StoredGame[]; nextId?: number; selectedLanguages?: string[] | null };
+    const incoming = parsed.store || parsed;
     if (!incoming || !Array.isArray(incoming.games)) {
       throw new Error('Invalid PolyWordlot export file');
     }
-    const current = loadStore();
-    const byKey = new Map<string, StoredGame>();
-    const keyOf = (g: StoredGame) =>
-      `${g.language}|${g.word_length}|${g.game_date}|${g.is_random_mode}|${g.word_seed ?? ''}`;
-    for (const g of current.games) byKey.set(keyOf(g), g);
-    for (const g of incoming.games) {
-      if (!g || typeof g !== 'object') continue;
-      byKey.set(keyOf(g as StoredGame), g as StoredGame);
-    }
-    const games = [...byKey.values()];
-    const nextId = Math.max(
-      current.nextId,
-      incoming.nextId || 1,
-      ...games.map((g) => (g.id || 0) + 1),
-      1
-    );
-    saveStore({
-      nextId,
-      games,
-      selectedLanguages: incoming.selectedLanguages ?? current.selectedLanguages,
-      feedback: current.feedback,
-    });
-    return { success: true, games: games.length };
+    const count = await ingestLegacyStore(incoming);
+    return { success: true, games: count };
   }
 }
 

@@ -1,31 +1,25 @@
-const PREFERENCES_KEY = 'wordle-multi-preferences';
+import {
+  ensurePolywordlotMigrated,
+  getPrefs,
+  setPrefs,
+  type PolywordlotPrefs,
+} from '../storage/platform';
 
-export interface UserPreferences {
-  randomMode: boolean; // If true, new word every game
-  language: string; // Selected language code
-  wordLength: number; // Selected word length
-  selectedLanguages?: string[]; // Array of language codes the user wants to play
-}
+export type UserPreferences = PolywordlotPrefs;
 
-/**
- * Get default language based on browser locale
- */
 function getDefaultLanguage(): string {
   try {
-    const browserLang = navigator.language || (navigator as any).userLanguage || 'en';
+    const browserLang = navigator.language || (navigator as { userLanguage?: string }).userLanguage || 'en';
     const langCode = browserLang.split('-')[0].toLowerCase();
-    
-    // Map common browser locales to supported language codes
     const localeMap: Record<string, string> = {
-      'en': 'en',
-      'ru': 'ru',
-      'fr': 'fr',
-      'es': 'es',
-      'de': 'de',
-      'it': 'it', // Italian (if supported)
+      en: 'en',
+      ru: 'ru',
+      fr: 'fr',
+      es: 'es',
+      de: 'de',
+      it: 'it',
     };
-    
-    return localeMap[langCode] || 'en'; // Default to English
+    return localeMap[langCode] || 'en';
   } catch {
     return 'en';
   }
@@ -35,40 +29,55 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   randomMode: false,
   language: getDefaultLanguage(),
   wordLength: 5,
-  selectedLanguages: undefined, // undefined means all languages are available
+  selectedLanguages: undefined,
+  selectedDates: {},
 };
 
-/**
- * Loads user preferences from localStorage
- */
+let cache: UserPreferences = { ...DEFAULT_PREFERENCES, selectedDates: {} };
+let ready = false;
+
+export async function initPreferences(): Promise<UserPreferences> {
+  await ensurePolywordlotMigrated();
+  const stored = await getPrefs();
+  cache = {
+    ...DEFAULT_PREFERENCES,
+    ...stored,
+    language: stored?.language || DEFAULT_PREFERENCES.language,
+    selectedDates: { ...DEFAULT_PREFERENCES.selectedDates, ...stored?.selectedDates },
+  };
+  ready = true;
+  return loadPreferences();
+}
+
 export function loadPreferences(): UserPreferences {
-  try {
-    const stored = localStorage.getItem(PREFERENCES_KEY);
-    if (!stored) return DEFAULT_PREFERENCES;
-    
-    const prefs = JSON.parse(stored);
-    const loaded = { ...DEFAULT_PREFERENCES, ...prefs };
-    
-    // Ensure language is set (in case it wasn't saved before)
-    if (!loaded.language) {
-      loaded.language = getDefaultLanguage();
-    }
-    
-    return loaded;
-  } catch (error) {
-    console.error('Failed to load preferences:', error);
-    return DEFAULT_PREFERENCES;
+  if (!ready) {
+    return { ...DEFAULT_PREFERENCES, selectedDates: {} };
   }
+  return { ...cache, selectedDates: { ...cache.selectedDates } };
 }
 
-/**
- * Saves user preferences to localStorage
- */
 export function savePreferences(preferences: UserPreferences): void {
-  try {
-    localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences));
-  } catch (error) {
-    console.error('Failed to save preferences:', error);
-  }
+  cache = {
+    ...DEFAULT_PREFERENCES,
+    ...preferences,
+    selectedDates: { ...preferences.selectedDates },
+  };
+  void setPrefs(cache);
 }
 
+export function dateKey(lang: string, len: number): string {
+  return `${lang}_${len}`;
+}
+
+export function getSelectedDate(lang: string, len: number): string | null {
+  const key = dateKey(lang, len);
+  return cache.selectedDates?.[key] || null;
+}
+
+export function setSelectedDate(lang: string, len: number, date: string): void {
+  cache = {
+    ...cache,
+    selectedDates: { ...cache.selectedDates, [dateKey(lang, len)]: date },
+  };
+  void setPrefs(cache);
+}

@@ -2,9 +2,9 @@ import { storage } from '../storage/idb.js';
 import { getFavoriteLanguages, getLastLanguage, setFavoriteLanguages, setLastLanguage } from '../i18n-prefs/favorites.js';
 import { listGames } from '../games-contract.js';
 
-const POLY_KEY = 'wordaholic-polywordlot-v1';
 const FORMAT = 'wordaholic-site-backup';
 const FORMAT_VERSION = 1;
+const POLY_GAME_ID = 'polywordlot';
 
 /**
  * Export favorites + every registered game's persisted data.
@@ -19,14 +19,6 @@ export async function exportSiteBackup() {
     }
   }
 
-  let polywordlotLocal = null;
-  try {
-    const raw = localStorage.getItem(POLY_KEY);
-    if (raw) polywordlotLocal = JSON.parse(raw);
-  } catch {
-    polywordlotLocal = null;
-  }
-
   return {
     format: FORMAT,
     formatVersion: FORMAT_VERSION,
@@ -36,7 +28,6 @@ export async function exportSiteBackup() {
       lastLanguage: getLastLanguage(),
     },
     games,
-    polywordlotLocal,
   };
 }
 
@@ -73,38 +64,55 @@ export async function importSiteBackup(payload) {
 
   if (payload.polywordlotLocal && typeof payload.polywordlotLocal === 'object') {
     try {
-      const currentRaw = localStorage.getItem(POLY_KEY);
-      const current = currentRaw ? JSON.parse(currentRaw) : { nextId: 1, games: [], selectedLanguages: null, feedback: [] };
-      const incoming = payload.polywordlotLocal;
-      const byKey = new Map();
-      const keyOf = (g) =>
-        `${g.language}|${g.word_length}|${g.game_date}|${g.is_random_mode}|${g.word_seed ?? ''}`;
-      for (const g of current.games || []) byKey.set(keyOf(g), g);
-      for (const g of incoming.games || []) {
-        if (g && typeof g === 'object') byKey.set(keyOf(g), g);
-      }
-      const games = [...byKey.values()];
-      const nextId = Math.max(
-        current.nextId || 1,
-        incoming.nextId || 1,
-        ...games.map((g) => (g.id || 0) + 1),
-        1
-      );
-      localStorage.setItem(
-        POLY_KEY,
-        JSON.stringify({
-          nextId,
-          games,
-          selectedLanguages: incoming.selectedLanguages ?? current.selectedLanguages,
-          feedback: current.feedback || [],
-        })
-      );
+      await ingestLegacyPolywordlot(payload.polywordlotLocal);
+      importedGames += 1;
     } catch (err) {
-      console.warn('PolyWordlot local import failed', err);
+      console.warn('PolyWordlot legacy import failed', err);
     }
   }
 
   return { importedGames };
+}
+
+/**
+ * Old backups stored PolyWordlot in a localStorage blob. Write into records.
+ * Identity must match games/polywordlot/src/storage/platform.ts.
+ * @param {object} store
+ */
+async function ingestLegacyPolywordlot(store) {
+  const games = Array.isArray(store.games) ? store.games : [];
+  for (const game of games) {
+    if (!game || typeof game !== 'object') continue;
+    const identity = `${game.language}|${game.word_length}|${game.game_date}|${game.is_random_mode}|${game.word_seed ?? ''}`;
+    await storage.putRecord({
+      ...game,
+      id: `${POLY_GAME_ID}:game:${identity}`,
+      gameId: POLY_GAME_ID,
+      kind: 'game',
+      numericId: game.id,
+    });
+  }
+  const nextId = Math.max(
+    store.nextId || 1,
+    ...games.map((g) => (g.id || 0) + 1),
+    1
+  );
+  await storage.setGameState(POLY_GAME_ID, 'meta', { nextId });
+  if (store.selectedLanguages) {
+    const prefs = (await storage.getGameState(POLY_GAME_ID, 'prefs')) || {
+      randomMode: false,
+      language: 'en',
+      wordLength: 5,
+    };
+    await storage.setGameState(POLY_GAME_ID, 'prefs', {
+      ...prefs,
+      selectedLanguages: store.selectedLanguages,
+    });
+  }
+  if (Array.isArray(store.feedback) && store.feedback.length) {
+    const current = (await storage.getGameState(POLY_GAME_ID, 'feedback')) || [];
+    await storage.setGameState(POLY_GAME_ID, 'feedback', [...current, ...store.feedback]);
+  }
 }
 
 export function downloadSiteBackup(payload) {

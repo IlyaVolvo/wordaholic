@@ -9,7 +9,7 @@ import { applyInputPlugins } from '../utils/inputPlugins';
 import { getDailyWord, getWordFromSeed, formatDate } from '../utils/dailyWord';
 import { evaluateGuess, isValidWord } from '../utils/gameLogic';
 import { normalizeForLanguage, loadNormalization, isWinningGuessForLanguage } from '../utils/characterNormalization';
-import { loadPreferences, savePreferences } from '../utils/preferences';
+import { loadPreferences, savePreferences, getSelectedDate, setSelectedDate } from '../utils/preferences';
 import { apiClient } from '../api/client';
 import { gameCacheUtils } from '../utils/gameCache';
 
@@ -228,30 +228,13 @@ export const Game: React.FC<GameProps> = ({
   }, [userId, language, wordLength]);
 
   // Store selected date per (language, wordLength) combination
-  const getDateKey = useCallback((lang: string, len: number) => {
-    return `selectedDate_${lang}_${len}`;
+  const loadStoredDate = useCallback((lang: string, len: number): string | null => {
+    return getSelectedDate(lang, len);
   }, []);
 
-  // Load stored date for current (language, wordLength) combination
-  const loadStoredDate = useCallback((lang: string, len: number): string | null => {
-    try {
-      const key = getDateKey(lang, len);
-      const stored = localStorage.getItem(key);
-      return stored || null;
-    } catch {
-      return null;
-    }
-  }, [getDateKey]);
-
-  // Save date for current (language, wordLength) combination
   const saveStoredDate = useCallback((lang: string, len: number, date: string) => {
-    try {
-      const key = getDateKey(lang, len);
-      localStorage.setItem(key, date);
-    } catch {
-      // Ignore storage errors
-    }
-  }, [getDateKey]);
+    setSelectedDate(lang, len, date);
+  }, []);
 
   // Handle language or word length change: reload dictionary and set selected date; game state is set by load effect
   useEffect(() => {

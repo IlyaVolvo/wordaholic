@@ -33,26 +33,48 @@ const DEFAULT_ACTIONS = {
 };
 const OP_LABELS = { substitute: 'replaced', insert: 'added', delete: 'removed', anagram: 'anagrammed' };
 
-/** @type {{ showTime: boolean, showOptimal: boolean, mode?: 'daily'|'practice' }} */
-let displayPrefs = loadDisplayPrefs();
+const DEFAULT_DISPLAY_PREFS = { showTime: true, showOptimal: true, mode: 'daily' };
 
-function loadDisplayPrefs() {
+/** @type {{ showTime: boolean, showOptimal: boolean, mode?: 'daily'|'practice' }} */
+let displayPrefs = { ...DEFAULT_DISPLAY_PREFS };
+
+function normalizeDisplayPrefs(raw) {
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT_DISPLAY_PREFS };
+  return {
+    showTime: raw.showTime !== false,
+    showOptimal: raw.showOptimal !== false,
+    mode: raw.mode === 'practice' ? 'practice' : 'daily',
+  };
+}
+
+function loadDisplayPrefsFromLs() {
   try {
     const raw = localStorage.getItem(PREFS_KEY);
-    if (!raw) return { showTime: true, showOptimal: true, mode: 'daily' };
-    const parsed = JSON.parse(raw);
-    return {
-      showTime: parsed.showTime !== false,
-      showOptimal: parsed.showOptimal !== false,
-      mode: parsed.mode === 'practice' ? 'practice' : 'daily',
-    };
+    if (!raw) return { ...DEFAULT_DISPLAY_PREFS };
+    return normalizeDisplayPrefs(JSON.parse(raw));
   } catch {
-    return { showTime: true, showOptimal: true, mode: 'daily' };
+    return { ...DEFAULT_DISPLAY_PREFS };
   }
 }
 
 function saveDisplayPrefs() {
-  localStorage.setItem(PREFS_KEY, JSON.stringify(displayPrefs));
+  void storage.setGameState(GAME_ID, 'prefs', displayPrefs);
+}
+
+async function hydrateDisplayPrefs() {
+  const fromIdb = await storage.getGameState(GAME_ID, 'prefs');
+  if (fromIdb) {
+    displayPrefs = normalizeDisplayPrefs(fromIdb);
+  } else {
+    displayPrefs = loadDisplayPrefsFromLs();
+    await storage.setGameState(GAME_ID, 'prefs', displayPrefs);
+    try {
+      localStorage.removeItem(PREFS_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+  playMode = displayPrefs.mode || 'daily';
 }
 
 function applyDisplayPrefs() {
@@ -94,7 +116,7 @@ let timerSegmentStart = null;
 let timerHandle = null;
 let solved = false;
 let readOnly = false;
-let playMode = displayPrefs.mode || 'daily';
+let playMode = 'daily';
 /** Selected daily date (local YYYY-MM-DD) */
 let selectedGameDate = formatLocalDate();
 let calendarMonth = new Date();
@@ -887,6 +909,7 @@ async function onComboControlsChanged() {
 
 async function init() {
   await storage.open();
+  await hydrateDisplayPrefs();
   showLoading('Loading languages…');
   languageOptions = await loadLanguagesCatalog();
   const preferred = getPreferredLanguageCodes();

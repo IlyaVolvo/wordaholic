@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Game } from './components/Game';
 import { Statistics } from './components/Statistics';
 import { getLanguageConfigs } from './data/languageLoader';
-import { loadPreferences, savePreferences } from './utils/preferences';
+import { initPreferences, loadPreferences, savePreferences } from './utils/preferences';
 import type { LanguageConfig } from './types';
 
 const LOCAL_USER = { id: 1, email: 'local@wordaholic' };
@@ -28,11 +28,10 @@ export const App: React.FC = () => {
   const [wordLength, setWordLength] = useState(5);
 
   useEffect(() => {
-    const prefs = loadPreferences();
-    const { lang: urlLang, langs: urlLangs } = readPreferredFromUrl();
-
     const boot = async () => {
       try {
+        const prefs = await initPreferences();
+        const { lang: urlLang, langs: urlLangs } = readPreferredFromUrl();
         const allConfigs = await getLanguageConfigs();
 
         // Language set comes from Wordaholic favorites (?langs=), not an in-game picker.

@@ -12,6 +12,7 @@
   --border: #2a2e3e;
   --text: #e2e4ec;
   --text-dim: #7a7e94;
+  --text-on-water: #000;
   --accent: #6c8cff;
   --accent-glow: rgba(108, 140, 255, 0.25);
   --radius: 8px;
@@ -28,7 +29,7 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--water);
-  color: var(--text);
+  color: var(--text-on-water);
   height: 100%;
   min-height: 100dvh;
   overflow: hidden;
@@ -178,6 +179,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
   flex-shrink: 0;
   margin-bottom: 0;
   flex-wrap: nowrap;
+  color: var(--text);
 }
 
 .toolbar-picks,
@@ -644,6 +646,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   max-width: 100%;
+  color: var(--text);
 }
 
 .keyboard-placeholder {
@@ -682,8 +685,8 @@ h1 .logout-wrapper:hover .logout-tooltip {
   padding: 0 6px;
   border: none;
   border-radius: 6px;
-  background: #818384;
-  color: #fff;
+  background: #d3d6da;
+  color: #000;
   font-family: var(--font-body);
   font-size: 0.9rem;
   font-weight: 600;
@@ -698,7 +701,8 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .key.long-press-active {
-  background: #6a6c6e;
+  background: #c4c7ca;
+  color: #000;
 }
 
 .key-variants-popup {
@@ -737,20 +741,27 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .key:hover {
-  background: #6a6c6e;
+  background: #c4c7ca;
+  color: #000;
 }
 
-.key.correct {
+.key.correct,
+.key.correct:hover,
+.key.correct.long-press-active {
   background: #6aaa64;
   color: white;
 }
 
-.key.present {
+.key.present,
+.key.present:hover,
+.key.present.long-press-active {
   background: #c9b458;
   color: white;
 }
 
-.key.absent {
+.key.absent,
+.key.absent:hover,
+.key.absent.long-press-active {
   background: #787c7e;
   color: white;
 }
@@ -762,8 +773,10 @@ h1 .logout-wrapper:hover .logout-tooltip {
   color: white;
 }
 
-.key.key-action:hover {
+.key.key-action:hover,
+.key.key-action.long-press-active {
   background: #6a6c6e;
+  color: white;
 }
 
 .game-result {
@@ -776,22 +789,17 @@ h1 .logout-wrapper:hover .logout-tooltip {
 .result-message {
   font-size: 1.2rem;
   font-weight: 600;
+  color: #000;
 }
 
-.result-message.success {
-  color: #6aaa64;
-}
-
-.result-message.failure {
-  color: #dc3545;
-}
-
-.result-message.revealed {
-  color: #ff6b6b;
+.result-message.success,
+.result-message.failure,
+.result-message.revealed,
+.result-message strong {
+  color: #000;
 }
 
 .result-message strong {
-  color: #333;
   font-size: 1.4rem;
 }
 
@@ -800,7 +808,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
   text-align: center;
   padding: 40px;
   font-size: 1.2rem;
-  color: #1a3a4a;
+  color: var(--text-on-water);
 }
 
 .error {
@@ -1221,6 +1229,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  color: var(--text);
 }
 
 .game-header-bar {
@@ -2303,7 +2312,7 @@ a.header-brand-home:focus-visible {
 .calendar-month-year {
   font-size: 1.5rem;
   font-weight: 600;
-  color: #333;
+  color: #000;
   margin: 0;
 }
 
@@ -2317,7 +2326,7 @@ a.header-brand-home:focus-visible {
 .calendar-weekday {
   text-align: center;
   font-weight: 600;
-  color: #666;
+  color: #000;
   font-size: 0.9rem;
   padding: 8px 0;
 }
@@ -2555,7 +2564,7 @@ a.header-brand-home:focus-visible {
   align-items: center;
   gap: 8px;
   font-size: 0.9rem;
-  color: #666;
+  color: #000;
 }
 
 .legend-color {
@@ -2699,6 +2708,7 @@ a.header-brand-home:focus-visible {
   z-index: 100;
   max-height: 240px;
   overflow-y: auto;
+  color: var(--text);
 }
 
 .settings .language-dropdown-list {
