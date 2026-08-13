@@ -35,7 +35,7 @@ interface GameProps {
 export const Game: React.FC<GameProps> = ({ 
   userId, 
   onLogout, 
-  view: _view, 
+  view = 'game', 
   onViewChange, 
   onRecordPlayed,
   historicalDate, 
@@ -948,7 +948,7 @@ export const Game: React.FC<GameProps> = ({
   // Swipe gesture handlers for date navigation
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     // Only enable swipe for Daily mode (not Training)
-    if (randomMode) return;
+    if (randomMode || showCalendar || view === 'statistics') return;
     
     // Don't trigger swipe if starting on interactive elements
     const target = e.target as HTMLElement;
@@ -956,7 +956,7 @@ export const Game: React.FC<GameProps> = ({
         target.closest('select') || 
         target.closest('input') ||
         target.closest('.language-selector-overlay') ||
-        target.closest('.calendar-popup-overlay')) {
+        target.closest('.game-modal-overlay')) {
       return;
     }
     
@@ -968,7 +968,7 @@ export const Game: React.FC<GameProps> = ({
     swipeStartDateRef.current = isValidDate ? selectedPlayDate : today;
     touchStartRef.current = e.targetTouches[0].clientX;
     touchEndRef.current = null;
-  }, [randomMode, selectedPlayDate]);
+  }, [randomMode, selectedPlayDate, showCalendar, view]);
   
   const onTouchMove = useCallback((e: React.TouchEvent) => {
     if (randomMode || !touchStartRef.current) return;
@@ -1084,8 +1084,14 @@ export const Game: React.FC<GameProps> = ({
         return;
       }
 
-      // Don't process game keys when popup is open
-      if (showWordIndexPopup) return;
+      if (showCalendar && e.key === 'Escape') {
+        e.preventDefault();
+        setShowCalendar(false);
+        return;
+      }
+
+      // Don't process game keys when a popup is open
+      if (showWordIndexPopup || showCalendar || view === 'statistics') return;
 
       if (loading) return;
 
@@ -1126,7 +1132,7 @@ export const Game: React.FC<GameProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [loading, gameState, randomMode, dictionary, wordLength, language, keyboardRtl, handleEnter, handleBackspace, handleKeyPress, handleStartGame, showWordIndexPopup]);
+  }, [loading, gameState, randomMode, dictionary, wordLength, language, keyboardRtl, handleEnter, handleBackspace, handleKeyPress, handleStartGame, showWordIndexPopup, showCalendar, view]);
 
   if (loading) {
     return <div className="loading">Loading...</div>;
@@ -1137,7 +1143,7 @@ export const Game: React.FC<GameProps> = ({
   }
 
   const calendarOpen = showCalendar && !randomMode;
-  const showKeyboard = Boolean(dictionary) && !calendarOpen;
+  const showKeyboard = Boolean(dictionary);
 
   return (
     <div 
@@ -1174,7 +1180,10 @@ export const Game: React.FC<GameProps> = ({
                   <button
                     type="button"
                     className="header-icon-button"
-                    onClick={() => onViewChange('statistics')}
+                    onClick={() => {
+                      setShowCalendar(false);
+                      onViewChange('statistics');
+                    }}
                     aria-label="Single Language Statistics"
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1189,7 +1198,10 @@ export const Game: React.FC<GameProps> = ({
                   <button
                     type="button"
                     className="header-icon-button"
-                    onClick={() => onViewChange('statistics', 'cross-language')}
+                    onClick={() => {
+                      setShowCalendar(false);
+                      onViewChange('statistics', 'cross-language');
+                    }}
                     aria-label="Cross-Language Comparison"
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1206,103 +1218,65 @@ export const Game: React.FC<GameProps> = ({
         </div>
       </div>
       <div className={`game-play-area ${randomMode ? 'game-play-area--random' : ''}`}>
-        {calendarOpen ? (
-          <div className="calendar-full-panel">
-            <div className="calendar-full-header">
-              <button
-                type="button"
-                className="calendar-today-button"
-                onClick={() => {
-                  const today = formatDate();
-                  handleDateChange(today);
-                  setShowCalendar(false);
-                }}
-              >
-                Today
-              </button>
-              <button
-                type="button"
-                className="calendar-close-button"
-                onClick={() => setShowCalendar(false)}
-                aria-label="Close calendar"
-              >
-                Close
-              </button>
-            </div>
-            <Calendar
-              games={calendarGames}
-              currentMonth={calendarMonth}
-              onMonthChange={setCalendarMonth}
-              onDateClick={(date: string) => {
-                handleDateChange(date);
-                setShowCalendar(false);
-              }}
-              blinkingDates={calendarBlinkingDates}
-            />
+        {randomMode && (
+          <div className="random-watermark" aria-hidden="true">
+            {Array.from({ length: 30 }).map((_, i) => (
+              <span key={i} className="random-watermark__text">Random</span>
+            ))}
           </div>
-        ) : (
-          <>
-            {randomMode && (
-              <div className="random-watermark" aria-hidden="true">
-                {Array.from({ length: 30 }).map((_, i) => (
-                  <span key={i} className="random-watermark__text">Random</span>
-                ))}
-              </div>
-            )}
-            <div className="game-play-area__content">
-              {!dictionary && !loading && (
-                <GameBoard
-                  guesses={[]}
-                  currentGuess={''}
-                  wordLength={wordLength}
-                  maxGuesses={MAX_GUESSES}
-                  isComplete={false}
-                  isWon={false}
-                  rtl={keyboardRtl}
-                />
-              )}
-              {gameState && dictionary && (
-                <>
-                  <GameBoard
-                    guesses={gameState.guesses}
-                    currentGuess={gameState.currentGuess}
-                    wordLength={wordLength}
-                    maxGuesses={MAX_GUESSES}
-                    targetWord={gameState.isComplete && !gameState.isWon ? targetWord : undefined}
-                    isComplete={gameState.isComplete}
-                    isWon={gameState.isWon}
-                    shakeRowIndex={shakeRowIndex}
-                    rtl={keyboardRtl}
-                  />
-                  {gameState.isComplete && (
-                    <div className="game-result">
-                      {gameState.isWon ? (
-                        <div className="result-message success">
-                          {winMessage}
-                        </div>
-                      ) : (
-                        <div className="result-message failure">
-                          {loseMessage.replace('{word}', targetWord)}
-                        </div>
-                      )}
+        )}
+        <div className="game-play-area__content">
+          {!dictionary && !loading && (
+            <GameBoard
+              guesses={[]}
+              currentGuess={''}
+              wordLength={wordLength}
+              maxGuesses={MAX_GUESSES}
+              isComplete={false}
+              isWon={false}
+              rtl={keyboardRtl}
+            />
+          )}
+          {gameState && dictionary && (
+            <>
+              <GameBoard
+                guesses={gameState.guesses}
+                currentGuess={gameState.currentGuess}
+                wordLength={wordLength}
+                maxGuesses={MAX_GUESSES}
+                targetWord={gameState.isComplete && !gameState.isWon ? targetWord : undefined}
+                isComplete={gameState.isComplete}
+                isWon={gameState.isWon}
+                shakeRowIndex={shakeRowIndex}
+                rtl={keyboardRtl}
+              />
+              {gameState.isComplete && (
+                <div className="game-result">
+                  {gameState.isWon ? (
+                    <div className="result-message success">
+                      {winMessage}
+                    </div>
+                  ) : (
+                    <div className="result-message failure">
+                      {loseMessage.replace('{word}', targetWord)}
                     </div>
                   )}
-                </>
+                </div>
               )}
-              {!gameState && dictionary && (
-                <GameBoard
-                  guesses={[]}
-                  currentGuess={''}
-                  wordLength={wordLength}
-                  maxGuesses={MAX_GUESSES}
-                  isComplete={false}
-                  isWon={false}
-                  rtl={keyboardRtl}
-                />
-              )}
-            </div>
-          </>
-        )}
+            </>
+          )}
+          {!gameState && dictionary && (
+            <GameBoard
+              guesses={[]}
+              currentGuess={''}
+              wordLength={wordLength}
+              maxGuesses={MAX_GUESSES}
+              isComplete={false}
+              isWon={false}
+              rtl={keyboardRtl}
+            />
+          )}
+        </div>
       </div>
       <Settings
         userId={userId}
@@ -1316,7 +1290,6 @@ export const Game: React.FC<GameProps> = ({
         onRandomModeChange={handleRandomModeChange}
         onRestartPractice={handleRestartPractice}
         onDateChange={handleDateChange}
-        disabled={showCalendar}
         showCalendar={showCalendar}
         onShowCalendarChange={setShowCalendar}
         calendarGames={calendarGames}
@@ -1332,7 +1305,56 @@ export const Game: React.FC<GameProps> = ({
           language={language}
         />
       ) : (
-        !calendarOpen && <div className="keyboard-placeholder"></div>
+        <div className="keyboard-placeholder"></div>
+      )}
+      {calendarOpen && (
+        <div
+          className="game-modal-overlay calendar-popup-overlay"
+          onClick={() => setShowCalendar(false)}
+          role="presentation"
+        >
+          <div
+            className="game-modal-card calendar-modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="calendar-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="game-modal-header">
+              <h2 id="calendar-dialog-title">Daily games</h2>
+              <div className="game-modal-header-actions">
+                <button
+                  type="button"
+                  className="calendar-today-button"
+                  onClick={() => {
+                    handleDateChange(formatDate());
+                    setShowCalendar(false);
+                  }}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  className="game-modal-close"
+                  onClick={() => setShowCalendar(false)}
+                  aria-label="Close calendar"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+            <Calendar
+              games={calendarGames}
+              currentMonth={calendarMonth}
+              onMonthChange={setCalendarMonth}
+              onDateClick={(date: string) => {
+                handleDateChange(date);
+                setShowCalendar(false);
+              }}
+              blinkingDates={calendarBlinkingDates}
+            />
+          </div>
+        </div>
       )}
       {showWordIndexPopup && (
         <div className="word-index-overlay" onClick={() => setShowWordIndexPopup(false)}>

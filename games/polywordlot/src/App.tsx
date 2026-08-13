@@ -112,7 +112,20 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-container">
-      {view === 'statistics' ? (
+      <Game
+        userId={LOCAL_USER.id}
+        view={view}
+        onViewChange={handleViewChange}
+        historicalDate={historicalDate}
+        onHistoricalDateCleared={() => setHistoricalDate(null)}
+        onViewHistoricalGame={(date) => setHistoricalDate(date)}
+        language={language}
+        wordLength={wordLength}
+        onLanguageChange={handleLanguageChange}
+        onWordLengthChange={handleWordLengthChange}
+        availableLanguages={availableLanguages}
+      />
+      {view === 'statistics' && (
         <Statistics
           userId={LOCAL_USER.id}
           language={language}
@@ -126,20 +139,6 @@ export const App: React.FC = () => {
             setView('game');
           }}
           initialStatisticType={initialStatisticType}
-        />
-      ) : (
-        <Game
-          userId={LOCAL_USER.id}
-          view={view}
-          onViewChange={handleViewChange}
-          historicalDate={historicalDate}
-          onHistoricalDateCleared={() => setHistoricalDate(null)}
-          onViewHistoricalGame={(date) => setHistoricalDate(date)}
-          language={language}
-          wordLength={wordLength}
-          onLanguageChange={handleLanguageChange}
-          onWordLengthChange={handleWordLengthChange}
-          availableLanguages={availableLanguages}
         />
       )}
     </div>

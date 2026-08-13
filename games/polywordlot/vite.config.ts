@@ -1,10 +1,22 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import { defineConfig, type Plugin } from 'vite';
 import { execSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import react from '@vitejs/plugin-react';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DICT_SRC = path.join(__dirname, 'dict');
+
+function copyDictPlugin(): Plugin {
+  return {
+    name: 'copy-polywordlot-dict',
+    closeBundle() {
+      const dest = path.resolve(__dirname, '../../dist/games/polywordlot/dict');
+      fs.cpSync(DICT_SRC, dest, { recursive: true });
+    },
+  };
+}
 
 function getGitCommitHash(): string {
   try {
@@ -16,7 +28,7 @@ function getGitCommitHash(): string {
 
 export default defineConfig({
   root: __dirname,
-  plugins: [react()],
+  plugins: [react(), copyDictPlugin()],
   base: '/games/polywordlot/',
   resolve: {
     alias: {

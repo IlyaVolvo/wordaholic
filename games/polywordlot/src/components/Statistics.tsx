@@ -109,6 +109,14 @@ export const Statistics: React.FC<StatisticsProps> = ({
     loadStatistics();
   }, [userId, language, wordLength]);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onViewChange?.('game');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onViewChange]);
+
   // Load ALL games across all languages/word-lengths for cross-language comparison
   useEffect(() => {
     if (statisticType !== 'cross-language') return;
@@ -363,11 +371,31 @@ export const Statistics: React.FC<StatisticsProps> = ({
   }
 
   if (loading) {
-    return <div className="loading">Loading statistics...</div>;
+    return (
+      <div className="game-modal-overlay" onClick={() => onViewChange?.('game')} role="presentation">
+        <div className="game-modal-card statistics-container" role="dialog" aria-modal="true" aria-labelledby="stats-dialog-title" onClick={(e) => e.stopPropagation()}>
+          <div className="game-modal-header">
+            <h2 id="stats-dialog-title">Statistics</h2>
+            <button type="button" className="game-modal-close" onClick={() => onViewChange?.('game')} aria-label="Close">×</button>
+          </div>
+          <div className="loading">Loading statistics...</div>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="error">Error: {error}</div>;
+    return (
+      <div className="game-modal-overlay" onClick={() => onViewChange?.('game')} role="presentation">
+        <div className="game-modal-card statistics-container" role="dialog" aria-modal="true" aria-labelledby="stats-dialog-title" onClick={(e) => e.stopPropagation()}>
+          <div className="game-modal-header">
+            <h2 id="stats-dialog-title">Statistics</h2>
+            <button type="button" className="game-modal-close" onClick={() => onViewChange?.('game')} aria-label="Close">×</button>
+          </div>
+          <div className="error">Error: {error}</div>
+        </div>
+      </div>
+    );
   }
 
   const currentLangConfig = availableLanguages.find(lang => lang.code === language);
@@ -454,27 +482,25 @@ export const Statistics: React.FC<StatisticsProps> = ({
   };
 
   return (
-    <div className="statistics-container">
-      <div className="header-section">
-        <h1>
-          <a href="/" className="header-home-link">PolyWordlot</a>
-          {onViewChange && (
-            <button
-              type="button"
-              className="header-back-button"
-              onClick={() => onViewChange('game')}
-              title="Back to game"
-              aria-label="Back to game"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="19" y1="12" x2="5" y2="12"></line>
-                <polyline points="12 19 5 12 12 5"></polyline>
-              </svg>
-              <span>Back</span>
-            </button>
-          )}
-        </h1>
-      </div>
+    <div className="game-modal-overlay" onClick={() => onViewChange?.('game')} role="presentation">
+      <div
+        className="game-modal-card statistics-container"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="stats-dialog-title"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="game-modal-header">
+          <h2 id="stats-dialog-title">Statistics</h2>
+          <button
+            type="button"
+            className="game-modal-close"
+            onClick={() => onViewChange?.('game')}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
       
       {statisticType !== 'cross-language' && (
         <div className="stats-filters">
@@ -837,6 +863,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
             );
           })()}
         </div>
+      </div>
       </div>
     </div>
   );
