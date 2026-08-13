@@ -1136,6 +1136,9 @@ export const Game: React.FC<GameProps> = ({
     return <div className="error">Error: {error}</div>;
   }
 
+  const calendarOpen = showCalendar && !randomMode;
+  const showKeyboard = Boolean(dictionary) && !calendarOpen;
+
   return (
     <div 
       className="game-container"
@@ -1146,10 +1149,28 @@ export const Game: React.FC<GameProps> = ({
       <div className="header-section">
         <div className="game-header-bar">
           <div className="game-header-side game-header-left">
+            <a
+              href="/"
+              className="header-brand-home"
+              title="Wordaholic home"
+              aria-label="Wordaholic home"
+            >
+              <img
+                className="header-brand-home-svg"
+                src="/brand/wordaholic-mark.svg"
+                width={34}
+                height={34}
+                alt=""
+              />
+            </a>
+            <a href="/" className="header-home-link header-game-name">PolyWordlot</a>
+          </div>
+
+          <div className="game-header-side game-header-right">
             {onViewChange && (
               <>
                 <span className="header-icon-with-tooltip">
-                  <span className="header-icon-tooltip header-icon-tooltip--left">Single Language Statistics</span>
+                  <span className="header-icon-tooltip">Single Language Statistics</span>
                   <button
                     type="button"
                     className="header-icon-button"
@@ -1164,7 +1185,7 @@ export const Game: React.FC<GameProps> = ({
                   </button>
                 </span>
                 <span className="header-icon-with-tooltip">
-                  <span className="header-icon-tooltip header-icon-tooltip--left">Cross-Language Comparison</span>
+                  <span className="header-icon-tooltip">Cross-Language Comparison</span>
                   <button
                     type="button"
                     className="header-icon-button"
@@ -1182,68 +1203,31 @@ export const Game: React.FC<GameProps> = ({
               </>
             )}
           </div>
-
-          <a href="/" className="header-home-link">PolyWordlot</a>
-
-          <div className="game-header-side game-header-right">
-            <a
-              href="/"
-              className="header-brand-home"
-              title="Wordaholic home"
-              aria-label="Wordaholic home"
-            >
-              <img
-                className="header-brand-home-svg"
-                src="/brand/wordaholic-mark.svg"
-                width={34}
-                height={34}
-                alt=""
-              />
-            </a>
-          </div>
         </div>
-        {showCalendar && !randomMode && (
+      </div>
+      <div className={`game-play-area ${randomMode ? 'game-play-area--random' : ''}`}>
+        {calendarOpen ? (
           <div className="calendar-full-panel">
             <div className="calendar-full-header">
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', justifyContent: 'center', width: '100%' }}>
-                <button 
-                  className="calendar-today-button"
-                  onClick={() => {
-                    const today = formatDate();
-                    handleDateChange(today);
-                    setShowCalendar(false);
-                  }}
-                  style={{
-                    padding: '8px 16px',
-                    fontSize: '0.9rem',
-                    backgroundColor: '#667eea',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontWeight: 600
-                  }}
-                >
-                  Today
-                </button>
-                <button 
-                  className="calendar-close-button"
-                  onClick={() => setShowCalendar(false)}
-                  aria-label="Close calendar"
-                  style={{
-                    padding: '8px 16px',
-                    fontSize: '0.9rem',
-                    backgroundColor: '#ccc',
-                    color: '#333',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontWeight: 600
-                  }}
-                >
-                  Close
-                </button>
-              </div>
+              <button
+                type="button"
+                className="calendar-today-button"
+                onClick={() => {
+                  const today = formatDate();
+                  handleDateChange(today);
+                  setShowCalendar(false);
+                }}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                className="calendar-close-button"
+                onClick={() => setShowCalendar(false)}
+                aria-label="Close calendar"
+              >
+                Close
+              </button>
             </div>
             <Calendar
               games={calendarGames}
@@ -1256,6 +1240,68 @@ export const Game: React.FC<GameProps> = ({
               blinkingDates={calendarBlinkingDates}
             />
           </div>
+        ) : (
+          <>
+            {randomMode && (
+              <div className="random-watermark" aria-hidden="true">
+                {Array.from({ length: 30 }).map((_, i) => (
+                  <span key={i} className="random-watermark__text">Random</span>
+                ))}
+              </div>
+            )}
+            <div className="game-play-area__content">
+              {!dictionary && !loading && (
+                <GameBoard
+                  guesses={[]}
+                  currentGuess={''}
+                  wordLength={wordLength}
+                  maxGuesses={MAX_GUESSES}
+                  isComplete={false}
+                  isWon={false}
+                  rtl={keyboardRtl}
+                />
+              )}
+              {gameState && dictionary && (
+                <>
+                  <GameBoard
+                    guesses={gameState.guesses}
+                    currentGuess={gameState.currentGuess}
+                    wordLength={wordLength}
+                    maxGuesses={MAX_GUESSES}
+                    targetWord={gameState.isComplete && !gameState.isWon ? targetWord : undefined}
+                    isComplete={gameState.isComplete}
+                    isWon={gameState.isWon}
+                    shakeRowIndex={shakeRowIndex}
+                    rtl={keyboardRtl}
+                  />
+                  {gameState.isComplete && (
+                    <div className="game-result">
+                      {gameState.isWon ? (
+                        <div className="result-message success">
+                          {winMessage}
+                        </div>
+                      ) : (
+                        <div className="result-message failure">
+                          {loseMessage.replace('{word}', targetWord)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+              {!gameState && dictionary && (
+                <GameBoard
+                  guesses={[]}
+                  currentGuess={''}
+                  wordLength={wordLength}
+                  maxGuesses={MAX_GUESSES}
+                  isComplete={false}
+                  isWon={false}
+                  rtl={keyboardRtl}
+                />
+              )}
+            </div>
+          </>
         )}
       </div>
       <Settings
@@ -1277,90 +1323,17 @@ export const Game: React.FC<GameProps> = ({
         calendarMonth={calendarMonth}
         onCalendarMonthChange={setCalendarMonth}
       />
-      {!showCalendar || randomMode ? (
-        <div className={`game-play-area ${randomMode ? 'game-play-area--random' : ''}`}>
-          {randomMode && (
-            <div className="random-watermark" aria-hidden="true">
-              {Array.from({ length: 30 }).map((_, i) => (
-                <span key={i} className="random-watermark__text">Random</span>
-              ))}
-            </div>
-          )}
-          <div className="game-play-area__content">
-      {!dictionary && !loading && (
-        <GameBoard
-          guesses={[]}
-          currentGuess={''}
-          wordLength={wordLength}
-          maxGuesses={MAX_GUESSES}
-          isComplete={false}
-          isWon={false}
-          rtl={keyboardRtl}
+      {showKeyboard ? (
+        <Keyboard
+          onKeyPress={handleKeyPress}
+          onEnter={handleEnter}
+          onBackspace={handleBackspace}
+          letterStates={letterStates}
+          language={language}
         />
+      ) : (
+        !calendarOpen && <div className="keyboard-placeholder"></div>
       )}
-      {gameState && dictionary && (
-        <>
-          <GameBoard
-            guesses={gameState.guesses}
-            currentGuess={gameState.currentGuess}
-            wordLength={wordLength}
-            maxGuesses={MAX_GUESSES}
-            targetWord={gameState.isComplete && !gameState.isWon ? targetWord : undefined}
-            isComplete={gameState.isComplete}
-            isWon={gameState.isWon}
-            shakeRowIndex={shakeRowIndex}
-            rtl={keyboardRtl}
-          />
-          {gameState.isComplete && (
-            <>
-              <div className="game-result">
-                {gameState.isWon ? (
-                  <div className="result-message success">
-                    {winMessage}
-                  </div>
-                ) : (
-                  <div className="result-message failure">
-                    {loseMessage.replace('{word}', targetWord)}
-                  </div>
-                )}
-              </div>
-              <div className="keyboard-placeholder"></div>
-            </>
-          )}
-          {!gameState.isComplete && (
-            <Keyboard
-              onKeyPress={handleKeyPress}
-              onEnter={handleEnter}
-              onBackspace={handleBackspace}
-              letterStates={letterStates}
-              language={language}
-            />
-          )}
-        </>
-      )}
-      {!gameState && dictionary && (
-        <>
-          <GameBoard
-            guesses={[]}
-            currentGuess={''}
-            wordLength={wordLength}
-            maxGuesses={MAX_GUESSES}
-            isComplete={false}
-            isWon={false}
-            rtl={keyboardRtl}
-          />
-          <Keyboard
-            onKeyPress={handleKeyPress}
-            onEnter={handleEnter}
-            onBackspace={handleBackspace}
-            letterStates={letterStates}
-            language={language}
-          />
-        </>
-      )}
-          </div>
-        </div>
-      ) : null}
       {showWordIndexPopup && (
         <div className="word-index-overlay" onClick={() => setShowWordIndexPopup(false)}>
           <div className="word-index-popup" onClick={(e) => e.stopPropagation()}>

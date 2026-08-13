@@ -5,15 +5,54 @@ const DB_VERSION = 2;
  * Platform IndexedDB wrapper.
  * Per-game stores use keys scoped by gameId.
  */
+const OPEN_TIMEOUT_MS = 2500;
+
 export class WordaholicStorage {
   constructor() {
     /** @type {IDBDatabase|null} */
     this.db = null;
+    /** @type {Promise<IDBDatabase>|null} */
+    this._opening = null;
+    this._lifecycleHooked = false;
   }
 
-  async open() {
+  _hookLifecycle() {
+    if (this._lifecycleHooked || typeof window === 'undefined') return;
+    this._lifecycleHooked = true;
+    const close = () => this.close();
+    window.addEventListener('pagehide', close);
+    document.addEventListener('freeze', close);
+  }
+
+  close() {
+    if (!this.db) return;
+    try {
+      this.db.close();
+    } catch {
+      /* already closed */
+    }
+    this.db = null;
+  }
+
+  /**
+   * Open the database. Times out on iOS when a bfcache'd page still holds the
+   * connection; a later success still stores `this.db` for the next caller.
+   * @param {{ timeoutMs?: number }} [opts]
+   */
+  async open(opts = {}) {
     if (this.db) return this.db;
-    this.db = await new Promise((resolve, reject) => {
+    this._hookLifecycle();
+    if (this._opening) return this._opening;
+
+    const timeoutMs = opts.timeoutMs ?? OPEN_TIMEOUT_MS;
+    this._opening = new Promise((resolve, reject) => {
+      let settled = false;
+      const timer = window.setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        reject(new Error('IndexedDB open timed out'));
+      }, timeoutMs);
+
       const req = indexedDB.open(DB_NAME, DB_VERSION);
       req.onupgradeneeded = () => {
         const db = req.result;
@@ -42,10 +81,31 @@ export class WordaholicStorage {
           });
         }
       };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
+      req.onsuccess = () => {
+        const db = req.result;
+        db.onclose = () => {
+          if (this.db === db) this.db = null;
+        };
+        db.onversionchange = () => this.close();
+        this.db = db;
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(db);
+      };
+      req.onerror = () => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        reject(req.error || new Error('IndexedDB open failed'));
+      };
     });
-    return this.db;
+
+    try {
+      return await this._opening;
+    } finally {
+      this._opening = null;
+    }
   }
 
   async _tx(storeName, mode, fn) {

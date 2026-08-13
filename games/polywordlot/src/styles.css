@@ -4,41 +4,67 @@
   padding: 0;
 }
 
+:root {
+  --water: #6fa8c9;
+  --bg: #0c0e14;
+  --surface: #161923;
+  --surface2: #1e2230;
+  --border: #2a2e3e;
+  --text: #e2e4ec;
+  --text-dim: #7a7e94;
+  --accent: #6c8cff;
+  --accent-glow: rgba(108, 140, 255, 0.25);
+  --radius: 8px;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+}
+
+html {
+  height: 100%;
+  background: var(--water);
+}
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Match main map ocean / water */
-  background: #6fa8c9;
-  min-height: 100vh;
+  background: var(--water);
+  color: var(--text);
+  height: 100%;
   min-height: 100dvh;
-  min-height: -webkit-fill-available;
+  overflow: hidden;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-  padding-left: max(20px, env(safe-area-inset-left));
-  padding-right: max(20px, env(safe-area-inset-right));
-  padding-bottom: max(20px, env(safe-area-inset-bottom));
-  padding-top: max(20px, env(safe-area-inset-top));
+  flex-direction: column;
+  padding:
+    env(safe-area-inset-top, 0)
+    env(safe-area-inset-right, 0)
+    env(safe-area-inset-bottom, 0)
+    env(safe-area-inset-left, 0);
+}
+
+#root {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .game-container {
-  background: white;
-  border-radius: 16px;
-  padding: 32px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  max-width: 600px;
+  background: var(--water);
+  border-radius: 0;
+  box-shadow: none;
+  max-width: none;
   width: 100%;
-  padding-left: max(32px, env(safe-area-inset-left));
-  padding-right: max(32px, env(safe-area-inset-right));
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
 }
 
 h1 {
   text-align: center;
-  color: #333;
+  color: var(--text);
   margin-bottom: 0;
   font-size: 2.5rem;
   font-weight: 700;
@@ -127,7 +153,14 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .header-home-link:hover {
-  text-decoration: underline;
+  color: var(--accent);
+}
+
+.header-game-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--accent);
 }
 
 .statistics-container .header-section h1 {
@@ -136,11 +169,63 @@ h1 .logout-wrapper:hover .logout-tooltip {
 
 .settings {
   display: flex;
-  gap: 16px;
-  justify-content: center;
   align-items: center;
-  margin-bottom: 16px;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.55rem 1.5rem;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  margin-bottom: 0;
   flex-wrap: nowrap;
+}
+
+.toolbar-picks,
+.toolbar-mode {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.toolbar-mode {
+  margin-left: auto;
+}
+
+.toolbar-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.toolbar-tip-label {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  z-index: 50;
+  transition: opacity 0.15s ease-out 0.3s;
+}
+
+.toolbar-tip:hover .toolbar-tip-label,
+.toolbar-tip:focus-within .toolbar-tip-label {
+  opacity: 1;
+}
+
+.toolbar-tip:has([aria-expanded="true"]) .toolbar-tip-label {
+  opacity: 0;
+  transition: none;
 }
 
 .game-controls {
@@ -216,31 +301,30 @@ h1 .logout-wrapper:hover .logout-tooltip {
 
 .mode-select {
   width: auto;
-  min-width: 0;
+  min-width: 5.5rem;
   max-width: 100%;
-  padding: 6px 8px;
-  padding-right: 28px;
-  font-size: 0.875rem;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  background: white;
-  color: #333;
+  padding: 0.35rem 1.6rem 0.35rem 0.55rem;
+  font-size: 0.82rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface2);
+  color: var(--text);
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 8 L2 4 L10 4 Z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237a7e94' d='M6 8 L2 4 L10 4 Z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 6px center;
-  background-size: 12px 12px;
+  background-position: right 0.4rem center;
+  background-size: 10px 10px;
 }
 
 .mode-select:hover:not(:disabled) {
-  border-color: #667eea;
+  border-color: var(--accent);
 }
 
 .mode-select:focus {
   outline: none;
-  border-color: #667eea;
+  border-color: var(--accent);
 }
 
 .mode-select:disabled {
@@ -252,21 +336,21 @@ h1 .logout-wrapper:hover .logout-tooltip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   background: transparent;
-  color: #667eea;
-  border: 2px solid #667eea;
-  border-radius: 8px;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
   cursor: pointer;
   transition: all 0.2s;
   flex-shrink: 0;
 }
 
 .restart-practice-button:hover:not(:disabled) {
-  background: #667eea;
-  color: white;
+  background: var(--accent);
+  color: #fff;
 }
 
 .restart-practice-button:disabled {
@@ -274,104 +358,87 @@ h1 .logout-wrapper:hover .logout-tooltip {
   cursor: not-allowed;
 }
 
-.daily-mode-row .date-picker-wrapper-inline {
-  flex: 1;
-  min-width: 120px;
+.date-picker-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 32px;
+  padding: 0 0.65rem 0 0.5rem;
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 500;
 }
 
-.date-picker-input-compact {
-  /* Hide native calendar picker icon */
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
+.date-picker-btn:hover:not(:disabled) {
+  border-color: var(--accent);
 }
 
-.date-picker-input-compact::-webkit-calendar-picker-indicator {
-  display: none !important;
-  opacity: 0 !important;
-  width: 0 !important;
-  height: 0 !important;
-  pointer-events: none !important;
+.date-picker-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
-.date-picker-input-compact::-webkit-inner-spin-button,
-.date-picker-input-compact::-webkit-outer-spin-button {
-  display: none !important;
+.date-picker-btn svg {
+  flex-shrink: 0;
+  color: var(--text-dim);
 }
 
-/* Hide the native date input text completely */
-.date-picker-input-compact::-webkit-datetime-edit,
-.date-picker-input-compact::-webkit-datetime-edit-fields-wrapper,
-.date-picker-input-compact::-webkit-datetime-edit-text,
-.date-picker-input-compact::-webkit-datetime-edit-month-field,
-.date-picker-input-compact::-webkit-datetime-edit-day-field,
-.date-picker-input-compact::-webkit-datetime-edit-year-field {
-  color: transparent !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  width: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
-.date-picker-input-compact::-webkit-datetime-edit-text {
-  display: none !important;
-}
-
-/* Firefox */
-.date-picker-input-compact::-moz-placeholder {
-  color: transparent !important;
-  opacity: 0 !important;
-}
-
-.date-picker-input-compact::placeholder {
-  color: transparent !important;
-  opacity: 0 !important;
-}
-
-/* Ensure our custom text overlay displays properly */
-.date-display-text-compact {
-  color: #333 !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  display: block !important;
+.date-display {
+  font-size: 0.82rem;
+  font-weight: 500;
 }
 
 .setting-group label {
   font-weight: 600;
-  color: #555;
+  color: var(--text-dim);
   font-size: 0.9rem;
 }
 
+.settings select,
 .setting-group select {
-  padding: 8px 12px;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  font-size: 1rem;
-  background: white;
+  font-family: var(--font-body);
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  background: var(--surface2);
+  color: var(--text);
   cursor: pointer;
   transition: border-color 0.2s;
 }
 
+.settings select:hover:not(:disabled),
 .setting-group select:hover:not(:disabled) {
-  border-color: #667eea;
+  border-color: var(--accent);
 }
 
+.settings select:focus,
+.setting-group select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.settings select:disabled,
 .setting-group select:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-/* Restore dropdown arrow for Daily/Practice select (avoid being reset by .setting-group select background shorthand) */
+.settings select.mode-select,
 .setting-group select.mode-select {
-  padding: 6px 8px;
-  padding-right: 34px;
-  font-size: 0.875rem;
-  background-color: white;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 8 L2 4 L10 4 Z'/%3E%3C/svg%3E");
+  padding: 0.35rem 1.6rem 0.35rem 0.55rem;
+  font-size: 0.82rem;
+  background-color: var(--surface2);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237a7e94' d='M6 8 L2 4 L10 4 Z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 8px center;
-  background-size: 12px 12px;
+  background-position: right 0.4rem center;
+  background-size: 10px 10px;
 }
 
 .setting-group.setting-checkbox {
@@ -406,11 +473,22 @@ h1 .logout-wrapper:hover .logout-tooltip {
 /* Play area wrapper (for Random mode watermark) */
 .game-play-area {
   position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.25rem 1rem 1rem;
 }
 
 .game-play-area__content {
   position: relative;
   z-index: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .random-watermark {
@@ -444,7 +522,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 32px;
+  margin-bottom: 12px;
   align-items: center;
 }
 
@@ -558,21 +636,31 @@ h1 .logout-wrapper:hover .logout-tooltip {
   flex-direction: column;
   gap: 8px;
   align-items: center;
-  margin-top: 24px;
+  margin-top: 0;
+  padding: 0.7rem 0.6rem 1rem;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
 }
 
 .keyboard-placeholder {
-  height: 170px; /* Matches keyboard total space: 24px margin-top + 166px height (3 rows * 50px + 2 gaps * 8px) */
+  height: 154px;
   margin-top: 0;
   margin-bottom: 0;
-  visibility: hidden; /* Hidden but takes up space */
-  pointer-events: none; /* Prevents interaction */
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .keyboard-row {
   display: flex;
   gap: 6px;
   justify-content: center;
+  flex-wrap: nowrap;
+  width: max-content;
 }
 
 .key-wrapper {
@@ -582,25 +670,25 @@ h1 .logout-wrapper:hover .logout-tooltip {
 
 .keyboard-spacer {
   min-width: 40px;
-  height: 50px;
+  height: 44px;
   flex-shrink: 0;
-  /* Invisible but takes up space */
   visibility: hidden;
   pointer-events: none;
 }
 
 .key {
-  min-width: 40px;
-  height: 50px;
-  padding: 0 12px;
+  min-width: 34px;
+  height: 42px;
+  padding: 0 6px;
   border: none;
   border-radius: 6px;
-  background: #d3d6da;
-  color: #333;
+  background: #818384;
+  color: #fff;
+  font-family: var(--font-body);
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.15s;
   text-transform: uppercase;
   -webkit-tap-highlight-color: transparent;
   touch-action: none;
@@ -610,7 +698,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .key.long-press-active {
-  background: #aeb4ba;
+  background: #6a6c6e;
 }
 
 .key-variants-popup {
@@ -620,11 +708,11 @@ h1 .logout-wrapper:hover .logout-tooltip {
   transform: translateX(-50%);
   display: flex;
   gap: 4px;
-  background: white;
-  border: 1px solid #cfd3d7;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 4px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
   z-index: 40;
 }
 
@@ -635,8 +723,8 @@ h1 .logout-wrapper:hover .logout-tooltip {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #e5e7eb;
-  color: #222;
+  background: var(--surface2);
+  color: var(--text);
   font-size: 0.9rem;
   font-weight: 700;
   padding: 0 6px;
@@ -644,12 +732,12 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .key-variant-option.active {
-  background: #667eea;
+  background: var(--accent);
   color: white;
 }
 
 .key:hover {
-  background: #b8bcc0;
+  background: #6a6c6e;
 }
 
 .key.correct {
@@ -668,8 +756,8 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .key.key-action {
-  min-width: 60px;
-  font-size: 0.75rem;
+  min-width: 64px;
+  font-size: 0.72rem;
   background: #818384;
   color: white;
 }
@@ -712,7 +800,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
   text-align: center;
   padding: 40px;
   font-size: 1.2rem;
-  color: #333;
+  color: #1a3a4a;
 }
 
 .error {
@@ -720,11 +808,12 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .app-container {
-  min-height: 100vh;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
   display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
+  flex-direction: column;
+  padding: 0;
 }
 
 .logout-icon {
@@ -898,43 +987,18 @@ h1 .logout-wrapper:hover .logout-tooltip {
 
 /* iPad and smaller tablets */
 @media (max-width: 768px) {
-  body {
-    padding: 6px;
-    padding-left: max(6px, env(safe-area-inset-left));
-    padding-right: max(6px, env(safe-area-inset-right));
-    padding-bottom: max(6px, env(safe-area-inset-bottom));
-    padding-top: max(6px, env(safe-area-inset-top));
-    align-items: stretch;
-  }
-
-  .app-container {
-    padding: 0;
-    min-height: 100vh;
-    min-height: -webkit-fill-available;
-    align-items: stretch;
-    display: flex;
-    flex-direction: column;
-  }
-
   .app-container > .game-container,
   .app-container > .statistics-container {
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    overflow-y: auto;
-  }
-
-  .game-container {
-    padding: 12px;
-    padding-left: max(12px, env(safe-area-inset-left));
-    padding-right: max(12px, env(safe-area-inset-right));
-    border-radius: 12px;
+    overflow: hidden;
   }
 
   .game-board {
     gap: 6px;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
 
   .row {
@@ -942,32 +1006,12 @@ h1 .logout-wrapper:hover .logout-tooltip {
   }
 
   .keyboard {
-    margin-top: 12px;
     gap: 6px;
-  }
-
-  .keyboard-placeholder {
-    height: 158px;
   }
 }
 
 /* Phones (portrait) */
 @media (max-width: 600px) {
-  body {
-    padding: 4px;
-    padding-left: max(4px, env(safe-area-inset-left));
-    padding-right: max(4px, env(safe-area-inset-right));
-    padding-bottom: max(4px, env(safe-area-inset-bottom));
-    padding-top: max(4px, env(safe-area-inset-top));
-  }
-
-  .game-container {
-    padding: 10px;
-    padding-left: max(10px, env(safe-area-inset-left));
-    padding-right: max(10px, env(safe-area-inset-right));
-    border-radius: 10px;
-  }
-
   h1 {
     display: flex;
     flex-wrap: wrap;
@@ -977,74 +1021,27 @@ h1 .logout-wrapper:hover .logout-tooltip {
     font-size: 1.5rem;
   }
 
-  .header-section {
-    margin-bottom: 10px;
+  .game-header-bar {
+    padding: 0.65rem 0.85rem;
   }
 
   .settings {
     flex-wrap: wrap;
-    gap: 6px;
-    margin-bottom: 8px;
-    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.55rem 0.85rem;
   }
 
-  .setting-group select {
-    padding: 4px 6px;
-    font-size: 0.85rem;
-    border-width: 1.5px;
+  .toolbar-picks,
+  .toolbar-mode {
+    flex-wrap: wrap;
   }
 
-  .setting-group select.mode-select {
-    padding: 4px 6px;
-    padding-right: 24px;
-    font-size: 0.8rem;
-    background-position: right 4px center;
-    background-size: 10px 10px;
-  }
-
-  .language-dropdown-trigger {
-    padding: 4px 8px;
-    min-height: 32px;
-    border-width: 1.5px;
+  .toolbar-mode {
+    margin-left: 0;
   }
 
   .language-dropdown-flag {
-    font-size: 1.2rem;
-  }
-
-  .daily-mode-row {
-    gap: 6px;
-  }
-
-  .daily-mode-row .date-picker-wrapper-inline {
-    min-width: 90px;
-  }
-
-  .date-picker-input-compact {
-    height: 32px !important;
-    padding: 4px 6px !important;
-    padding-left: 26px !important;
-    font-size: 0.85rem !important;
-    border-width: 1.5px !important;
-  }
-
-  .date-picker-icon-overlay svg {
-    width: 13px;
-    height: 13px;
-  }
-
-  .date-display-text-compact {
-    left: 26px !important;
-    font-size: 0.85rem !important;
-  }
-
-  .restart-practice-button {
-    padding: 4px;
-  }
-
-  .restart-practice-button svg {
-    width: 14px;
-    height: 14px;
+    font-size: 1.15rem;
   }
 
   .game-controls {
@@ -1064,25 +1061,24 @@ h1 .logout-wrapper:hover .logout-tooltip {
 
   .game-board {
     gap: 5px;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
 
   .key {
     min-width: 28px;
-    height: 48px;
-    min-height: 44px;
-    padding: 0 6px;
+    height: 42px;
+    padding: 0 5px;
     font-size: 0.8rem;
   }
 
   .key.key-action {
-    min-width: 44px;
+    min-width: 52px;
     font-size: 0.65rem;
   }
 
   .keyboard-spacer {
     min-width: 28px;
-    height: 48px;
+    height: 42px;
   }
 
   .keyboard-row {
@@ -1090,12 +1086,12 @@ h1 .logout-wrapper:hover .logout-tooltip {
   }
 
   .keyboard {
-    margin-top: 10px;
     gap: 6px;
+    padding: 0.55rem 0.45rem 0.85rem;
   }
 
   .keyboard-placeholder {
-    height: 154px;
+    height: 140px;
   }
 
   .game-result {
@@ -1139,146 +1135,31 @@ h1 .logout-wrapper:hover .logout-tooltip {
 
 /* Phone icon sizing */
 @media (max-width: 600px) {
-  .header-title-icons-left,
-  .header-title-icons {
-    gap: 2px;
-  }
-
   .header-icon-button {
-    padding: 4px;
+    width: 34px;
+    height: 34px;
+    padding: 6px;
   }
 
   .header-icon-button svg {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
   }
 }
 
 /* Small phones (e.g. iPhone SE, narrow devices) */
 @media (max-width: 430px) {
-  .header-title-icons-left {
-    margin-right: 8px;
+  .game-header-bar {
+    padding: 0.55rem 0.7rem;
   }
 
-  .header-title-icons {
-    margin-left: 8px;
-  }
-
-  .header-title-icons-left,
-  .header-title-icons {
-    gap: 0px;
-  }
-
-  .header-icon-button {
-    padding: 3px;
-  }
-
-  .header-icon-button svg {
-    width: 14px;
-    height: 14px;
-  }
-  body {
-    padding: 4px;
-    padding-left: max(4px, env(safe-area-inset-left));
-    padding-right: max(4px, env(safe-area-inset-right));
-    padding-bottom: max(4px, env(safe-area-inset-bottom));
-    padding-top: max(4px, env(safe-area-inset-top));
-  }
-
-  .game-container {
-    padding: 8px;
-    padding-left: max(8px, env(safe-area-inset-left));
-    padding-right: max(8px, env(safe-area-inset-right));
-    border-radius: 8px;
-  }
-
-  h1 {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: center;
-    gap: 2px 6px;
-    font-size: 1.35rem;
-  }
-
-  .header-section {
-    margin-bottom: 8px;
+  .header-game-name {
+    font-size: 0.95rem;
   }
 
   .settings {
-    gap: 4px;
-    margin-bottom: 6px;
-  }
-
-  .setting-group select {
-    padding: 3px 4px;
-    font-size: 0.8rem;
-    border-radius: 6px;
-  }
-
-  .setting-group select.mode-select {
-    padding: 3px 4px;
-    padding-right: 20px;
-    font-size: 0.75rem;
-    background-position: right 3px center;
-    background-size: 9px 9px;
-  }
-
-  .language-dropdown-trigger {
-    padding: 3px 6px;
-    min-height: 28px;
-    border-radius: 6px;
-  }
-
-  .language-dropdown-flag {
-    font-size: 1.1rem;
-  }
-
-  .language-dropdown-chevron {
-    font-size: 0.5rem;
-  }
-
-  .daily-mode-row {
-    gap: 4px;
-  }
-
-  .daily-mode-row .date-picker-wrapper-inline {
-    min-width: 80px;
-  }
-
-  .date-picker-input-compact {
-    height: 28px !important;
-    padding: 3px 4px !important;
-    padding-left: 22px !important;
-    font-size: 0.8rem !important;
-    border-radius: 6px !important;
-  }
-
-  .date-picker-icon-overlay {
-    left: 5px !important;
-  }
-
-  .date-picker-icon-overlay svg {
-    width: 12px;
-    height: 12px;
-  }
-
-  .date-display-text-compact {
-    left: 22px !important;
-    font-size: 0.8rem !important;
-  }
-
-  .restart-practice-button {
-    padding: 3px;
-  }
-
-  .restart-practice-button svg {
-    width: 13px;
-    height: 13px;
-  }
-
-  .game-controls {
-    margin-bottom: 8px;
+    gap: 0.35rem;
+    padding: 0.45rem 0.7rem;
   }
 
   .cell {
@@ -1293,25 +1174,24 @@ h1 .logout-wrapper:hover .logout-tooltip {
 
   .game-board {
     gap: 4px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
 
   .key {
     min-width: 24px;
-    height: 44px;
-    min-height: 44px;
+    height: 42px;
     padding: 0 4px;
     font-size: 0.75rem;
   }
 
   .key.key-action {
-    min-width: 36px;
+    min-width: 44px;
     font-size: 0.6rem;
   }
 
   .keyboard-spacer {
     min-width: 24px;
-    height: 44px;
+    height: 42px;
   }
 
   .keyboard-row {
@@ -1319,12 +1199,11 @@ h1 .logout-wrapper:hover .logout-tooltip {
   }
 
   .keyboard {
-    margin-top: 8px;
     gap: 5px;
   }
 
   .keyboard-placeholder {
-    height: 142px;
+    height: 132px;
   }
 
   .random-watermark {
@@ -1339,14 +1218,17 @@ h1 .logout-wrapper:hover .logout-tooltip {
 
 /* Header Section with Tabs */
 .header-section {
-  margin-bottom: 24px;
+  margin-bottom: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .game-header-bar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  display: flex;
   align-items: center;
-  column-gap: 0.5rem;
+  justify-content: space-between;
+  padding: 0.8rem 1.5rem;
   width: 100%;
   min-height: 44px;
 }
@@ -1354,7 +1236,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
 .game-header-side {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.55rem;
   min-width: 0;
 }
 
@@ -1365,40 +1247,39 @@ h1 .logout-wrapper:hover .logout-tooltip {
 .game-header-right {
   position: relative;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 a.header-brand-home {
   display: grid;
   place-items: center;
+  flex: 0 0 auto;
   width: 34px;
   height: 34px;
   border-radius: 999px;
   text-decoration: none;
-  box-shadow: 0 4px 12px rgba(20, 35, 43, 0.18);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  line-height: 0;
   -webkit-tap-highlight-color: transparent;
 }
 a.header-brand-home:hover,
 a.header-brand-home:focus-visible {
-  transform: translateY(-1px) scale(1.04);
-  box-shadow: 0 6px 16px rgba(20, 35, 43, 0.24);
   outline: none;
+  transform: translateY(-1px);
 }
 .header-brand-home-svg {
   width: 34px;
   height: 34px;
   display: block;
+  border-radius: 999px;
 }
 
 .game-header-bar .header-home-link {
-  justify-self: center;
-  text-align: center;
-  font-size: clamp(1.35rem, 4.5vw, 2.1rem);
+  font-size: 1.05rem;
   font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--accent);
   line-height: 1.15;
-  max-width: 100%;
-  padding: 0 0.25rem;
+  padding: 0;
 }
 
 /* Legacy class names kept for Statistics */
@@ -1426,8 +1307,8 @@ a.header-brand-home:focus-visible {
   top: 100%;
   right: 0;
   margin-top: 8px;
-  background: rgba(128, 128, 128, 0.85);
-  color: white;
+  background: var(--bg);
+  color: var(--text);
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 0.875rem;
@@ -1435,7 +1316,7 @@ a.header-brand-home:focus-visible {
   max-width: 400px;
   white-space: pre-wrap;
   word-wrap: break-word;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
   line-height: 1.5;
   opacity: 0;
   pointer-events: none;
@@ -1558,27 +1439,36 @@ a.header-brand-home:focus-visible {
 }
 
 .header-icon-button {
+  width: 34px;
+  height: 34px;
   padding: 6px;
   background: transparent;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
-  color: #667eea;
-  border: 2px solid #667eea;
+  color: var(--accent);
+  border: 2px solid var(--accent);
   border-radius: 8px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  line-height: 0;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .header-icon-button:hover {
-  background: rgba(102, 126, 234, 0.1);
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .header-icon-button.active {
-  background: #667eea;
+  background: var(--accent);
   color: white;
+}
+
+.header-icon-button svg {
+  display: block;
 }
 
 /* Back button on Statistics screen */
@@ -1589,8 +1479,8 @@ a.header-brand-home:focus-visible {
   margin-left: 10px;
   padding: 6px 12px;
   background: transparent;
-  color: #667eea;
-  border: 2px solid #667eea;
+  color: var(--accent);
+  border: 2px solid var(--accent);
   border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 600;
@@ -1600,7 +1490,7 @@ a.header-brand-home:focus-visible {
 }
 
 .header-back-button:hover {
-  background: rgba(102, 126, 234, 0.1);
+  background: var(--accent-glow);
 }
 
 
@@ -1713,13 +1603,26 @@ a.header-brand-home:focus-visible {
 
 /* Statistics styles */
 .statistics-container {
-  background: white;
-  border-radius: 16px;
-  padding: 32px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  max-width: 1200px;
+  background: var(--water);
+  border-radius: 0;
+  box-shadow: none;
+  max-width: none;
   width: 100%;
-  margin: 0 auto;
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 0 2rem;
+}
+
+.statistics-container .header-section {
+  padding: 0.8rem 1.5rem;
+}
+
+.statistics-container .header-section h1 {
+  color: var(--accent);
+  font-size: 1.05rem;
+  text-align: left;
 }
 
 .statistics-container h2 {
@@ -1734,7 +1637,7 @@ a.header-brand-home:focus-visible {
   display: flex;
   gap: 16px;
   justify-content: center;
-  margin-bottom: 32px;
+  margin: 24px 16px 32px;
   flex-wrap: wrap;
 }
 
@@ -1746,16 +1649,17 @@ a.header-brand-home:focus-visible {
 
 .stat-filter-group select {
   padding: 8px 12px;
-  border: 2px solid #ddd;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   font-size: 1rem;
-  background: white;
+  background: var(--surface2);
+  color: var(--text);
   cursor: pointer;
   transition: border-color 0.2s;
 }
 
 .stat-filter-group select:hover {
-  border-color: #667eea;
+  border-color: var(--accent);
 }
 
 .stat-language-display {
@@ -1780,6 +1684,7 @@ a.header-brand-home:focus-visible {
   display: flex;
   justify-content: center;
   align-items: flex-start;
+  padding: 0 16px;
 }
 
 .stat-card {
@@ -2331,7 +2236,7 @@ a.header-brand-home:focus-visible {
   }
 
   .statistics-container {
-    padding: 20px;
+    padding: 0 0 2rem;
   }
 
   .stats-filters {
@@ -2495,9 +2400,10 @@ a.header-brand-home:focus-visible {
 .calendar-full-panel {
   display: flex;
   flex-direction: column;
-  padding: 16px 0;
-  margin-bottom: 16px;
-  border-bottom: 1px solid #eee;
+  padding: 0;
+  margin-bottom: 0;
+  width: 100%;
+  max-width: 600px;
 }
 
 .calendar-full-header {
@@ -2505,7 +2411,30 @@ a.header-brand-home:focus-visible {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   margin-bottom: 12px;
+}
+
+.calendar-today-button,
+.calendar-close-button {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-family: inherit;
+}
+
+.calendar-today-button {
+  background: var(--accent);
+  color: white;
+}
+
+.calendar-close-button {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
 }
 
 /* Grey out settings when calendar is shown */
@@ -2586,12 +2515,12 @@ a.header-brand-home:focus-visible {
   display: flex;
   flex-direction: row;
   align-items: center;
-  width: 100%;
+  width: auto;
   gap: 0;
 }
 
 .language-select-wrapper .language-dropdown {
-  flex: 1;
+  flex: 0 0 auto;
   min-width: 0;
 }
 
@@ -2627,25 +2556,26 @@ a.header-brand-home:focus-visible {
 /* Language dropdown: flag only when closed, flag + name in list */
 .language-dropdown {
   position: relative;
-  width: 100%;
+  width: auto;
 }
 
 .language-dropdown-trigger {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 8px 12px;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  font-size: 1rem;
-  background: white;
+  gap: 0.25rem;
+  height: 32px;
+  padding: 0 0.4rem 0 0.45rem;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  background: var(--surface2);
+  color: var(--text);
   cursor: pointer;
-  min-height: 42px;
 }
 
 .language-dropdown-trigger:hover:not(:disabled) {
-  border-color: #667eea;
+  border-color: var(--accent);
 }
 
 .language-dropdown-trigger:disabled {
@@ -2654,49 +2584,56 @@ a.header-brand-home:focus-visible {
 }
 
 .language-dropdown-flag {
-  font-size: 1.5rem;
+  font-size: 1.15rem;
   line-height: 1;
 }
 
 .language-dropdown-trigger-name {
-  font-size: 1rem;
+  font-size: 0.85rem;
   font-weight: 500;
-  color: #333;
-  margin-left: 6px;
+  color: var(--text);
+  margin-left: 4px;
 }
 
 .language-dropdown-chevron {
-  font-size: 0.65rem;
-  color: #666;
+  font-size: 0.55rem;
+  color: var(--text-dim);
 }
 
 .language-dropdown-list {
   position: absolute;
   top: 100%;
   left: 0;
-  min-width: 100%;
+  min-width: 10rem;
   width: max-content;
-  max-width: min(320px, 90vw);
+  max-width: min(280px, 80vw);
   margin: 4px 0 0;
   padding: 0;
   list-style: none;
-  background: white;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   z-index: 100;
-  max-height: 280px;
+  max-height: 240px;
   overflow-y: auto;
+}
+
+.settings .language-dropdown-list {
+  top: auto;
+  bottom: calc(100% + 4px);
+  margin: 0;
 }
 
 .language-dropdown-option {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 0.45rem;
+  padding: 0.45rem 0.65rem;
   cursor: pointer;
-  font-size: 1rem;
-  border-bottom: 1px solid #eee;
+  font-size: 0.85rem;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
 }
 
 .language-dropdown-option:last-child {
@@ -2705,11 +2642,11 @@ a.header-brand-home:focus-visible {
 
 .language-dropdown-option:hover,
 .language-dropdown-option.selected {
-  background: #f0f0ff;
+  background: var(--surface2);
 }
 
 .language-dropdown-option-flag {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   flex-shrink: 0;
 }
 
@@ -2725,11 +2662,13 @@ a.header-brand-home:focus-visible {
 
 .stat-filter-group .language-dropdown-trigger {
   min-height: 38px;
+  height: auto;
+  padding: 6px 10px;
 }
 
 .help-tooltip {
-  background: rgba(128, 128, 128, 0.85);
-  color: white;
+  background: var(--bg);
+  color: var(--text);
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 0.875rem;
@@ -2737,7 +2676,7 @@ a.header-brand-home:focus-visible {
   max-width: 600px;
   white-space: pre-wrap;
   word-wrap: break-word;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
   line-height: 1.5;
   animation: tooltipFadeIn 0.2s ease-out;
 }
@@ -2749,7 +2688,7 @@ a.header-brand-home:focus-visible {
   left: 50%;
   transform: translateX(-50%);
   border: 6px solid transparent;
-  border-top-color: rgba(128, 128, 128, 0.85);
+  border-top-color: var(--bg);
 }
 
 @keyframes tooltipFadeIn {

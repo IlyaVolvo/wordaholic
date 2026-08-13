@@ -11,6 +11,8 @@ let favoritesCache = null;
 /** @type {string|null} */
 let lastLanguageCache = null;
 let ready = false;
+/** Bumped on every user-facing prefs write so boot cannot clobber live edits. */
+let prefsEpoch = 0;
 
 function normalizeFavorites(codes) {
   if (!Array.isArray(codes)) return [...DEFAULT_FAVORITES];
@@ -18,37 +20,81 @@ function normalizeFavorites(codes) {
   return unique.length ? unique : [...DEFAULT_FAVORITES];
 }
 
+function readLocalFavorites() {
+  try {
+    const raw = localStorage.getItem(LS_FAVORITES_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function persistLocal() {
+  if (favoritesCache) {
+    localStorage.setItem(LS_FAVORITES_KEY, JSON.stringify(favoritesCache));
+  }
+  if (lastLanguageCache) {
+    localStorage.setItem(LS_LAST_KEY, lastLanguageCache);
+  }
+}
+
+function persistIdb() {
+  const fav = favoritesCache;
+  const last = lastLanguageCache;
+  void (async () => {
+    try {
+      if (fav) await storage.setSetting(IDB_FAVORITES_KEY, fav);
+      if (last) await storage.setSetting(IDB_LAST_KEY, last);
+    } catch (err) {
+      console.warn('IndexedDB prefs sync failed', err);
+    }
+  })();
+}
+
 /**
- * Load favorites from IndexedDB (migrate once from localStorage).
- * Call once during boot before using sync getters.
+ * Hydrate favorites for the UI from localStorage (immediate), then sync IndexedDB
+ * without overwriting edits the user already made this session.
  */
 export async function initFavorites() {
-  await storage.open();
+  const epochAtStart = prefsEpoch;
+  const fromLs = readLocalFavorites();
+  favoritesCache = normalizeFavorites(fromLs);
+  lastLanguageCache = localStorage.getItem(LS_LAST_KEY) || favoritesCache[0] || 'en';
+  ready = true;
+  persistLocal();
+
+  try {
+    await storage.open();
+  } catch (err) {
+    console.warn('IndexedDB unavailable; using localStorage favorites', err);
+    return favoritesCache;
+  }
+
+  if (prefsEpoch !== epochAtStart) {
+    persistIdb();
+    return favoritesCache;
+  }
+
+  if (fromLs) {
+    persistIdb();
+    return favoritesCache;
+  }
 
   let favorites = await storage.getSetting(IDB_FAVORITES_KEY, null);
-  if (!Array.isArray(favorites) || favorites.length === 0) {
-    try {
-      const raw = localStorage.getItem(LS_FAVORITES_KEY);
-      if (raw) favorites = JSON.parse(raw);
-    } catch {
-      favorites = null;
-    }
-  }
-  favoritesCache = normalizeFavorites(favorites);
-  await storage.setSetting(IDB_FAVORITES_KEY, favoritesCache);
-
   let last = await storage.getSetting(IDB_LAST_KEY, null);
-  if (typeof last !== 'string' || !last) {
-    last = localStorage.getItem(LS_LAST_KEY) || favoritesCache[0] || 'en';
+  if (prefsEpoch !== epochAtStart) {
+    persistIdb();
+    return favoritesCache;
   }
-  lastLanguageCache = last;
-  await storage.setSetting(IDB_LAST_KEY, lastLanguageCache);
 
-  // Keep a localStorage mirror for very early/offline reads; IDB is source of truth.
-  localStorage.setItem(LS_FAVORITES_KEY, JSON.stringify(favoritesCache));
-  localStorage.setItem(LS_LAST_KEY, lastLanguageCache);
-
-  ready = true;
+  if (Array.isArray(favorites) && favorites.length) {
+    favoritesCache = normalizeFavorites(favorites);
+  }
+  if (typeof last === 'string' && last) {
+    lastLanguageCache = last;
+  }
+  persistLocal();
+  persistIdb();
   return favoritesCache;
 }
 
@@ -65,10 +111,11 @@ export function getFavoriteLanguages() {
 
 /** @param {string[]} codes */
 export async function setFavoriteLanguages(codes) {
+  prefsEpoch += 1;
   const next = normalizeFavorites(codes);
   favoritesCache = next;
-  await storage.setSetting(IDB_FAVORITES_KEY, next);
-  localStorage.setItem(LS_FAVORITES_KEY, JSON.stringify(next));
+  persistLocal();
+  persistIdb();
   return [...next];
 }
 
@@ -80,9 +127,10 @@ export function getLastLanguage() {
 /** @param {string} code */
 export async function setLastLanguage(code) {
   if (!code) return;
+  prefsEpoch += 1;
   lastLanguageCache = code;
-  await storage.setSetting(IDB_LAST_KEY, code);
-  localStorage.setItem(LS_LAST_KEY, code);
+  persistLocal();
+  persistIdb();
 }
 
 export function favoritesReady() {

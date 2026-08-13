@@ -10,7 +10,6 @@ import {
   getLastLanguage,
   setLastLanguage,
 } from './i18n-prefs/favorites.js';
-import { storage } from './storage/idb.js';
 import { AUTHOR_EMAIL } from './shell/author.js';
 import { downloadSiteBackup, exportSiteBackup, importSiteBackup } from './shell/site-backup.js';
 
@@ -91,6 +90,11 @@ function renderFavoriteChips() {
 async function renderGateway() {
   const favorites = favoriteLanguageObjects();
   renderFavoriteChips();
+  renderGameRail($('#game-rail'), {
+    games: listGames(),
+    favoriteLanguages: favorites,
+    onGameSelect: (gameId, langCodes) => openGame(gameId, langCodes),
+  });
   const languageMenus = Object.fromEntries(allLanguages.map((l) => [l.code, l.menu]));
   await renderWorldMap($('#map-root'), {
     favoriteLanguages: favorites,
@@ -152,11 +156,6 @@ async function renderGateway() {
       if (dialog) dialog.hidden = false;
     },
   });
-  renderGameRail($('#game-rail'), {
-    games: listGames(),
-    favoriteLanguages: favorites,
-    onGameSelect: (gameId, langCodes) => openGame(gameId, langCodes),
-  });
 }
 
 /**
@@ -164,13 +163,13 @@ async function renderGateway() {
  * @param {string} gameId
  * @param {string[]} langCodes
  */
-async function openGame(gameId, langCodes) {
+function openGame(gameId, langCodes) {
   const game = listGames().find((g) => g.id === gameId);
   if (!game || !langCodes.length) return;
 
   const last = getLastLanguage();
   const primary = langCodes.includes(last) ? last : langCodes[0];
-  await setLastLanguage(primary);
+  void setLastLanguage(primary);
   const qs = new URLSearchParams({
     lang: primary,
     langs: langCodes.join(','),
@@ -178,15 +177,17 @@ async function openGame(gameId, langCodes) {
   location.href = `/games/${gameId}/?${qs.toString()}`;
 }
 
-async function boot() {
-  await storage.open();
-  await initFavorites();
-
+async function paintHome() {
   allLanguages = await loadLanguages();
   await renderGateway();
   showView('map');
+}
 
-  showPreparing().catch((err) => console.warn('Offline prep failed', err));
+let chromeBound = false;
+
+function bindChrome() {
+  if (chromeBound) return;
+  chromeBound = true;
 
   const aboutDialog = $('#about-dialog');
   const openAbout = async () => {
@@ -270,9 +271,30 @@ async function boot() {
     }
     void copyText(note, 'Note copied — paste it into your email.');
   });
+}
 
+async function boot() {
+  bindChrome();
+  await paintHome();
+
+  try {
+    const before = getFavoriteLanguages().join(',');
+    await initFavorites();
+    if (getFavoriteLanguages().join(',') !== before) {
+      await renderGateway();
+    }
+  } catch (err) {
+    console.warn('Favorites init failed', err);
+  }
+
+  showPreparing().catch((err) => console.warn('Offline prep failed', err));
   checkForUpdates(document.body).catch(() => {});
 }
+
+window.addEventListener('pageshow', (event) => {
+  if (!event.persisted) return;
+  void paintHome().catch((err) => console.warn('Restore home failed', err));
+});
 
 boot().catch((err) => {
   console.error(err);

@@ -21,7 +21,7 @@ const MIN_SCALE = 1;
 const MAX_SCALE = 10;
 
 async function loadMapSvg() {
-  const res = await fetch('/map/world.svg', { cache: 'reload' });
+  const res = await fetch('/map/world.svg');
   if (!res.ok) throw new Error('Failed to load world map');
   let svg = await res.text();
   svg = svg.replace(/<\?xml[^>]*>/, '').trim();

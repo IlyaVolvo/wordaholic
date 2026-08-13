@@ -47,7 +47,7 @@ export const LanguageDropdown: React.FC<LanguageDropdownProps> = ({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Language: ${current?.name ?? value}`}
-        title={current?.name}
+        title="Language"
       >
         <span className="language-dropdown-flag" aria-hidden="true">
           {displayLabel}

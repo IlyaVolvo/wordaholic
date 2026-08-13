@@ -158,8 +158,9 @@ export const Settings: React.FC<SettingsProps> = ({
 
   return (
     <div className={`settings ${showCalendar ? 'calendar-active' : ''}`}>
-      <div className="setting-group">
-        <div className="language-select-wrapper">
+      <div className="toolbar-picks">
+        <div className="language-select-wrapper toolbar-tip">
+          <span className="toolbar-tip-label">Language</span>
           <LanguageDropdown
             id="language-select"
             availableLanguages={availableLanguages}
@@ -168,22 +169,25 @@ export const Settings: React.FC<SettingsProps> = ({
             disabled={disabled}
           />
         </div>
+        <div className="toolbar-tip">
+          <span className="toolbar-tip-label">Number of letters</span>
+          <select
+            id="length-select"
+            value={wordLength}
+            onChange={(e) => onWordLengthChange(Number(e.target.value))}
+            disabled={disabled}
+            title="Number of letters"
+            aria-label="Number of letters"
+          >
+            {currentLangConfig?.supportedLengths.map((length) => (
+              <option key={length} value={length}>
+                {length}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
-      <div className="setting-group">
-        <select
-          id="length-select"
-          value={wordLength}
-          onChange={(e) => onWordLengthChange(Number(e.target.value))}
-          disabled={disabled}
-        >
-          {currentLangConfig?.supportedLengths.map((length) => (
-            <option key={length} value={length}>
-              {length}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="setting-group date-picker-setting daily-mode-row">
+      <div className="toolbar-mode">
         <select
           className="mode-select"
           value={randomMode ? 'practice' : 'daily'}
@@ -203,142 +207,31 @@ export const Settings: React.FC<SettingsProps> = ({
             title="New practice game"
             aria-label="New practice game"
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="23 4 23 10 17 10"></polyline>
               <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
             </svg>
           </button>
         )}
-      {!randomMode && (
-        <div className="date-picker-wrapper-inline" style={{ position: 'relative', display: 'flex', flex: 1, alignItems: 'center', minWidth: 0 }}>
-            <input
-              id="date-picker-hidden"
-              type="date"
-              value={selectedDate || today}
-              max={today}
-              readOnly
-              tabIndex={disabled ? -1 : 0}
-              onChange={(e) => {
-                // Prevent native calendar from changing value
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              onFocus={(e) => {
-                // Prevent native calendar from opening on focus (iPad/iOS)
-                e.preventDefault();
-                e.stopPropagation();
-                e.target.blur();
-                if (!disabled) {
-                  setShowCalendar(true);
-                }
-              }}
-              onMouseDown={(e) => {
-                // Prevent native picker on mousedown
-                e.preventDefault();
-                e.stopPropagation();
-                if (!disabled) {
-                  setShowCalendar(true);
-                }
-              }}
-              onTouchStart={(e) => {
-                // Prevent native picker on touch start
-                e.preventDefault();
-                e.stopPropagation();
-                if (!disabled) {
-                  setShowCalendar(true);
-                }
-              }}
-          disabled={disabled}
-              className="date-picker-input-compact"
-              style={{ 
-                padding: '8px 8px',
-                paddingLeft: '32px',
-                paddingRight: '8px',
-                border: '2px solid #ddd',
-                borderRadius: '8px',
-                fontSize: '1rem',
-                background: 'white',
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                transition: 'border-color 0.2s',
-                color: 'transparent',
-                width: '100%',
-                height: '38px',
-                position: 'relative',
-                zIndex: 2,
-                caretColor: 'transparent'
-              }}
-              onMouseEnter={(e) => {
-                if (!disabled) {
-                  e.currentTarget.style.borderColor = '#667eea';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!disabled) {
-                  e.currentTarget.style.borderColor = '#ddd';
-                }
-              }}
-              onClick={(e) => {
-                if (!disabled) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  // Prevent native picker and open custom calendar instead
-                  setShowCalendar(true);
-                }
-              }}
-            />
-            <div 
-              className="date-picker-icon-overlay" 
-              aria-hidden="true"
-              style={{ 
-                position: 'absolute',
-                left: '8px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                pointerEvents: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                zIndex: 3,
-                color: '#666'
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5" fill="none"/>
-                <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5"/>
-                <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5"/>
-                <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" strokeWidth="1.5"/>
-                <circle cx="10" cy="12" r="1" fill="currentColor"/>
-                <circle cx="13" cy="12" r="1" fill="currentColor"/>
-                <circle cx="16" cy="12" r="1" fill="currentColor"/>
-                <circle cx="10" cy="15" r="1" fill="currentColor"/>
-                <circle cx="13" cy="15" r="1" fill="currentColor"/>
-                <circle cx="16" cy="15" r="1" fill="currentColor"/>
-              </svg>
-            </div>
-            <span 
-              className="date-display-text-compact" 
-              style={{
-                position: 'absolute',
-                left: '32px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                pointerEvents: 'none',
-                fontSize: '1rem',
-                color: '#333',
-                fontWeight: 500,
-                userSelect: 'none',
-                textAlign: 'left',
-                whiteSpace: 'nowrap',
-                zIndex: 3,
-                display: 'block',
-                lineHeight: '1'
-              }}
-            >
-              {formatDateDisplay(selectedDate || null, today)}
-            </span>
-          </div>
+        {!randomMode && (
+          <button
+            type="button"
+            className="date-picker-btn"
+            onClick={() => !disabled && setShowCalendar(true)}
+            disabled={disabled}
+            title="Calendar"
+            aria-label="Choose daily date"
+          >
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+              <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5"/>
+              <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5"/>
+              <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" strokeWidth="1.5"/>
+            </svg>
+            <span className="date-display">{formatDateDisplay(selectedDate || null, today)}</span>
+          </button>
         )}
       </div>
-
     </div>
   );
 };
