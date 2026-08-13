@@ -1,5 +1,5 @@
 /* Wordaholic service worker — cache shell + requested wordsets */
-const CACHE_SHELL = 'wordaholic-shell-v24';
+const CACHE_SHELL = 'wordaholic-shell-v25';
 const CACHE_DATA = 'wordaholic-data-v2';
 
 const PRECACHE = [
@@ -85,24 +85,65 @@ self.addEventListener('message', (event) => {
   }
 });
 
+/**
+ * Cache-first except the hash manifest. Reload should hit Cache Storage, not the network.
+ * Navigations include ?lang= and often omit index.html; HEAD must reuse GET entries.
+ */
+async function matchFromCache(request) {
+  const exact = await caches.match(request);
+  if (exact) return exact;
+
+  const url = new URL(request.url);
+
+  if (request.method === 'HEAD') {
+    const asGet = await caches.match(new Request(url.href, { method: 'GET' }));
+    if (asGet) {
+      return new Response(null, {
+        status: asGet.status,
+        statusText: asGet.statusText,
+        headers: asGet.headers,
+      });
+    }
+  }
+
+  const isDocument = request.mode === 'navigate' || request.destination === 'document';
+  if (isDocument) {
+    let path = url.pathname;
+    if (path.endsWith('/')) path += 'index.html';
+    const indexHit = await caches.match(`${url.origin}${path}`);
+    if (indexHit) return indexHit;
+    const noSearch = await caches.match(request, { ignoreSearch: true });
+    if (noSearch) return noSearch;
+  }
+
+  return caches.match(request, { ignoreSearch: true });
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  if (req.method !== 'GET') return;
+  if (req.method !== 'GET' && req.method !== 'HEAD') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
   if (url.pathname === '/deployment-manifest.json' || url.pathname.startsWith('/games/transword/admin')) {
-    event.respondWith(fetch(req, { cache: 'no-store' }).catch(() => caches.match(req)));
+    event.respondWith(fetch(req, { cache: 'no-store' }).catch(() => matchFromCache(req)));
     return;
   }
 
   event.respondWith(
     (async () => {
-      const cached = await caches.match(req);
+      const cached = await matchFromCache(req);
       if (cached) return cached;
       try {
         const res = await fetch(req);
-        if (res.ok && (url.pathname.startsWith('/data/') || url.pathname.startsWith('/word-data/') || url.pathname.startsWith('/games/') || url.pathname.startsWith('/app/'))) {
+        if (
+          req.method === 'GET' &&
+          res.ok &&
+          (url.pathname.startsWith('/data/') ||
+            url.pathname.startsWith('/word-data/') ||
+            url.pathname.startsWith('/games/') ||
+            url.pathname.startsWith('/app/'))
+        ) {
           const cache = await caches.open(
             url.pathname.startsWith('/data/') || url.pathname.startsWith('/word-data/') ? CACHE_DATA : CACHE_SHELL
           );

@@ -18,6 +18,45 @@ function copyDictPlugin(): Plugin {
   };
 }
 
+/** Isolated Vite dev still uses the site catalog and shared language.json files. */
+function shellDataPlugin(): Plugin {
+  const repoRoot = path.resolve(__dirname, '../..');
+  const wordDataRoot = path.resolve(repoRoot, 'word-data');
+  return {
+    name: 'polywordlot-shell-data',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const url = (req.url || '').split('?')[0];
+        if (url === '/data/languages.json') {
+          const { buildLanguagesCatalog } = await import('../../scripts/build-languages-catalog.js');
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify(buildLanguagesCatalog(), null, 2));
+          return;
+        }
+        if (url.startsWith('/word-data/')) {
+          const rel = decodeURIComponent(url.slice('/word-data/'.length));
+          const file = path.resolve(wordDataRoot, rel);
+          const fromRoot = path.relative(wordDataRoot, file);
+          if (
+            fromRoot.startsWith('..') ||
+            path.isAbsolute(fromRoot) ||
+            !fs.existsSync(file) ||
+            !fs.statSync(file).isFile()
+          ) {
+            res.statusCode = 404;
+            res.end('Not found');
+            return;
+          }
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          fs.createReadStream(file).pipe(res);
+          return;
+        }
+        next();
+      });
+    },
+  };
+}
+
 function getGitCommitHash(): string {
   try {
     return execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim();
@@ -28,7 +67,7 @@ function getGitCommitHash(): string {
 
 export default defineConfig({
   root: __dirname,
-  plugins: [react(), copyDictPlugin()],
+  plugins: [react(), copyDictPlugin(), shellDataPlugin()],
   base: '/games/polywordlot/',
   resolve: {
     alias: {

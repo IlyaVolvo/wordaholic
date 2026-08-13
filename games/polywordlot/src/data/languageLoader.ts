@@ -1,5 +1,5 @@
 import type { DictionaryEntry, LanguageConfig } from '../types';
-import { LOCALE_PATHS, languageDirForCode } from '@wordaholic/locales';
+import { languageDirForCode } from '@wordaholic/locales';
 
 const DICT_BASE = `${import.meta.env.BASE_URL}dict/`;
 /** Shared language definitions: /word-data/<Language>/<locale>/language.json */
@@ -8,10 +8,7 @@ const WORD_DATA_BASE = '/word-data/';
 // Cache for loaded dictionaries
 const dictionaryCache = new Map<string, DictionaryEntry>();
 
-// Cache for detected supported lengths per language
-const supportedLengthsCache = new Map<string, number[]>();
-
-// Cache for language configurations (discovered from directory structure)
+// Cache for language configurations (from the build-time catalog)
 const languageConfigsCache = new Map<string, LanguageConfig>();
 
 // Cache for keyboard layouts
@@ -77,11 +74,6 @@ const loseMessageCache = new Map<string, string>();
 const aboutCache = new Map<string, { contributorLabel?: string; rulesLabel?: string; contributor?: string }>();
 
 /**
- * Locale paths come from app/shell/locales.js (shared with shell + TransWord).
- * Menu display name comes from each locale's language.json "menu" field.
- */
-
-/**
  * Loads a dictionary file as text with support for comments (#) and empty lines
  */
 async function loadDictionaryFile(path: string): Promise<string[]> {
@@ -134,80 +126,36 @@ async function loadDictionaryFile(path: string): Promise<string[]> {
 }
 
 /**
- * Fetches menu and flag from a locale's language.json.
- * languageDir is e.g. "Spanish/es". Returns menu (fallback if missing) and optional flag.
+ * Language list and supported lengths come from the build catalog.
+ * Reload must not probe answer files with HEAD — those miss the service-worker GET cache.
  */
-async function loadLanguageMeta(
-  languageDir: string,
-  fallbackName: string
-): Promise<{ menu: string; flag?: string }> {
-  try {
-    const response = await fetch(`${WORD_DATA_BASE}${languageDir}/language.json`);
-    if (!response.ok || response.headers.get('content-type')?.includes('text/html')) {
-      return { menu: fallbackName };
-    }
-    const data = await response.json();
-    if (!data || typeof data !== 'object') return { menu: fallbackName };
-    const menu =
-      typeof data.menu === 'string' && data.menu.trim() ? data.menu.trim() : fallbackName;
-    const flag = typeof data.flag === 'string' && data.flag.trim() ? data.flag.trim() : undefined;
-    return { menu, flag };
-  } catch {
-    return { menu: fallbackName };
-  }
-}
-
-/**
- * Detects available languages by scanning the directory structure.
- * Menu display name is read from each locale's language.json "menu" field.
- */
-async function discoverLanguages(): Promise<LanguageConfig[]> {
-  // Check cache first
+async function loadLanguageCatalog(): Promise<LanguageConfig[]> {
   if (languageConfigsCache.size > 0) {
     return Array.from(languageConfigsCache.values());
   }
 
-  const configs: LanguageConfig[] = [];
-
-  console.log('Processing language directories:');
-  for (const [locale, info] of Object.entries(LOCALE_PATHS)) {
-    const languageDir = `${info.language}/${info.locale}`;
-    console.log(`  - Checking directory: ${languageDir}`);
-
-    const possibleLengths = [4, 5, 6, 7, 8, 9, 10];
-    const supportedLengths: number[] = [];
-
-    for (const length of possibleLengths) {
-      const answerPath = `${DICT_BASE}${languageDir}/answers-${length}.txt`;
-      try {
-        const response = await fetch(answerPath, { method: 'HEAD' });
-        if (response.ok && !response.headers.get('content-type')?.includes('text/html')) {
-          supportedLengths.push(length);
-        }
-      } catch {
-        // File doesn't exist
-      }
-    }
-
-    if (supportedLengths.length > 0) {
-      const { menu: name, flag } = await loadLanguageMeta(languageDir, info.language);
-      console.log(`    ✓ Found ${languageDir}: ${name}, word lengths [${supportedLengths.join(', ')}]`);
-
-      const config: LanguageConfig = {
-        code: locale,
-        name,
-        flag,
-        supportedLengths,
-      };
-      configs.push(config);
-      languageConfigsCache.set(locale, config);
-    } else {
-      console.log(`    ✗ No answer files found in ${languageDir}`);
-    }
+  const response = await fetch('/data/languages.json');
+  if (!response.ok) {
+    throw new Error('Failed to load languages catalog');
+  }
+  const catalog = await response.json();
+  if (!Array.isArray(catalog)) {
+    throw new Error('Languages catalog is invalid');
   }
 
-  console.log(`Loaded ${configs.length} language(s):`, configs.map(c => `${c.name} (${c.code}): [${c.supportedLengths.join(', ')}]`));
-  return configs;
+  for (const lang of catalog) {
+    const lengths = Array.isArray(lang.polywordlotLengths) ? lang.polywordlotLengths : [];
+    if (!lengths.length || !(lang.games || []).includes('polywordlot')) continue;
+    const config: LanguageConfig = {
+      code: lang.code,
+      name: typeof lang.menu === 'string' && lang.menu.trim() ? lang.menu.trim() : lang.code,
+      flag: typeof lang.flag === 'string' && lang.flag.trim() ? lang.flag.trim() : undefined,
+      supportedLengths: lengths,
+    };
+    languageConfigsCache.set(config.code, config);
+  }
+
+  return Array.from(languageConfigsCache.values());
 }
 
 /**
@@ -311,66 +259,10 @@ export async function loadDictionary(
 }
 
 /**
- * Detects available word lengths for a language by checking for answer files
- * Uses the new directory structure
- */
-async function detectSupportedLengths(language: string): Promise<number[]> {
-  // Check cache first
-  if (supportedLengthsCache.has(language)) {
-    return supportedLengthsCache.get(language)!;
-  }
-
-  const languageDir = getLanguageDir(language);
-  if (!languageDir) {
-    return [];
-  }
-
-  const possibleLengths = [4, 5, 6, 7, 8, 9, 10]; // Check common lengths
-
-  // Check for answer files directly (faster than loading full dictionaries)
-  const checkPromises = possibleLengths.map(async (length) => {
-    const answerPath = `${DICT_BASE}${languageDir}/answers-${length}.txt`;
-    try {
-      const response = await fetch(answerPath, { method: 'HEAD' });
-      if (response.ok && !response.headers.get('content-type')?.includes('text/html')) {
-        return length;
-      }
-    } catch (error) {
-      // File doesn't exist
-    }
-    return null;
-  });
-
-  const results = await Promise.all(checkPromises);
-  const lengths = results.filter((length): length is number => length !== null).sort((a, b) => a - b);
-
-  // Cache the result
-  supportedLengthsCache.set(language, lengths);
-
-  return lengths;
-}
-
-/**
- * Gets all available language configurations with dynamically detected lengths
- * Only returns languages that have at least one answer file
+ * Gets PolyWordlot language configurations from the site catalog.
  */
 export async function getLanguageConfigs(): Promise<LanguageConfig[]> {
-  // Discover languages from directory structure
-  const configs = await discoverLanguages();
-  
-  // Detect supported lengths for each discovered language
-  const configsWithLengths = await Promise.all(
-    configs.map(async (config) => {
-      const supportedLengths = await detectSupportedLengths(config.code);
-      return {
-        ...config,
-        supportedLengths,
-      };
-    })
-  );
-
-  // Filter out languages that don't have any answer files
-  return configsWithLengths.filter(config => config.supportedLengths.length > 0);
+  return loadLanguageCatalog();
 }
 
 /**
@@ -400,7 +292,7 @@ export async function loadKeyboard(language: string): Promise<string[][] | null>
   const languagePath = `${WORD_DATA_BASE}${languageDir}/language.json`;
 
   try {
-    const response = await fetch(languagePath, { cache: 'no-store' });
+    const response = await fetch(languagePath);
 
     if (response.status === 404 || !response.ok) {
       return null;
