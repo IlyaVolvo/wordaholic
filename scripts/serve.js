@@ -22,19 +22,23 @@ const TYPES = {
 
 /** Prefer a private 192.168.x.x address for the printed link. */
 function lanAddresses() {
-  const nets = os.networkInterfaces();
-  /** @type {string[]} */
-  const v4 = [];
-  for (const entries of Object.values(nets)) {
-    for (const net of entries || []) {
-      const family = typeof net.family === 'string' ? net.family : String(net.family);
-      if ((family === 'IPv4' || family === '4') && !net.internal) {
-        v4.push(net.address);
+  try {
+    const nets = os.networkInterfaces();
+    /** @type {string[]} */
+    const v4 = [];
+    for (const entries of Object.values(nets || {})) {
+      for (const net of entries || []) {
+        const family = typeof net.family === 'string' ? net.family : String(net.family);
+        if ((family === 'IPv4' || family === '4') && !net.internal) {
+          v4.push(net.address);
+        }
       }
     }
+    const preferred = v4.filter((ip) => ip.startsWith('192.168.'));
+    return preferred.length ? preferred : v4;
+  } catch {
+    return [];
   }
-  const preferred = v4.filter((ip) => ip.startsWith('192.168.'));
-  return preferred.length ? preferred : v4;
 }
 
 const server = http.createServer((req, res) => {

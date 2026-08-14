@@ -1,5 +1,5 @@
 import { WordGraph } from './graph.js';
-import { generatePuzzles, shortestPath } from './solver.js';
+import { bfs, generatePuzzles, shortestPath } from './solver.js';
 import {
   formatLocalDate,
   getDailyPuzzle,
@@ -117,6 +117,14 @@ let timerHandle = null;
 let solved = false;
 let readOnly = false;
 let playMode = 'daily';
+/** Times the player entered a position with no path to the target. */
+let deadendCount = 0;
+/** Times the player asked for a next-word hint. */
+let helpCount = 0;
+/** True while the current chain end cannot reach the target. */
+let inDeadend = false;
+/** BFS from the target — `prev` is the next word toward the end. */
+let endBfs = null;
 /** Selected daily date (local YYYY-MM-DD) */
 let selectedGameDate = formatLocalDate();
 let calendarMonth = new Date();
@@ -156,6 +164,80 @@ function currentCombo() {
     vocabLevel: selectedLevel(),
     difficulty: selectedDifficulty(),
     gameDate: selectedGameDate,
+  };
+}
+
+function refreshEndBfs() {
+  endBfs = fullGraph && puzzle?.end ? bfs(fullGraph, puzzle.end) : null;
+}
+
+function currentIsDeadend() {
+  if (!puzzle || !endBfs || solved) return false;
+  const cur = chain[chain.length - 1];
+  if (!cur || cur === puzzle.end) return false;
+  return !endBfs.has(cur);
+}
+
+function nextHelpWord() {
+  if (!puzzle || !endBfs || solved) return null;
+  const cur = chain[chain.length - 1];
+  const info = endBfs.get(cur);
+  if (!info || info.prev == null) return null;
+  return info.prev;
+}
+
+/**
+ * @param {{ countEntry?: boolean }} [opts]
+ */
+function syncDeadendState(opts = {}) {
+  const now = currentIsDeadend();
+  if (opts.countEntry && now && !inDeadend) deadendCount += 1;
+  inDeadend = now;
+  updateAssistChrome();
+}
+
+function resetAssist(record = null) {
+  deadendCount = Math.max(0, Number(record?.deadendCount) || 0);
+  helpCount = Math.max(0, Number(record?.helpCount) || 0);
+  refreshEndBfs();
+  inDeadend = currentIsDeadend();
+  updateAssistChrome();
+}
+
+function updateAssistChrome() {
+  const banner = $('#deadend-banner');
+  if (banner) {
+    const show = inDeadend && !solved && !readOnly;
+    banner.hidden = !show;
+    banner.classList.toggle('hidden', !show);
+  }
+  const helpBtn = /** @type {HTMLButtonElement | null} */ ($('#btn-help'));
+  if (helpBtn) {
+    const canHelp = !solved && !readOnly && !!nextHelpWord();
+    helpBtn.disabled = !canHelp;
+    helpBtn.title = canHelp
+      ? 'Add the next word toward the target'
+      : inDeadend
+        ? 'Undo first — this position cannot reach the target'
+        : 'Help';
+  }
+  const deadendEl = $('#deadend-count');
+  const helpEl = $('#help-count');
+  if (deadendEl) deadendEl.textContent = String(deadendCount);
+  if (helpEl) helpEl.textContent = String(helpCount);
+}
+
+function dailyFields(extra = {}) {
+  return {
+    ...currentCombo(),
+    start: puzzle.start,
+    end: puzzle.end,
+    optimal: puzzle.dist,
+    path: [...chain],
+    elapsedMs: extra.elapsedMs ?? currentElapsedMs(),
+    isComplete: extra.isComplete ?? (solved || isPathSolved(chain, puzzle.start, puzzle.end)),
+    deadendCount,
+    helpCount,
   };
 }
 
@@ -362,6 +444,7 @@ function startPracticePuzzle() {
     dist: optimalStepCount(pick.start, pick.end, pick.path.length - 1),
   };
   chain = [puzzle.start];
+  resetAssist();
   setSessionActive(GAME_ID, true);
   $('#target-word').textContent = puzzle.end;
   $('#optimal-count').textContent = String(puzzle.dist);
@@ -390,14 +473,9 @@ async function loadDailyForSelection() {
     };
     chain = [puzzle.start];
     elapsedMsStored = 0;
+    resetAssist();
     record = await upsertDaily({
-      ...combo,
-      start: puzzle.start,
-      end: puzzle.end,
-      optimal: puzzle.dist,
-      path: [...chain],
-      elapsedMs: 0,
-      isComplete: false,
+      ...dailyFields({ elapsedMs: 0, isComplete: false }),
     });
   } else {
     puzzle = {
@@ -407,6 +485,7 @@ async function loadDailyForSelection() {
     };
     chain = Array.isArray(record.path) && record.path.length ? [...record.path] : [record.start];
     elapsedMsStored = Number(record.elapsedMs) || 0;
+    resetAssist(record);
     if (record.isComplete || isPathSolved(chain, record.start, record.end)) {
       solved = true;
       readOnly = true;
@@ -462,6 +541,12 @@ function formatElapsed(ms) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+/** @param {number} count @param {number} steps */
+function formatStepShare(count, steps) {
+  if (!steps) return '—';
+  return `${Math.round((count / steps) * 100)}%`;
+}
+
 function elapsedStr() {
   return formatElapsed(currentElapsedMs());
 }
@@ -478,15 +563,7 @@ async function pauseAndPersist() {
   }
   stopTimer(true);
   if (solved && readOnly) return;
-  await upsertDaily({
-    ...currentCombo(),
-    start: puzzle.start,
-    end: puzzle.end,
-    optimal: puzzle.dist,
-    path: [...chain],
-    elapsedMs: elapsedMsStored,
-    isComplete: solved || isPathSolved(chain, puzzle.start, puzzle.end),
-  });
+  await upsertDaily(dailyFields({ elapsedMs: elapsedMsStored }));
 }
 
 function diffLetters(prev, cur, op) {
@@ -526,7 +603,8 @@ function renderChain() {
         i === 0,
         chain[i] === puzzle.end,
         !readOnly && !solved && i === chain.length - 1 && i > 0,
-        i > 0 ? chain[i - 1] : null
+        i > 0 ? chain[i - 1] : null,
+        !solved && !readOnly && i === chain.length - 1 && inDeadend
       )
     );
   }
@@ -535,13 +613,14 @@ function renderChain() {
     container.appendChild(makeInputNode());
   }
   $('#step-count').textContent = String(Math.max(0, chain.length - 1));
+  updateAssistChrome();
   const c = $('#chain-container');
   requestAnimationFrame(() => {
     c.scrollTop = c.scrollHeight;
   });
 }
 
-function makeWordNode(word, isStart, isEnd, canUndo, prevWord) {
+function makeWordNode(word, isStart, isEnd, canUndo, prevWord, isDeadend = false) {
   const node = document.createElement('div');
   node.className = 'node';
   const wrap = document.createElement('div');
@@ -550,6 +629,7 @@ function makeWordNode(word, isStart, isEnd, canUndo, prevWord) {
   slot.className = 'word-slot';
   if (isStart) slot.classList.add('start-word');
   if (isEnd) slot.classList.add('end-word');
+  if (isDeadend) slot.classList.add('deadend-word');
   if (prevWord) {
     const op = fullGraph.classifyOp(prevWord, word);
     for (const { char, cls } of diffLetters(prevWord, word, op)) {
@@ -567,6 +647,7 @@ function makeWordNode(word, isStart, isEnd, canUndo, prevWord) {
     x.addEventListener('click', async () => {
       if (chain.length > 1 && !solved && !readOnly) {
         chain.pop();
+        syncDeadendState();
         renderChain();
         await persistDailyProgress();
       }
@@ -598,6 +679,8 @@ function makeConnector(prev, cur) {
 function makeInputNode() {
   const node = document.createElement('div');
   node.className = 'node';
+  const wrap = document.createElement('div');
+  wrap.className = 'word-slot-wrap';
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'input-slot';
@@ -613,7 +696,18 @@ function makeInputNode() {
       submitWord(input.value.trim().toLowerCase());
     }
   });
-  node.appendChild(input);
+  wrap.appendChild(input);
+  const help = document.createElement('button');
+  help.type = 'button';
+  help.id = 'btn-help';
+  help.className = 'help-x';
+  help.textContent = '?';
+  help.addEventListener('click', (e) => {
+    e.preventDefault();
+    void requestHelp();
+  });
+  wrap.appendChild(help);
+  node.appendChild(wrap);
   node.appendChild(hint);
   requestAnimationFrame(() => input.focus());
   return node;
@@ -621,19 +715,10 @@ function makeInputNode() {
 
 async function persistDailyProgress() {
   if (playMode !== 'daily' || !puzzle) return;
-  const complete = solved || isPathSolved(chain, puzzle.start, puzzle.end);
-  await upsertDaily({
-    ...currentCombo(),
-    start: puzzle.start,
-    end: puzzle.end,
-    optimal: puzzle.dist,
-    path: [...chain],
-    elapsedMs: currentElapsedMs(),
-    isComplete: complete,
-  });
+  await upsertDaily(dailyFields());
 }
 
-async function submitWord(word) {
+async function submitWord(word, opts = {}) {
   if (readOnly || solved) return;
   const input = $('#word-input');
   const hint = $('#error-hint');
@@ -645,29 +730,39 @@ async function submitWord(word) {
   const op = fullGraph.classifyOp(prev, normalizedWord);
   if (!op) return flashError(input, hint, 'Not a valid single-step transform');
   chain.push(normalizedWord);
+  if (opts.fromHelp) helpCount += 1;
   if (normalizedWord === puzzle.end || isPathSolved(chain, puzzle.start, puzzle.end)) {
     solved = true;
+    inDeadend = false;
     stopTimer(true);
     setSessionActive(GAME_ID, false);
     notifySessionEnded();
+    updateAssistChrome();
     renderChain();
     if (playMode === 'daily') {
       readOnly = true;
-      await upsertDaily({
-        ...currentCombo(),
-        start: puzzle.start,
-        end: puzzle.end,
-        optimal: puzzle.dist,
-        path: [...chain],
-        elapsedMs: elapsedMsStored,
-        isComplete: true,
-      });
+      await upsertDaily(dailyFields({ elapsedMs: elapsedMsStored, isComplete: true }));
     }
     showWin(true);
     return;
   }
+  syncDeadendState({ countEntry: true });
   renderChain();
   await persistDailyProgress();
+}
+
+async function requestHelp() {
+  if (readOnly || solved) return;
+  const next = nextHelpWord();
+  if (!next) {
+    const input = $('#word-input');
+    const hint = $('#error-hint');
+    if (input && hint) {
+      flashError(input, hint, inDeadend ? 'Undo first — dead end' : 'No hint available');
+    }
+    return;
+  }
+  await submitWord(next, { fromHelp: true });
 }
 
 function flashError(input, hint, msg) {
@@ -742,6 +837,10 @@ function showWin(freshSolve = true) {
   $('#win-steps').textContent = String(steps);
   $('#win-optimal').textContent = String(puzzle.dist);
   $('#win-time').textContent = formatElapsed(elapsedMsStored || currentElapsedMs());
+  const winDeadend = $('#win-deadends');
+  const winHelp = $('#win-helps');
+  if (winDeadend) winDeadend.textContent = formatStepShare(deadendCount, steps);
+  if (winHelp) winHelp.textContent = formatStepShare(helpCount, steps);
 
   const winNew = $('#win-new-btn');
   if (playMode === 'practice') {
@@ -889,11 +988,18 @@ async function refreshStats() {
   const rows = await listDailies(filters);
   const stats = computeDailyStats(rows, filters);
   $('#stats-played').textContent = String(stats.played);
-  $('#stats-winrate').textContent = stats.played ? '100%' : '—';
   $('#stats-streak').textContent = stats.streak == null ? '—' : String(stats.streak);
-  $('#stats-avg-steps').textContent = stats.played ? stats.avgSteps.toFixed(1) : '—';
-  $('#stats-avg-optimal').textContent = stats.played ? stats.avgOptimal.toFixed(1) : '—';
   $('#stats-avg-time').textContent = stats.played ? formatElapsed(stats.avgElapsedMs) : '—';
+  const bestTime = $('#stats-best-time');
+  if (bestTime) bestTime.textContent = stats.bestElapsedMs != null ? formatElapsed(stats.bestElapsedMs) : '—';
+  const avgDead = $('#stats-avg-deadends');
+  const avgHelp = $('#stats-avg-helps');
+  if (avgDead) avgDead.textContent = stats.played ? `${Math.round(stats.deadendRate * 100)}%` : '—';
+  if (avgHelp) avgHelp.textContent = stats.played ? `${Math.round(stats.helpRate * 100)}%` : '—';
+  const clean = $('#stats-clean');
+  const optimalSolves = $('#stats-optimal-solves');
+  if (clean) clean.textContent = stats.played ? `${Math.round(stats.cleanRate * 100)}%` : '—';
+  if (optimalSolves) optimalSolves.textContent = stats.played ? `${Math.round(stats.optimalRate * 100)}%` : '—';
 }
 
 async function onComboControlsChanged() {

@@ -51,11 +51,22 @@
           <span class="stat-label">Optimal</span>
           <span id="optimal-count" class="stat-value">–</span>
         </div>
+        <div class="stat">
+          <span class="stat-label">Dead ends</span>
+          <span id="deadend-count" class="stat-value">0</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Helps</span>
+          <span id="help-count" class="stat-value">0</span>
+        </div>
       </div>
     </header>
 
     <div id="chain-container">
       <div id="chain"></div>
+    </div>
+    <div id="deadend-banner" class="deadend-banner hidden" hidden>
+      Dead end — this word cannot reach the target. Undo to continue.
     </div>
 
     <footer id="toolbar">
@@ -120,6 +131,8 @@
         <div class="win-stat"><span class="win-num" id="win-steps">0</span><span class="win-label">steps</span></div>
         <div class="win-stat" id="win-stat-optimal"><span class="win-num" id="win-optimal">0</span><span class="win-label">optimal</span></div>
         <div class="win-stat" id="win-stat-time"><span class="win-num" id="win-time">0:00</span><span class="win-label">time</span></div>
+        <div class="win-stat"><span class="win-num" id="win-deadends">0</span><span class="win-label">dead ends</span></div>
+        <div class="win-stat"><span class="win-num" id="win-helps">0</span><span class="win-label">helps</span></div>
       </div>
       <div class="win-actions">
         <button type="button" id="win-new-btn" class="hidden">New practice</button>
@@ -180,11 +193,13 @@
       </div>
       <dl class="stats-grid">
         <div><dt>Played</dt><dd id="stats-played">0</dd></div>
-        <div><dt>Win rate</dt><dd id="stats-winrate">—</dd></div>
         <div><dt>Streak</dt><dd id="stats-streak">—</dd></div>
-        <div><dt>Avg steps</dt><dd id="stats-avg-steps">—</dd></div>
+        <div><dt>Dead ends</dt><dd id="stats-avg-deadends">—</dd></div>
+        <div><dt>Helps</dt><dd id="stats-avg-helps">—</dd></div>
+        <div><dt>Clean solves</dt><dd id="stats-clean">—</dd></div>
+        <div><dt>Optimal solves</dt><dd id="stats-optimal-solves">—</dd></div>
+        <div><dt>Best time</dt><dd id="stats-best-time">—</dd></div>
         <div><dt>Avg time</dt><dd id="stats-avg-time">—</dd></div>
-        <div><dt>Avg optimal</dt><dd id="stats-avg-optimal">—</dd></div>
       </dl>
       <p class="panel-hint">Daily stats use the filters above. Streak needs a specific language, vocabulary, and difficulty.</p>
     </div>

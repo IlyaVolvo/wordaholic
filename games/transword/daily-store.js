@@ -25,6 +25,8 @@ export function dailyRecordId(key) {
  * @property {number} optimal
  * @property {string[]} path
  * @property {number} elapsedMs
+ * @property {number} deadendCount
+ * @property {number} helpCount
  * @property {boolean} isComplete
  * @property {string} updatedAt
  */
@@ -48,6 +50,8 @@ export async function upsertDaily(record) {
     optimal: Number(record.optimal),
     path: Array.isArray(record.path) ? [...record.path] : [],
     elapsedMs: Math.max(0, Number(record.elapsedMs) || 0),
+    deadendCount: Math.max(0, Number(record.deadendCount) || 0),
+    helpCount: Math.max(0, Number(record.helpCount) || 0),
     isComplete: !!record.isComplete,
     updatedAt: record.updatedAt || new Date().toISOString(),
   };
@@ -90,14 +94,28 @@ export async function listDailies(filters = {}) {
 export function computeDailyStats(rows, filters) {
   const completed = rows.filter((r) => r.isComplete);
   const played = completed.length;
-  const winRate = played ? 1 : 0; // TransWord daily ends only on solve → all completed are wins
   let totalSteps = 0;
-  let totalOptimal = 0;
   let totalElapsed = 0;
+  let totalDeadends = 0;
+  let totalHelps = 0;
+  let cleanSolves = 0;
+  let optimalSolves = 0;
+  let bestElapsedMs = null;
   for (const r of completed) {
-    totalSteps += Math.max(0, (r.path?.length || 1) - 1);
-    totalOptimal += Number(r.optimal) || 0;
-    totalElapsed += Number(r.elapsedMs) || 0;
+    const steps = Math.max(0, (r.path?.length || 1) - 1);
+    const optimal = Number(r.optimal) || 0;
+    const elapsed = Number(r.elapsedMs) || 0;
+    const deadends = Math.max(0, Number(r.deadendCount) || 0);
+    const helps = Math.max(0, Number(r.helpCount) || 0);
+    totalSteps += steps;
+    totalElapsed += elapsed;
+    totalDeadends += deadends;
+    totalHelps += helps;
+    if (deadends === 0 && helps === 0) cleanSolves += 1;
+    if (optimal > 0 && steps === optimal) optimalSolves += 1;
+    if (elapsed > 0 && (bestElapsedMs == null || elapsed < bestElapsedMs)) {
+      bestElapsedMs = elapsed;
+    }
   }
 
   const concrete =
@@ -124,11 +142,13 @@ export function computeDailyStats(rows, filters) {
 
   return {
     played,
-    winRate,
     streak,
-    avgSteps: played ? totalSteps / played : 0,
-    avgOptimal: played ? totalOptimal / played : 0,
     avgElapsedMs: played ? totalElapsed / played : 0,
+    bestElapsedMs,
+    deadendRate: totalSteps ? totalDeadends / totalSteps : 0,
+    helpRate: totalSteps ? totalHelps / totalSteps : 0,
+    cleanRate: played ? cleanSolves / played : 0,
+    optimalRate: played ? optimalSolves / played : 0,
   };
 }
 

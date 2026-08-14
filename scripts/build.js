@@ -130,6 +130,14 @@ function main() {
   };
 
   fs.writeFileSync(path.join(DIST, 'deployment-manifest.json'), JSON.stringify(manifest, null, 2));
+
+  const swPath = path.join(DIST, 'sw.js');
+  const sw = fs.readFileSync(swPath, 'utf8').replace(
+    /const CACHE_SHELL = ['"][^'"]+['"]/,
+    `const CACHE_SHELL = 'wordaholic-shell-${siteHash}'`
+  );
+  fs.writeFileSync(swPath, sw);
+
   console.log(`Build complete → dist/ (siteHash=${siteHash}, languages=${catalog.length})`);
 }
 
