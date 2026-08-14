@@ -607,6 +607,14 @@ h1 {
   box-shadow: 0 0 24px var(--accent-glow);
 }
 
+@media (pointer: coarse) {
+  .input-slot {
+    caret-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
 /* -- Shake -------------------------------------------------------- */
 
 @keyframes shake {

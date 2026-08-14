@@ -748,6 +748,58 @@ function makeConnector(prev, cur) {
   return conn;
 }
 
+function isCoarsePointer() {
+  return window.matchMedia('(pointer: coarse)').matches;
+}
+
+function typeIntoWordInput(key) {
+  const input = $('#word-input');
+  if (!input || solved || readOnly) return;
+  const rtl = !!languageConfig?.rtl;
+  if (key === 'Enter') {
+    void submitWord(input.value.trim().toLowerCase());
+    return;
+  }
+  if (key === 'Backspace') {
+    input.value = rtl ? input.value.slice(1) : input.value.slice(0, -1);
+    return;
+  }
+  if (key.length === 1) {
+    input.value = (rtl ? `${key}${input.value}` : `${input.value}${key}`).toLowerCase();
+  }
+}
+
+function configureWordInput(input) {
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.setAttribute('autocapitalize', 'none');
+  input.setAttribute('autocorrect', 'off');
+  input.setAttribute('inputmode', 'none');
+  input.setAttribute('enterkeyhint', 'enter');
+  if (isCoarsePointer()) {
+    input.readOnly = true;
+    input.setAttribute('aria-readonly', 'true');
+    input.addEventListener('focus', () => input.blur());
+  }
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      void submitWord(input.value.trim().toLowerCase());
+      return;
+    }
+    if (!input.readOnly) return;
+    if (e.key === 'Backspace') {
+      e.preventDefault();
+      typeIntoWordInput('Backspace');
+      return;
+    }
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      typeIntoWordInput(e.key);
+    }
+  });
+}
+
 function makeInputNode() {
   const node = document.createElement('div');
   node.className = 'node';
@@ -758,16 +810,10 @@ function makeInputNode() {
   input.className = 'input-slot';
   input.placeholder = 'type a word…';
   input.id = 'word-input';
-  input.autocomplete = 'off';
+  configureWordInput(input);
   const hint = document.createElement('div');
   hint.className = 'error-hint';
   hint.id = 'error-hint';
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      submitWord(input.value.trim().toLowerCase());
-    }
-  });
   wrap.appendChild(input);
   const help = document.createElement('button');
   help.type = 'button';
@@ -781,7 +827,9 @@ function makeInputNode() {
   wrap.appendChild(help);
   node.appendChild(wrap);
   node.appendChild(hint);
-  requestAnimationFrame(() => input.focus());
+  if (!isCoarsePointer()) {
+    requestAnimationFrame(() => input.focus());
+  }
   return node;
 }
 
@@ -875,8 +923,8 @@ function renderKeyboard() {
       btn.addEventListener('click', () => {
         const input = $('#word-input');
         if (!input || solved || readOnly) return;
-        if (type === 'enter') submitWord(input.value.trim().toLowerCase());
-        else input.value = rtl ? input.value.slice(1) : input.value.slice(0, -1);
+        if (type === 'enter') typeIntoWordInput('Enter');
+        else typeIntoWordInput('Backspace');
       });
       rowEl.appendChild(btn);
     };
@@ -890,8 +938,7 @@ function renderKeyboard() {
       btn.addEventListener('click', () => {
         const input = $('#word-input');
         if (!input || solved || readOnly) return;
-        input.value = (rtl ? `${key}${input.value}` : `${input.value}${key}`).toLowerCase();
-        input.focus();
+        typeIntoWordInput(String(key));
       });
       rowEl.appendChild(btn);
     }
@@ -1147,6 +1194,25 @@ async function init() {
 
   $('#level-select').addEventListener('change', () => void onComboControlsChanged());
   $('#difficulty').addEventListener('change', () => void onComboControlsChanged());
+
+  document.addEventListener('keydown', (e) => {
+    if (!isCoarsePointer()) return;
+    const input = $('#word-input');
+    if (!input || solved || readOnly) return;
+    if (document.activeElement === input) return;
+    const t = e.target;
+    if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return;
+    if (e.key === 'Enter' && t instanceof HTMLButtonElement) return;
+    if (e.key === 'Enter' || e.key === 'Backspace') {
+      e.preventDefault();
+      typeIntoWordInput(e.key);
+      return;
+    }
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      typeIntoWordInput(e.key);
+    }
+  });
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) void pauseAndPersist();
