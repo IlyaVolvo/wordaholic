@@ -87,18 +87,16 @@ function renderFavoriteChips() {
   host.innerHTML = favorites
     .map((l) => {
       const gameNames = gameNamesForLanguage(l);
-      const gamesLabel = gameNames.join(', ');
-      const title = gamesLabel ? `${l.menu} — ${gamesLabel}` : l.menu;
-      const gamesHtml = gamesLabel
-        ? `<span class="fav-chip-games">${gamesLabel}</span>`
+      const tip = gameNames.length
+        ? `<span class="fav-chip-tip" role="tooltip">${gameNames
+            .map((n) => `<span class="fav-chip-tip-game">${n}</span>`)
+            .join('')}</span>`
         : '';
       return `
-      <span class="fav-chip" title="${title}" data-code="${l.code}">
+      <span class="fav-chip" tabindex="0" data-code="${l.code}">
         <span class="fav-chip-flag">${l.flag || ''}</span>
-        <span class="fav-chip-text">
-          <span class="fav-chip-name">${l.menu}</span>
-          ${gamesHtml}
-        </span>
+        <span class="fav-chip-name">${l.menu}</span>
+        ${tip}
       </span>`;
     })
     .join('');
