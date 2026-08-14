@@ -167,6 +167,17 @@ function currentCombo() {
   };
 }
 
+/** Combo the current puzzle was started with — used so mid-game setting changes persist the old game. */
+let activeCombo = null;
+
+function rememberActiveCombo() {
+  activeCombo = currentCombo();
+}
+
+function practiceStateKey(combo) {
+  return `practice:${combo.language}:${combo.vocabLevel}:${combo.difficulty}`;
+}
+
 function refreshEndBfs() {
   endBfs = fullGraph && puzzle?.end ? bfs(fullGraph, puzzle.end) : null;
 }
@@ -228,8 +239,12 @@ function updateAssistChrome() {
 }
 
 function dailyFields(extra = {}) {
+  const combo = extra.combo || activeCombo || currentCombo();
   return {
-    ...currentCombo(),
+    language: combo.language,
+    vocabLevel: combo.vocabLevel,
+    difficulty: combo.difficulty,
+    gameDate: combo.gameDate,
     start: puzzle.start,
     end: puzzle.end,
     optimal: puzzle.dist,
@@ -392,7 +407,7 @@ function setLanguageMenuOpen(open) {
 
 async function setPlayMode(mode) {
   if (mode !== 'daily' && mode !== 'practice') return;
-  await pauseAndPersist();
+  await persistLeavingGame();
   playMode = mode;
   displayPrefs.mode = mode;
   saveDisplayPrefs();
@@ -401,14 +416,14 @@ async function setPlayMode(mode) {
     selectedGameDate = formatLocalDate();
     await loadDailyForSelection();
   } else {
-    startPracticePuzzle();
+    await loadPracticeForSelection();
   }
 }
 
-async function switchLanguage(code, startPuzzle = true) {
+async function switchLanguage(code, startPuzzle = true, { fresh = false } = {}) {
   const opt = languageOptions.find((l) => l.code === code) || languageOptions.find((l) => l.dir === code);
   if (!opt) throw new Error(`Unknown language ${code}`);
-  await pauseAndPersist();
+  await persistLeavingGame();
   language = opt.code;
   languageDir = opt.dir;
   setLastLanguage(language);
@@ -422,8 +437,7 @@ async function switchLanguage(code, startPuzzle = true) {
   renderLanguageDropdown();
   hideLoading();
   if (startPuzzle) {
-    if (playMode === 'daily') await loadDailyForSelection();
-    else startPracticePuzzle();
+    await beginForCurrentSettings({ fresh });
   }
 }
 
@@ -445,20 +459,23 @@ function startPracticePuzzle() {
   };
   chain = [puzzle.start];
   resetAssist();
+  rememberActiveCombo();
   setSessionActive(GAME_ID, true);
   $('#target-word').textContent = puzzle.end;
   $('#optimal-count').textContent = String(puzzle.dist);
   $('#win-overlay').classList.add('hidden');
   startTimer();
   renderChain();
+  void persistLeavingGame();
 }
 
-async function loadDailyForSelection() {
+async function loadDailyForSelection({ fresh = false } = {}) {
   readOnly = false;
   solved = false;
   updateDateDisplay();
   const combo = currentCombo();
   let record = await getDaily(combo);
+  if (fresh && record && !record.isComplete) record = null;
 
   if (!record) {
     const generated = getDailyPuzzle(puzzleGraph, combo);
@@ -474,6 +491,7 @@ async function loadDailyForSelection() {
     chain = [puzzle.start];
     elapsedMsStored = 0;
     resetAssist();
+    rememberActiveCombo();
     record = await upsertDaily({
       ...dailyFields({ elapsedMs: 0, isComplete: false }),
     });
@@ -486,6 +504,7 @@ async function loadDailyForSelection() {
     chain = Array.isArray(record.path) && record.path.length ? [...record.path] : [record.start];
     elapsedMsStored = Number(record.elapsedMs) || 0;
     resetAssist(record);
+    rememberActiveCombo();
     if (record.isComplete || isPathSolved(chain, record.start, record.end)) {
       solved = true;
       readOnly = true;
@@ -556,14 +575,67 @@ function updateTimerDisplay() {
   $('#timer').textContent = elapsedStr();
 }
 
-async function pauseAndPersist() {
-  if (playMode !== 'daily' || !puzzle) {
-    stopTimer(true);
+async function persistLeavingGame() {
+  stopTimer(true);
+  const combo = activeCombo;
+  if (!puzzle || !combo) return;
+  if (playMode === 'daily') {
+    if (solved && readOnly) return;
+    await upsertDaily(dailyFields({ combo, elapsedMs: elapsedMsStored }));
     return;
   }
-  stopTimer(true);
-  if (solved && readOnly) return;
-  await upsertDaily(dailyFields({ elapsedMs: elapsedMsStored }));
+  const key = practiceStateKey(combo);
+  if (solved) {
+    await storage.setGameState(GAME_ID, key, null);
+    return;
+  }
+  await storage.setGameState(GAME_ID, key, {
+    start: puzzle.start,
+    end: puzzle.end,
+    dist: puzzle.dist,
+    path: [...chain],
+    elapsedMs: elapsedMsStored,
+    deadendCount,
+    helpCount,
+  });
+}
+
+async function loadPracticeForSelection() {
+  rememberActiveCombo();
+  const saved = await storage.getGameState(GAME_ID, practiceStateKey(activeCombo));
+  if (saved?.start && saved?.end && Array.isArray(saved.path) && saved.path.length) {
+    readOnly = false;
+    solved = false;
+    puzzle = {
+      start: saved.start,
+      end: saved.end,
+      dist: optimalStepCount(saved.start, saved.end, saved.dist),
+    };
+    chain = [...saved.path];
+    elapsedMsStored = Number(saved.elapsedMs) || 0;
+    resetAssist(saved);
+    setSessionActive(GAME_ID, true);
+    $('#target-word').textContent = puzzle.end;
+    $('#optimal-count').textContent = String(puzzle.dist);
+    $('#win-overlay').classList.add('hidden');
+    startTimer();
+    renderChain();
+    return;
+  }
+  startPracticePuzzle();
+}
+
+async function pauseAndPersist() {
+  await persistLeavingGame();
+}
+
+async function beginForCurrentSettings({ fresh = false } = {}) {
+  if (playMode === 'daily') {
+    await loadDailyForSelection({ fresh });
+    return;
+  }
+  if (fresh) startPracticePuzzle();
+  else await loadPracticeForSelection();
 }
 
 function diffLetters(prev, cur, op) {
@@ -1003,14 +1075,9 @@ async function refreshStats() {
 }
 
 async function onComboControlsChanged() {
-  await pauseAndPersist();
+  await persistLeavingGame();
   buildGraphs(corpusEntries);
-  if (playMode === 'daily') {
-    selectedGameDate = formatLocalDate();
-    await loadDailyForSelection();
-  } else {
-    startPracticePuzzle();
-  }
+  await beginForCurrentSettings({ fresh: true });
 }
 
 async function init() {
@@ -1045,7 +1112,7 @@ async function init() {
     const item = /** @type {HTMLElement} */ (e.target).closest('[data-code]');
     if (!item) return;
     setLanguageMenuOpen(false);
-    void switchLanguage(item.getAttribute('data-code'), true);
+    void switchLanguage(item.getAttribute('data-code'), true, { fresh: true });
   });
   document.addEventListener('click', (e) => {
     const dd = $('#language-dropdown');
