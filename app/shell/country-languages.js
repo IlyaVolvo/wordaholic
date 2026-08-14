@@ -302,7 +302,7 @@ mapIds(['montenegro'], 'Montenegro', [L('Montenegrin')]);
 mapIds(['slovenia'], 'Slovenia', [L('Slovenian')]);
 mapIds(['albania'], 'Albania', [L('Albanian')]);
 mapIds(['macedonia'], 'North Macedonia', [L('Macedonian'), L('Albanian')]);
-mapIds(['ukraine'], 'Ukraine', [L('Ukrainian')]);
+mapIds(['ukraine'], 'Ukraine', [L('Ukrainian'), L('Russian', 'ru')]);
 mapIds(['lithuania'], 'Lithuania', [L('Lithuanian')]);
 mapIds(['estonia', 'hiumaa', 'saaremaa'], 'Estonia', [L('Estonian')]);
 BY_ID.hiumaa = { country: 'Estonia', languages: [L('Estonian')] };

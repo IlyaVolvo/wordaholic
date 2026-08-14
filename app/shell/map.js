@@ -364,6 +364,7 @@ export async function renderWorldMap(container, opts = {}) {
     shape.classList.add('map-country');
     if (playable.length) {
       shape.classList.add('map-country--supported');
+      shape.style.setProperty('--lang-count', String(playable.length));
       if (playable.some((code) => favoriteCodes.has(code))) {
         shape.classList.add('map-country--favorite');
       }

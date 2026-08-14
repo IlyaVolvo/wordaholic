@@ -398,6 +398,10 @@ main {
   line-height: 1.2;
 }
 .world-map-svg {
+  --map-green-pale: #d5e4b8;
+  --map-green-deep: #5a7a32;
+  --map-green-stroke: #6b7d52;
+  --map-green-cap: 4;
   position: absolute;
   inset: 0;
   width: 100%;
@@ -430,11 +434,16 @@ main {
 }
 .world-map-svg .map-country--supported {
   fill: #b7c996 !important;
-  stroke: #6b7d52 !important;
+  fill: color-mix(
+    in srgb,
+    var(--map-green-deep) calc(100% * min(var(--lang-count, 1), var(--map-green-cap)) / var(--map-green-cap)),
+    var(--map-green-pale)
+  ) !important;
+  stroke: var(--map-green-stroke) !important;
 }
 .world-map-svg .map-country--favorite {
-  fill: #9eb87a !important;
-  stroke: #6b7d52 !important;
+  stroke: #3f5c24 !important;
+  stroke-width: 0.65 !important;
 }
 .world-map-svg .map-country--hover {
   fill: #e8d48b !important;
