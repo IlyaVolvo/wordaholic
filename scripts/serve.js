@@ -20,6 +20,41 @@ const TYPES = {
   '.svg': 'image/svg+xml',
 };
 
+/**
+ * Client IP as seen by the public proxy (Render sets X-Forwarded-For).
+ * First hop is the original client; later hops are proxies.
+ * @param {import('node:http').IncomingMessage} req
+ */
+function clientIp(req) {
+  const forwarded = req.headers['x-forwarded-for'];
+  const forwardedFirst = (Array.isArray(forwarded) ? forwarded[0] : forwarded || '')
+    .split(',')[0]
+    .trim();
+  const real = req.headers['x-real-ip'];
+  const realIp = (Array.isArray(real) ? real[0] : real || '').trim();
+  const raw = forwardedFirst || realIp || req.socket.remoteAddress || '';
+  return raw.replace(/^::ffff:/i, '') || '-';
+}
+
+/**
+ * @param {import('node:http').IncomingMessage} req
+ */
+function requestPath(req) {
+  try {
+    return new URL(req.url || '/', 'http://localhost').pathname;
+  } catch {
+    return '/';
+  }
+}
+
+/**
+ * @param {import('node:http').IncomingMessage} req
+ * @param {import('node:http').ServerResponse} res
+ */
+function logAccess(req, res) {
+  console.log(`access ${clientIp(req)} ${req.method || '-'} ${res.statusCode} ${requestPath(req)}`);
+}
+
 /** Prefer a private 192.168.x.x address for the printed link. */
 function lanAddresses() {
   try {
@@ -42,6 +77,7 @@ function lanAddresses() {
 }
 
 const server = http.createServer((req, res) => {
+  res.on('finish', () => logAccess(req, res));
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   let filePath = path.join(ROOT, urlPath === '/' ? 'index.html' : urlPath);
   if (!filePath.startsWith(ROOT)) {
