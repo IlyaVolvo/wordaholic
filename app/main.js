@@ -13,6 +13,7 @@ import {
 import { AUTHOR_EMAIL } from './shell/author.js';
 import { downloadSiteBackup, exportSiteBackup, importSiteBackup } from './shell/site-backup.js';
 import { reloadLatestFromServer } from './updates/reload-latest.js';
+import { openHelp } from './help/dialog.js';
 
 registerGame({
   id: 'polywordlot',
@@ -76,6 +77,16 @@ function gameNamesForLanguage(lang) {
     .filter(Boolean);
 }
 
+function renderFavoritesChrome() {
+  const favorites = favoriteLanguageObjects();
+  renderFavoriteChips();
+  renderGameRail($('#game-rail'), {
+    games: listGames(),
+    favoriteLanguages: favorites,
+    onGameSelect: (gameId, langCodes) => openGame(gameId, langCodes),
+  });
+}
+
 function renderFavoriteChips() {
   const host = $('#fav-chips');
   if (!host) return;
@@ -104,12 +115,7 @@ function renderFavoriteChips() {
 
 async function renderGateway() {
   const favorites = favoriteLanguageObjects();
-  renderFavoriteChips();
-  renderGameRail($('#game-rail'), {
-    games: listGames(),
-    favoriteLanguages: favorites,
-    onGameSelect: (gameId, langCodes) => openGame(gameId, langCodes),
-  });
+  renderFavoritesChrome();
   const languageMenus = Object.fromEntries(allLanguages.map((l) => [l.code, l.menu]));
   await renderWorldMap($('#map-root'), {
     favoriteLanguages: favorites,
@@ -123,7 +129,7 @@ async function renderGateway() {
       }
       if (next.length === current.length) return;
       await setFavoriteLanguages(next);
-      await renderGateway();
+      renderFavoritesChrome();
       showPreparing().catch((err) => console.warn('Offline prep failed', err));
     },
     onUnfavoriteLanguages: async (codes) => {
@@ -132,7 +138,7 @@ async function renderGateway() {
       const next = current.filter((code) => !remove.has(code));
       if (next.length === current.length) return;
       await setFavoriteLanguages(next);
-      await renderGateway();
+      renderFavoritesChrome();
       showPreparing().catch((err) => console.warn('Offline prep failed', err));
     },
     onExportData: async () => {
@@ -243,6 +249,9 @@ function bindChrome() {
   };
   $('#btn-about')?.addEventListener('click', () => {
     void openAbout();
+  });
+  $('#btn-howto')?.addEventListener('click', () => {
+    openHelp('site');
   });
   aboutDialog?.querySelectorAll('[data-about-close]').forEach((el) => {
     el.addEventListener('click', closeAbout);

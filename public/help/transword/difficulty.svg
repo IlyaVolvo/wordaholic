@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 56" width="260" height="56">
+  <rect width="260" height="56" rx="10" fill="#161923"/>
+  <rect x="10" y="12" width="118" height="32" rx="8" fill="#1e2230" stroke="#6c8cff"/>
+  <text x="69" y="33" text-anchor="middle" font-size="12" font-weight="600" font-family="DM Sans, system-ui, sans-serif" fill="#e2e4ec">Medium (4–5) ▾</text>
+  <rect x="138" y="12" width="112" height="32" rx="8" fill="#1e2230" stroke="#2a2e3e"/>
+  <text x="194" y="33" text-anchor="middle" font-size="12" font-family="DM Sans, system-ui, sans-serif" fill="#e2e4ec">Standard ▾</text>
+</svg>

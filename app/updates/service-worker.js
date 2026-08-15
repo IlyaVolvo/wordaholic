@@ -1,5 +1,5 @@
 /* Wordaholic service worker — cache shell + requested wordsets */
-const CACHE_SHELL = 'wordaholic-shell-v34';
+const CACHE_SHELL = 'wordaholic-shell-v36';
 const CACHE_DATA = 'wordaholic-data-v2';
 
 const PRECACHE = [
@@ -18,6 +18,9 @@ const PRECACHE = [
   '/app/shell/update-ui.js',
   '/app/shell/author.js',
   '/app/shell/site-backup.js',
+  '/app/help/topics.js',
+  '/app/help/dialog.js',
+  '/app/help/help.css',
   '/app/words/loader.js',
   '/app/updates/manifest.js',
   '/app/updates/reload-latest.js',
@@ -144,7 +147,8 @@ self.addEventListener('fetch', (event) => {
           (url.pathname.startsWith('/data/') ||
             url.pathname.startsWith('/word-data/') ||
             url.pathname.startsWith('/games/') ||
-            url.pathname.startsWith('/app/'))
+            url.pathname.startsWith('/app/') ||
+            url.pathname.startsWith('/help/'))
         ) {
           const cache = await caches.open(
             url.pathname.startsWith('/data/') || url.pathname.startsWith('/word-data/') ? CACHE_DATA : CACHE_SHELL

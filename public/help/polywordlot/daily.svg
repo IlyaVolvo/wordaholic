@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 56" width="260" height="56">
+  <rect width="260" height="56" rx="10" fill="#161923"/>
+  <rect x="10" y="12" width="78" height="32" rx="8" fill="#1e2230" stroke="#6c8cff" stroke-width="1.5"/>
+  <text x="49" y="33" text-anchor="middle" font-family="DM Sans, system-ui, sans-serif" font-size="13" font-weight="600" fill="#e2e4ec">Daily ▾</text>
+  <rect x="98" y="12" width="88" height="32" rx="8" fill="#1e2230" stroke="#2a2e3e"/>
+  <text x="142" y="33" text-anchor="middle" font-family="DM Sans, system-ui, sans-serif" font-size="12" fill="#7a7e94">Practice</text>
+  <rect x="196" y="12" width="54" height="32" rx="8" fill="#1e2230" stroke="#2a2e3e"/>
+  <text x="223" y="33" text-anchor="middle" font-family="DM Sans, system-ui, sans-serif" font-size="12" fill="#e2e4ec">today</text>
+</svg>

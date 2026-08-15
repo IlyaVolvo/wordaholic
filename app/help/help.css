@@ -1,0 +1,250 @@
+.help-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+.help-dialog[hidden] { display: none !important; }
+
+.help-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 12, 22, 0.5);
+}
+
+.help-dialog-card {
+  position: relative;
+  width: min(480px, 100%);
+  max-height: min(90vh, 720px);
+  overflow-y: auto;
+  background: #fff;
+  color: #14232b;
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
+  padding: 1rem 1.15rem 1.1rem;
+}
+
+.help-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.help-dialog-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #14232b;
+}
+
+.help-dialog-close {
+  border: none;
+  background: transparent;
+  color: #c62828;
+  font-size: 1.7rem;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.1rem 0.35rem;
+}
+
+.help-dialog-close:hover,
+.help-dialog-close:focus-visible {
+  color: #9b1c1c;
+  outline: none;
+}
+
+.help-dialog-intro {
+  margin: 0.85rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #243848;
+  white-space: pre-wrap;
+}
+
+.help-dialog-navrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  margin: 0.65rem 0 0;
+}
+
+.help-dialog-navrow[hidden] {
+  display: none !important;
+}
+
+.help-dialog-progress {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.help-dialog-progress[hidden] {
+  display: none !important;
+}
+
+.help-dialog-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #c45c26;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.help-dialog-arrow svg {
+  width: 1.45rem;
+  height: 1.45rem;
+  display: block;
+}
+
+.help-dialog-arrow:hover:not(:disabled),
+.help-dialog-arrow:focus-visible:not(:disabled) {
+  background: rgba(196, 92, 38, 0.14);
+  outline: none;
+}
+
+.help-dialog-arrow:disabled {
+  color: #d7b8a6;
+  cursor: default;
+}
+
+.help-progress-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #c5d0d6;
+}
+
+.help-progress-dot.active {
+  background: #c45c26;
+}
+
+.help-progress-dot.completed {
+  background: #8aa0aa;
+}
+
+.help-dialog-shot {
+  margin: 0.75rem auto 0;
+  max-width: 260px;
+  padding: 0.4rem;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #e8f1f4;
+  border: 1px solid rgba(20, 35, 43, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.help-dialog-shot[hidden] {
+  display: none !important;
+}
+
+.help-dialog-shot img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 148px;
+  height: auto;
+  object-fit: contain;
+}
+
+.help-trigger {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #1a3a4a;
+  cursor: pointer;
+  line-height: 0;
+  flex: 0 0 auto;
+}
+
+.help-trigger svg {
+  display: block;
+}
+
+.help-trigger-tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  padding: 0.2rem 0;
+  border-radius: 0;
+  background: transparent;
+  color: #1a3a4a;
+  border: none;
+  box-shadow: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 30;
+}
+
+.help-trigger:hover .help-trigger-tip,
+.help-trigger:focus-visible .help-trigger-tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.help-trigger--home {
+  width: 24px;
+  height: 24px;
+  color: #1a3a4a;
+}
+
+.help-trigger--home svg {
+  width: 24px;
+  height: 24px;
+}
+
+.help-trigger--home svg path {
+  fill: #fff;
+}
+
+.help-trigger--game {
+  width: 34px;
+  height: 34px;
+  padding: 6px;
+  border: 2px solid var(--accent, #6c8cff);
+  border-radius: 8px;
+  color: var(--accent, #6c8cff);
+}
+
+.help-trigger--game:hover,
+.help-trigger--game:focus-visible {
+  background: var(--accent-glow, rgba(108, 140, 255, 0.25));
+  outline: none;
+}
+
+.help-trigger--game svg {
+  width: 20px;
+  height: 20px;
+}
+
+.help-trigger--game .help-trigger-tip {
+  background: transparent;
+  color: var(--text, #e2e4ec);
+  border: none;
+  box-shadow: none;
+}

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 90" width="220" height="90">
+  <rect width="220" height="90" rx="12" fill="#fff"/>
+  <rect x="14" y="18" width="28" height="28" rx="8" fill="none" stroke="#6c8cff" stroke-width="2"/>
+  <rect x="18" y="22" width="8" height="8" rx="1.5" fill="none" stroke="#6c8cff" stroke-width="1.6"/>
+  <rect x="30" y="22" width="8" height="8" rx="1.5" fill="none" stroke="#6c8cff" stroke-width="1.6"/>
+  <rect x="18" y="34" width="8" height="8" rx="1.5" fill="none" stroke="#6c8cff" stroke-width="1.6"/>
+  <rect x="30" y="34" width="8" height="8" rx="1.5" fill="none" stroke="#6c8cff" stroke-width="1.6"/>
+  <rect x="58" y="28" width="70" height="10" rx="3" fill="#6c8cff"/>
+  <rect x="58" y="44" width="52" height="10" rx="3" fill="#8aa0ff"/>
+  <rect x="58" y="60" width="88" height="10" rx="3" fill="#6c8cff"/>
+  <text x="136" y="37" font-size="9" font-family="DM Sans, system-ui, sans-serif" fill="#4a5568">EN 5</text>
+  <text x="118" y="53" font-size="9" font-family="DM Sans, system-ui, sans-serif" fill="#4a5568">RU 5</text>
+  <text x="154" y="69" font-size="9" font-family="DM Sans, system-ui, sans-serif" fill="#4a5568">HE 5</text>
+</svg>

@@ -35,6 +35,14 @@ body {
     linear-gradient(180deg, var(--bg0), var(--bg1));
 }
 
+.brand-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  justify-self: center;
+}
+
 .brand-mark {
   display: grid;
   place-items: center;
@@ -48,7 +56,6 @@ body {
   text-decoration: none;
   box-shadow: 0 4px 12px rgba(20, 35, 43, 0.18);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
-  justify-self: center;
 }
 .brand-mark:hover,
 .brand-mark:focus-visible {
@@ -228,7 +235,6 @@ main {
   flex-direction: column;
   align-items: center;
   gap: 0.2rem;
-  border: none;
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(20, 35, 43, 0.14);
   border-radius: 14px;
@@ -237,7 +243,9 @@ main {
   cursor: pointer;
   padding: 0.35rem 0.45rem 0.4rem;
   font: inherit;
-  min-width: 4.25rem;
+  width: 5.5rem;
+  min-width: 5.5rem;
+  box-sizing: border-box;
 }
 .rail-empty {
   margin: 0;
@@ -539,13 +547,14 @@ main {
 }
 .map-lang-chip--favorited {
   cursor: pointer;
-  color: #3d5a2a;
-  background: #cfe0b0;
-  border-color: #8aa86a;
+  color: #fff;
+  background: #3f5c24;
+  border-color: #3f5c24;
 }
 .map-lang-chip--favorited:hover,
 .map-lang-chip--favorited:focus-visible {
-  background: #bfd49a;
+  background: #334c1d;
+  border-color: #334c1d;
   outline: none;
 }
 .map-lang-chip--muted {
@@ -579,6 +588,7 @@ main {
 .map-game-icon {
   width: 34px;
   height: 34px;
+  flex: 0 0 34px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(20, 35, 43, 0.12);
@@ -587,7 +597,13 @@ main {
   color: #1a3a4a;
   transition: transform 0.15s ease;
 }
-.map-game-icon svg { width: 22px; height: 22px; display: block; }
+.map-game-icon svg {
+  width: 22px;
+  height: 22px;
+  max-width: 22px;
+  max-height: 22px;
+  display: block;
+}
 .rail-game:hover,
 .rail-game:focus-visible {
   transform: translateY(-1px);
@@ -641,15 +657,19 @@ main {
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.88);
   }
-  .brand-mark {
+  .brand-stack {
     position: absolute;
     top: 0.55rem;
     left: 50%;
     transform: translateX(-50%);
   }
+  .brand-mark {
+    position: static;
+    transform: none;
+  }
   .brand-mark:hover,
   .brand-mark:focus-visible {
-    transform: translateX(-50%) translateY(-1px) scale(1.04);
+    transform: translateY(-1px) scale(1.04);
   }
   .map-toolbar-end {
     position: absolute;
@@ -663,10 +683,10 @@ main {
   }
   .rail-game {
     max-width: 100%;
+    width: 5.5rem;
   }
-  .map-lang-chip { font-size: 0.72rem; }
-  .map-game-icon { width: 30px; height: 30px; }
-  .map-game-icon svg { width: 18px; height: 18px; }
+  .map-game-icon { width: 34px; height: 34px; flex-basis: 34px; }
+  .map-game-icon svg { width: 22px; height: 22px; }
   .map-game-name { font-size: 0.75rem; }
   .map-zoom-controls {
     right: 0.55rem;

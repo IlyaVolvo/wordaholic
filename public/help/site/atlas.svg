@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 140" width="280" height="140">
+  <rect width="280" height="140" rx="12" fill="#6fa8c9"/>
+  <path d="M30 78c30-24 70-32 120-22 40 8 70-10 100-4" fill="none" stroke="#3d7a9a" stroke-width="16" stroke-linecap="round"/>
+  <path d="M50 64c40-18 90-8 140 4" fill="#8fbfa3" opacity="0.9"/>
+  <rect x="40" y="18" width="84" height="44" rx="8" fill="#fff"/>
+  <text x="82" y="36" text-anchor="middle" font-size="10" font-weight="700" font-family="Source Sans 3, system-ui, sans-serif" fill="#14232b">Switzerland</text>
+  <text x="82" y="52" text-anchor="middle" font-size="9" font-family="Source Sans 3, system-ui, sans-serif" fill="#4a6570">DE · FR · IT · RM</text>
+  <rect x="168" y="70" width="84" height="44" rx="8" fill="#fff"/>
+  <text x="210" y="88" text-anchor="middle" font-size="10" font-weight="700" font-family="Source Sans 3, system-ui, sans-serif" fill="#14232b">Belgium</text>
+  <text x="210" y="104" text-anchor="middle" font-size="9" font-family="Source Sans 3, system-ui, sans-serif" fill="#4a6570">NL · FR · DE</text>
+</svg>

@@ -1,4 +1,5 @@
 import { getFavoriteLanguages } from '../i18n-prefs/favorites.js';
+import { helpScreenshotUrls } from '../help/topics.js';
 import { ensureWordsets } from '../words/loader.js';
 
 /**
@@ -53,6 +54,10 @@ export async function prepareOffline(onProgress) {
     '/index.html',
     '/app.css',
     '/app/main.js',
+    '/app/help/help.css',
+    '/app/help/dialog.js',
+    '/app/help/topics.js',
+    ...helpScreenshotUrls(),
     '/deployment-manifest.json',
     '/data/languages.json',
     '/map/world.svg',

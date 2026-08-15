@@ -13,6 +13,7 @@ import { loadPreferences, savePreferences, getSelectedDate, setSelectedDate } fr
 import { apiClient } from '../api/client';
 import { gameCacheUtils } from '../utils/gameCache';
 import { refreshGamesFromIndexedDb, STORAGE_IMPORTED_EVENT } from '../storage/platform';
+import { openHelp, isHelpOpen } from '@wordaholic/help';
 
 const MAX_GUESSES = 6;
 
@@ -1109,7 +1110,7 @@ export const Game: React.FC<GameProps> = ({
       }
 
       // Don't process game keys when a popup is open
-      if (showWordIndexPopup || showCalendar || view === 'statistics') return;
+      if (showWordIndexPopup || showCalendar || view === 'statistics' || isHelpOpen()) return;
 
       if (loading) return;
 
@@ -1188,6 +1189,18 @@ export const Game: React.FC<GameProps> = ({
               />
             </a>
             <a href="/" className="header-home-link header-game-name">PolyWordlot</a>
+            <button
+              type="button"
+              className="help-trigger help-trigger--game"
+              aria-label="How to play PolyWordlot"
+              onClick={() => openHelp('polywordlot')}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+              </svg>
+              <span className="help-trigger-tip">How to play PolyWordlot</span>
+            </button>
           </div>
 
           <div className="game-header-side game-header-right">

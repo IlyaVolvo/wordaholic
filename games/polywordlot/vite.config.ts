@@ -74,6 +74,7 @@ export default defineConfig({
       '@wordaholic/locales': path.resolve(__dirname, '../../app/shell/locales.js'),
       '@wordaholic/normalize': path.resolve(__dirname, '../../app/i18n/normalize.js'),
       '@wordaholic/storage': path.resolve(__dirname, '../../app/storage/idb.js'),
+      '@wordaholic/help': path.resolve(__dirname, '../../app/help/dialog.js'),
     },
   },
   define: {
@@ -86,5 +87,8 @@ export default defineConfig({
   server: {
     host: '127.0.0.1',
     port: 5174,
+    fs: {
+      allow: [path.resolve(__dirname, '../..')],
+    },
   },
 });

@@ -17,6 +17,7 @@ import {
 } from '../../app/i18n-prefs/preferred.js';
 import { languageDirForTranswordDir } from '../../app/shell/locales.js';
 import { normalizeWithMappings } from '../../app/i18n/normalize.js';
+import { openHelp } from '../../app/help/dialog.js';
 
 const GAME_ID = 'transword';
 const PREFS_KEY = 'wordaholic-transword-prefs';
@@ -1120,6 +1121,7 @@ async function init() {
   $('#btn-calendar')?.addEventListener('click', () => openHistory());
   $('#btn-new-practice')?.addEventListener('click', () => startPracticePuzzle());
   $('#btn-stats')?.addEventListener('click', () => openStats());
+  $('#btn-howto')?.addEventListener('click', () => openHelp('transword'));
   $('#language-trigger')?.addEventListener('click', (e) => {
     e.stopPropagation();
     const list = $('#language-list');

@@ -17,6 +17,8 @@ const mapView = { scale: 1, x: 0, y: 0 };
 let selectedCountryId = null;
 /** When true, tooltip stays open after leaving the country (click-to-pin). */
 let mapTooltipPinned = false;
+/** Last pinned selector position in stage coordinates. */
+const mapTooltipPos = { left: /** @type {number | null} */ (null), top: /** @type {number | null} */ (null) };
 const MIN_SCALE = 1;
 const MAX_SCALE = 10;
 const TOOLTIP_FOCUS_DELAY_MS = 1000;
@@ -462,7 +464,13 @@ export async function renderWorldMap(container, opts = {}) {
     selectedCountryId = shape.id;
 
     const shouldReposition = opts.reposition === true || (!sameCountry && !mapTooltipPinned);
-    if (!shouldReposition && sameCountry) return;
+    if (!shouldReposition) {
+      if (mapTooltipPos.left != null && mapTooltipPos.top != null) {
+        tooltip.style.left = `${mapTooltipPos.left}px`;
+        tooltip.style.top = `${mapTooltipPos.top}px`;
+      }
+      return;
+    }
 
     const stageRect = stage.getBoundingClientRect();
     const x = e.clientX - stageRect.left;
@@ -473,6 +481,26 @@ export async function renderWorldMap(container, opts = {}) {
     const top = Math.min(Math.max(8, y - tipH - 10), stageRect.height - tipH - 8);
     tooltip.style.left = `${left}px`;
     tooltip.style.top = `${top}px`;
+    mapTooltipPos.left = left;
+    mapTooltipPos.top = top;
+  }
+
+  function refreshPinnedChips() {
+    if (!tooltip || tooltip.hidden || !selectedCountryId) return;
+    const langsEl = tooltip.querySelector('.map-lang-tooltip-langs');
+    if (!langsEl) return;
+    langsEl.innerHTML = renderLanguageChips(getCountryLanguage(selectedCountryId));
+  }
+
+  function syncFavoriteCountryStyles() {
+    for (const shape of shapes) {
+      const meta = getCountryLanguage(shape.id);
+      const playable = playableLanguageCodes(meta, supported);
+      shape.classList.toggle(
+        'map-country--favorite',
+        playable.some((code) => favoriteCodes.has(code))
+      );
+    }
   }
 
   let hoverShape = null;
@@ -599,6 +627,9 @@ export async function renderWorldMap(container, opts = {}) {
 
     const selected = btn.getAttribute('data-favorited') === '1' || favoriteCodes.has(code);
     if (selected) {
+      favoriteCodes.delete(code);
+      refreshPinnedChips();
+      syncFavoriteCountryStyles();
       if (typeof opts.onUnfavoriteLanguages === 'function') {
         void Promise.resolve(opts.onUnfavoriteLanguages([code])).then(() => {
           showToast(`Removed ${languageMenu(code)} from favorites`);
@@ -606,6 +637,9 @@ export async function renderWorldMap(container, opts = {}) {
       }
       return;
     }
+    favoriteCodes.add(code);
+    refreshPinnedChips();
+    syncFavoriteCountryStyles();
     if (typeof opts.onFavoriteLanguages === 'function') {
       void Promise.resolve(opts.onFavoriteLanguages([code])).then(() => {
         showToast(`Added ${languageMenu(code)} to favorites`);
@@ -613,21 +647,17 @@ export async function renderWorldMap(container, opts = {}) {
     }
   });
 
-  // Restore pinned selector after favorite toggles re-render the map.
+  // Restore pinned selector after a full map rebuild (import, first paint).
   if (selectedCountryId && mapTooltipPinned) {
     const restored = /** @type {SVGElement | null} */ (
       shapes.find((el) => el.id === selectedCountryId) || null
     );
     if (restored) {
       setSelectedShape(restored);
-      const stageRect = stage.getBoundingClientRect();
       openLanguageSelector(
-        {
-          clientX: stageRect.left + stageRect.width * 0.55,
-          clientY: stageRect.top + stageRect.height * 0.4,
-        },
+        { clientX: 0, clientY: 0 },
         restored,
-        { pin: true, reposition: true }
+        { pin: true, reposition: false }
       );
     } else {
       selectedCountryId = null;
@@ -655,9 +685,9 @@ export const GAME_ICONS = {
   transword: `
     <svg viewBox="0 0 40 40" aria-hidden="true">
       <rect x="4" y="4" width="32" height="32" rx="6" fill="currentColor" opacity="0.12"/>
-      <path d="M10 20h14M20 12l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="12" cy="20" r="2.2" fill="currentColor"/>
-      <circle cx="28" cy="20" r="2.2" fill="currentColor"/>
+      <path d="M8 20h16M18 10l12 10-12 10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="10" cy="20" r="2.2" fill="currentColor"/>
+      <circle cx="30" cy="20" r="2.2" fill="currentColor"/>
     </svg>`,
 };
 
