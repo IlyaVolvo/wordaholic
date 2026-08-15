@@ -147,7 +147,13 @@ async function renderGateway() {
     onImportData: async (file) => {
       try {
         const text = await file.text();
-        await importSiteBackup(JSON.parse(text));
+        let payload;
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          throw new Error('File is not valid JSON');
+        }
+        await importSiteBackup(payload);
         await renderGateway();
         showPreparing().catch((err) => console.warn('Offline prep failed', err));
         alert('Import complete');

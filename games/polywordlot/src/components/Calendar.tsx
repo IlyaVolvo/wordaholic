@@ -27,7 +27,7 @@ interface CalendarProps {
     gameStarted: string;
     isComplete: boolean;
     isWon: boolean;
-    guesses: Array<{ word: string }>;
+    guesses: string[];
   }>;
   currentMonth: Date;
   onMonthChange: (date: Date) => void;
@@ -52,11 +52,10 @@ export const Calendar: React.FC<CalendarProps> = ({
     // Use game_date (the date the game was generated for), not the date it was played
     let gameDate: string | null = null;
     
-    if (game.game_date) {
-      // game_date is already in YYYY-MM-DD format from the database
-      gameDate = game.game_date;
-    } else if (game.gameDate) {
-      gameDate = game.gameDate;
+    const rawDate = game.game_date || game.gameDate || '';
+    const dateMatch = /^(\d{4}-\d{2}-\d{2})/.exec(String(rawDate).trim());
+    if (dateMatch) {
+      gameDate = dateMatch[1];
     }
     
     // Only process games that have a game_date (daily games)

@@ -78,7 +78,7 @@ export async function renderWorldMap(container, opts = {}) {
               <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
             </svg>
           </button>
-          <button type="button" class="map-zoom-btn" data-transfer="export" title="Export all game data" aria-label="Export all game data">
+          <button type="button" class="map-zoom-btn" data-transfer="export" title="Export completed games" aria-label="Export completed games">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>

@@ -1,5 +1,5 @@
 /* Wordaholic service worker — cache shell + requested wordsets */
-const CACHE_SHELL = 'wordaholic-shell-v28';
+const CACHE_SHELL = 'wordaholic-shell-v32';
 const CACHE_DATA = 'wordaholic-data-v2';
 
 const PRECACHE = [
@@ -9,6 +9,7 @@ const PRECACHE = [
   '/app/main.js',
   '/app/games-contract.js',
   '/app/storage/idb.js',
+  '/app/storage/export-records.js',
   '/app/i18n-prefs/favorites.js',
   '/app/shell/languages.js',
   '/app/shell/map.js',

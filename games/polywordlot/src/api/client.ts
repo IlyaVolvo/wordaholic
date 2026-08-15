@@ -1,11 +1,10 @@
 import { deriveGameOutcome } from '../utils/gameOutcome';
 import {
   appendFeedback,
+  asGuessWords,
   gameIdentity,
-  getFeedback,
   getMeta,
   getPrefs,
-  ingestLegacyStore,
   listStoredGames,
   putStoredGame,
   setMeta,
@@ -36,10 +35,7 @@ export interface GameResponse {
     is_complete: number;
     isWon: boolean;
     guessesCount: number;
-    guesses: Array<{
-      word: string;
-      evaluations: unknown[];
-    }>;
+    guesses: string[];
   } | null;
 }
 
@@ -156,7 +152,7 @@ class ApiClient {
     gameDate: string;
     isRandomMode?: boolean;
     wordSeed?: number;
-    guesses?: Array<{ word: string; evaluations: unknown[] }>;
+    guesses?: unknown;
     isComplete: boolean;
     isWon: boolean;
   }): Promise<{ success: boolean; gameId: number }> {
@@ -177,7 +173,7 @@ class ApiClient {
       await putStoredGame({
         ...existing,
         target_word: gameData.targetWord,
-        guesses: gameData.guesses || [],
+        guesses: asGuessWords(gameData.guesses),
         is_complete: gameData.isComplete ? 1 : 0,
         updated_at: now,
         completed_at: gameData.isComplete ? now : null,
@@ -197,7 +193,7 @@ class ApiClient {
       is_random_mode: isRandom,
       word_seed: seed,
       is_complete: gameData.isComplete ? 1 : 0,
-      guesses: gameData.guesses || [],
+      guesses: asGuessWords(gameData.guesses),
       updated_at: now,
       completed_at: gameData.isComplete ? now : null,
     });
@@ -298,41 +294,6 @@ class ApiClient {
     return { success: true };
   }
 
-  async exportData(): Promise<string> {
-    const [games, meta, prefs, feedback] = await Promise.all([
-      listStoredGames(),
-      getMeta(),
-      getPrefs(),
-      getFeedback(),
-    ]);
-    return JSON.stringify(
-      {
-        format: 'wordaholic-polywordlot',
-        version: 1,
-        exportedAt: new Date().toISOString(),
-        store: {
-          nextId: meta.nextId,
-          games,
-          selectedLanguages: prefs?.selectedLanguages ?? null,
-          feedback,
-        },
-      },
-      null,
-      2
-    );
-  }
-
-  async importData(jsonText: string): Promise<{ success: boolean; games: number }> {
-    const parsed = JSON.parse(jsonText) as {
-      store?: { nextId?: number; games?: StoredGame[]; selectedLanguages?: string[] | null };
-    } & { games?: StoredGame[]; nextId?: number; selectedLanguages?: string[] | null };
-    const incoming = parsed.store || parsed;
-    if (!incoming || !Array.isArray(incoming.games)) {
-      throw new Error('Invalid PolyWordlot export file');
-    }
-    const count = await ingestLegacyStore(incoming);
-    return { success: true, games: count };
-  }
 }
 
 export const apiClient = new ApiClient();

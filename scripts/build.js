@@ -108,7 +108,19 @@ function main() {
   for (const lang of catalog) {
     const langJsonRel = lang.wordDir ? `${lang.wordDir}/language.json` : null;
     const langHash = langJsonRel ? wordDataHashes[langJsonRel] : null;
-    if (lang.polyDir) words[`polywordlot:${lang.code}`] = langHash || gameHashes.polywordlot[`dict/${lang.polyDir}/answers-5.txt`] || siteHash;
+    if (lang.polyDir) {
+      const dictPrefix = `dict/${lang.polyDir}/`;
+      for (const [rel, hash] of Object.entries(gameHashes.polywordlot)) {
+        const match = /^dict\/.+\/answers-(\d+)\.txt$/.exec(rel);
+        if (match && rel.startsWith(dictPrefix)) {
+          words[`polywordlot:${lang.code}:${match[1]}`] = hash;
+        }
+      }
+      words[`polywordlot:${lang.code}`] =
+        words[`polywordlot:${lang.code}:5`] ||
+        langHash ||
+        siteHash;
+    }
     if (lang.transwordDir) words[`transword:${lang.code}`] = gameHashes.transword[`data/languages/${lang.transwordDir}/corpus.txt`] || siteHash;
     if (langHash) words[`language:${lang.code}`] = langHash;
   }

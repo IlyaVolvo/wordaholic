@@ -36,7 +36,7 @@ interface GameData {
   language: string;
   wordLength: number;
   targetWord: string;
-  guesses: Array<{ word: string; evaluations: any[] }>;
+  guesses: string[];
   isComplete: boolean;
   isWon: boolean;
   guessesCount: number;

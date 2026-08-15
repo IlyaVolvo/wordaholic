@@ -9,7 +9,7 @@ interface CachedGame {
   is_random_mode: number;
   word_seed: number | null;
   is_complete: number;
-  guesses: Array<{ word: string; evaluations: any[] }>;
+  guesses: string[];
   isWon: boolean;
   guessesCount: number;
   created_at: string | null;

@@ -1,13 +1,13 @@
+import {
+  isCompletedRecord,
+  isPracticeRecord,
+  pickRecordToKeep,
+  toExportRecord,
+  toStoredRecord,
+} from './export-records.js';
+
 const DB_NAME = 'wordaholic';
 const DB_VERSION = 3;
-
-function isPracticeRecord(row) {
-  return Number(row?.is_random_mode) === 1;
-}
-
-function isPracticeGameStateKey(key) {
-  return /(^|:)practice:/.test(String(key || ''));
-}
 
 /**
  * Platform IndexedDB wrapper.
@@ -364,27 +364,57 @@ export class WordaholicStorage {
   }
 
   /**
-   * Per-game export envelope (smart merge rules later).
+   * Per-game export tree: general + completed daily records only.
    * @param {string} gameId
    */
   async exportGame(gameId) {
-    const [results, statistics, stateKeys, records] = await Promise.all([
-      this.listResults(gameId),
-      this.getStatistics(gameId),
-      this._listGameStates(gameId),
-      this.listRecords(gameId),
-    ]);
+    const records = (await this.listRecords(gameId))
+      .filter(isCompletedRecord)
+      .map(toExportRecord);
     return {
-      format: 'wordaholic-game-backup',
-      formatVersion: 1,
-      gameId,
-      exportedAt: new Date().toISOString(),
-      statistics,
-      results,
-      gameState: stateKeys.filter((row) => !isPracticeGameStateKey(row.key)),
-      records: records.filter((row) => !isPracticeRecord(row)),
-      dailies: records.filter((row) => !isPracticeRecord(row)),
+      general: { gameId },
+      records,
     };
+  }
+
+  /**
+   * Import completed daily records. Same identity keeps the worse result; a tie keeps local.
+   * @param {{ general?: { gameId?: string }, gameId?: string, records?: object[] }} payload
+   */
+  async importGame(payload) {
+    const gameId = payload?.general?.gameId || payload?.gameId;
+    if (!payload || !gameId) {
+      throw new Error('Invalid Wordaholic game backup');
+    }
+    const docs = Array.isArray(payload.records) ? payload.records : [];
+    const existing = await this.listRecords(gameId);
+    let nextNumeric = 1;
+    for (const row of existing) {
+      nextNumeric = Math.max(nextNumeric, (Number(row.numericId) || 0) + 1);
+    }
+    if (gameId === 'polywordlot') {
+      const meta = await this.getGameState(gameId, 'meta');
+      nextNumeric = Math.max(nextNumeric, Number(meta?.nextId) || 1);
+    }
+
+    let imported = 0;
+    for (const row of docs) {
+      if (!row || typeof row !== 'object' || isPracticeRecord(row)) continue;
+      const incomingDraft = toStoredRecord(gameId, row, nextNumeric);
+      if (!incomingDraft.id || !isCompletedRecord(incomingDraft)) continue;
+      const local = await this.getRecord(incomingDraft.id);
+      const incoming = toStoredRecord(gameId, row, local?.numericId || nextNumeric);
+      const keep = pickRecordToKeep(local, incoming);
+      if (keep !== incoming) continue;
+      await this.putRecord(incoming);
+      imported += 1;
+      if (!local) nextNumeric += 1;
+    }
+
+    if (gameId === 'polywordlot') {
+      await this.setGameState(gameId, 'meta', { nextId: nextNumeric });
+    }
+    return { gameId, importedRecords: imported };
   }
 
   async _listGameStates(gameId) {
@@ -400,43 +430,6 @@ export class WordaholicStorage {
     });
   }
 
-  /**
-   * Import per-game backup. Preserve-by-append for results; replace statistics if present.
-   * Detailed merge rules are parked for later.
-   * @param {object} payload
-   */
-  async importGame(payload) {
-    if (!payload || payload.format !== 'wordaholic-game-backup' || !payload.gameId) {
-      throw new Error('Invalid Wordaholic game backup');
-    }
-    const gameId = payload.gameId;
-    if (payload.statistics != null) {
-      await this.setStatistics(gameId, payload.statistics);
-    }
-    if (Array.isArray(payload.results)) {
-      for (const row of payload.results) {
-        await this.putResult(gameId, row.language || 'en', row.result || row);
-      }
-    }
-    if (Array.isArray(payload.gameState)) {
-      for (const row of payload.gameState) {
-        const key = String(row.key || '').replace(new RegExp(`^${gameId}:`), '');
-        if (!key || isPracticeGameStateKey(key)) continue;
-        await this.setGameState(gameId, key, row.value);
-      }
-    }
-    const docs = Array.isArray(payload.records)
-      ? payload.records
-      : Array.isArray(payload.dailies)
-        ? payload.dailies
-        : [];
-    for (const row of docs) {
-      if (!row || typeof row !== 'object' || isPracticeRecord(row)) continue;
-      const id = row.id || `${gameId}:${row.language}:${row.vocabLevel}:${row.difficulty}:${row.gameDate}`;
-      await this.putRecord({ ...row, id, gameId });
-    }
-    return { gameId, importedResults: payload.results?.length || 0 };
-  }
 }
 
 export const storage = new WordaholicStorage();

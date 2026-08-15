@@ -15,6 +15,22 @@ import { gameCacheUtils } from '../utils/gameCache';
 
 const MAX_GUESSES = 6;
 
+function guessWord(g: { word?: string } | string | null | undefined): string {
+  return typeof g === 'string' ? g : g?.word || '';
+}
+
+function guessesWithEvaluations(
+  guesses: unknown,
+  target: string,
+  lang: string
+): Array<{ word: string; evaluations: ReturnType<typeof evaluateGuess> }> {
+  if (!Array.isArray(guesses)) return [];
+  return guesses.map((g) => {
+    const word = guessWord(g);
+    return { word, evaluations: evaluateGuess(word, target, lang) };
+  });
+}
+
 interface GameProps {
   userId: number;
   onLogout?: () => void;
@@ -291,7 +307,7 @@ export const Game: React.FC<GameProps> = ({
         gameDate: state.date,
         isRandomMode: false,
         wordSeed: state.wordSeed,
-        guesses: state.guesses,
+        guesses: state.guesses.map((g) => g.word),
         isComplete: state.isComplete,
         isWon: state.isWon,
       });
@@ -305,7 +321,7 @@ export const Game: React.FC<GameProps> = ({
         is_random_mode: 0,
         word_seed: null,
         is_complete: state.isComplete ? 1 : 0,
-        guesses: state.guesses.map(g => ({ word: g.word, evaluations: [] })),
+        guesses: state.guesses.map((g) => g.word),
         isWon: state.isWon,
         guessesCount: state.guesses.length,
         created_at: new Date().toISOString(),
@@ -382,10 +398,7 @@ export const Game: React.FC<GameProps> = ({
       if (cachedGame.is_complete !== 1 && target !== expectedTarget) {
         // Target changed - fall through to API
       } else {
-        const guessesWithEvals = (cachedGame.guesses || []).map((g: any) => ({
-          word: typeof g === 'string' ? g : g.word,
-          evaluations: evaluateGuess(typeof g === 'string' ? g : g.word, target, language),
-        }));
+        const guessesWithEvals = guessesWithEvaluations(cachedGame.guesses, target, language);
         const state: GameState = {
           guesses: guessesWithEvals,
           currentGuess: '',
@@ -456,10 +469,7 @@ export const Game: React.FC<GameProps> = ({
         }
         const isValidDate = selectedPlayDate && /^\d{4}-\d{2}-\d{2}$/.test(selectedPlayDate);
         if (gameDate && !isValidDate) setSelectedPlayDate(gameDate);
-        const guessesWithEvals = (currentResponse.game.guesses || []).map((g: any) => ({
-          word: g.word,
-          evaluations: evaluateGuess(g.word, target, language),
-        }));
+        const guessesWithEvals = guessesWithEvaluations(currentResponse.game.guesses, target, language);
         const currentGame: GameState = {
           guesses: guessesWithEvals,
           currentGuess: '',
@@ -498,10 +508,7 @@ export const Game: React.FC<GameProps> = ({
       });
       if (completedResponse.game) {
         const target = completedResponse.game.target_word;
-        const guessesWithEvals = (completedResponse.game.guesses || []).map((g: any) => ({
-          word: g.word,
-          evaluations: evaluateGuess(g.word, target, language),
-        }));
+        const guessesWithEvals = guessesWithEvaluations(completedResponse.game.guesses, target, language);
         const completedGame: GameState = {
           guesses: guessesWithEvals,
           currentGuess: '',
@@ -648,10 +655,7 @@ export const Game: React.FC<GameProps> = ({
           if (gameDate && !isValidDate) {
             setSelectedPlayDate(gameDate);
           }
-          const guessesWithEvals = (currentResponse.game.guesses || []).map((g: any) => ({
-            word: g.word,
-            evaluations: evaluateGuess(g.word, target, language),
-          }));
+          const guessesWithEvals = guessesWithEvaluations(currentResponse.game.guesses, target, language);
           const currentGame: GameState = {
             guesses: guessesWithEvals,
             currentGuess: '',
@@ -677,10 +681,7 @@ export const Game: React.FC<GameProps> = ({
         if (completedResponse.game) {
           // Restore the completed game
           const target = completedResponse.game.target_word;
-          const guessesWithEvals = (completedResponse.game.guesses || []).map((g: any) => ({
-            word: g.word,
-            evaluations: evaluateGuess(g.word, target, language),
-          }));
+          const guessesWithEvals = guessesWithEvaluations(completedResponse.game.guesses, target, language);
           const completedGame: GameState = {
             guesses: guessesWithEvals,
             currentGuess: '',

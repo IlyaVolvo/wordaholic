@@ -20,7 +20,7 @@ export type StoredGame = {
   is_random_mode: number;
   word_seed: number | null;
   is_complete: number;
-  guesses: Array<{ word: string; evaluations: unknown[] }>;
+  guesses: string[];
   updated_at: string;
   completed_at: string | null;
 };
@@ -60,6 +60,13 @@ export function gameIdentity(g: {
 
 export function gameRecordId(g: Parameters<typeof gameIdentity>[0]): string {
   return `${GAME_ID}:game:${gameIdentity(g)}`;
+}
+
+export function asGuessWords(guesses: unknown): string[] {
+  if (!Array.isArray(guesses)) return [];
+  return guesses
+    .map((g) => (typeof g === 'string' ? g : g && typeof g === 'object' ? String(g.word || '') : ''))
+    .filter(Boolean);
 }
 
 export async function ensurePolywordlotMigrated(): Promise<void> {
@@ -183,18 +190,26 @@ function fromRecord(row: GameRecord | Record<string, unknown>): StoredGame | nul
   if (!row || typeof row !== 'object') return null;
   const language = String(row.language || '');
   if (!language) return null;
-  const word_length = Number(row.word_length);
+  const guesses = asGuessWords(row.guesses);
+  const target_word = String(row.target_word || '');
+  const statedLength = Number(row.word_length);
+  const word_length =
+    Number.isFinite(statedLength) && statedLength > 0
+      ? statedLength
+      : guesses[0]?.length || target_word.length || 0;
+  const gameDateRaw = String(row.game_date || '');
+  const gameDateMatch = /^(\d{4}-\d{2}-\d{2})/.exec(gameDateRaw.trim());
   const numericId = Number(row.numericId ?? row.id) || 0;
   return {
     id: numericId,
     language,
     word_length,
-    target_word: String(row.target_word || ''),
-    game_date: String(row.game_date || ''),
+    target_word,
+    game_date: gameDateMatch ? gameDateMatch[1] : gameDateRaw,
     is_random_mode: Number(row.is_random_mode) || 0,
     word_seed: row.word_seed == null ? null : Number(row.word_seed),
     is_complete: Number(row.is_complete) || 0,
-    guesses: Array.isArray(row.guesses) ? row.guesses : [],
+    guesses,
     updated_at: String(row.updated_at || new Date().toISOString()),
     completed_at: row.completed_at ? String(row.completed_at) : null,
   };
@@ -223,6 +238,9 @@ async function loadGamesMap(): Promise<Map<string, StoredGame>> {
     const game = fromRecord(row as GameRecord);
     if (!game || game.is_random_mode) continue;
     map.set(gameIdentity(game), game);
+    const raw = (row as GameRecord).guesses;
+    const needsRewrite = Array.isArray(raw) && raw.some((g) => typeof g !== 'string');
+    if (needsRewrite) await putStoredGame(game, { skipCache: true });
   }
   gamesCache = map;
   return map;
@@ -239,10 +257,11 @@ export async function putStoredGame(
 ): Promise<void> {
   if (Number(game.is_random_mode) === 1) return;
   if (!opts.skipCache) await ensurePolywordlotMigrated();
-  await storage.putRecord(toRecord(game));
+  const next = { ...game, guesses: asGuessWords(game.guesses) };
+  await storage.putRecord(toRecord(next));
   if (!opts.skipCache) {
     const map = gamesCache || new Map();
-    map.set(gameIdentity(game), game);
+    map.set(gameIdentity(next), next);
     gamesCache = map;
   }
 }
@@ -286,42 +305,4 @@ export async function appendFeedback(comment: string): Promise<void> {
   list.push(comment);
   feedbackCache = list;
   await storage.setGameState(GAME_ID, 'feedback', list);
-}
-
-/**
- * Ingest a pre-IDB PolyWordlot JSON blob (old site backups).
- */
-export async function ingestLegacyStore(store: {
-  nextId?: number;
-  games?: StoredGame[];
-  selectedLanguages?: string[] | null;
-  feedback?: string[];
-}): Promise<number> {
-  await ensurePolywordlotMigrated();
-  const map = await loadGamesMap();
-  let count = 0;
-  for (const game of store.games || []) {
-    if (!game || typeof game !== 'object') continue;
-    if (Number(game.is_random_mode) === 1) continue;
-    map.set(gameIdentity(game), game);
-    await putStoredGame(game);
-    count += 1;
-  }
-  const meta = await getMeta();
-  const nextId = Math.max(
-    meta.nextId,
-    store.nextId || 1,
-    ...[...map.values()].map((g) => (g.id || 0) + 1),
-    1
-  );
-  await setMeta({ nextId });
-  if (store.selectedLanguages) {
-    const prefs = (await getPrefs()) || {
-      randomMode: false,
-      language: 'en',
-      wordLength: 5,
-    };
-    await setPrefs({ ...prefs, selectedLanguages: store.selectedLanguages });
-  }
-  return count;
 }
