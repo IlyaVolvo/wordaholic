@@ -83,6 +83,7 @@ async function ingestLegacyPolywordlot(store) {
   const games = Array.isArray(store.games) ? store.games : [];
   for (const game of games) {
     if (!game || typeof game !== 'object') continue;
+    if (Number(game.is_random_mode) === 1) continue;
     const identity = `${game.language}|${game.word_length}|${game.game_date}|${game.is_random_mode}|${game.word_seed ?? ''}`;
     await storage.putRecord({
       ...game,

@@ -1,6 +1,14 @@
 const DB_NAME = 'wordaholic';
 const DB_VERSION = 3;
 
+function isPracticeRecord(row) {
+  return Number(row?.is_random_mode) === 1;
+}
+
+function isPracticeGameStateKey(key) {
+  return /(^|:)practice:/.test(String(key || ''));
+}
+
 /**
  * Platform IndexedDB wrapper.
  * Per-game stores use keys scoped by gameId.
@@ -325,6 +333,24 @@ export class WordaholicStorage {
     });
   }
 
+  async deleteRecord(id) {
+    if (!id) return;
+    await this._tx('records', 'readwrite', (store) => {
+      store.delete(id);
+    });
+  }
+
+  async deleteGameState(gameId, key) {
+    const fullKey = `${gameId}:${key}`;
+    await this._tx('gameState', 'readwrite', (store) => {
+      store.delete(fullKey);
+    });
+  }
+
+  async listGameStates(gameId) {
+    return this._listGameStates(gameId);
+  }
+
   async putDaily(record) {
     await this.putRecord(record);
   }
@@ -355,9 +381,9 @@ export class WordaholicStorage {
       exportedAt: new Date().toISOString(),
       statistics,
       results,
-      gameState: stateKeys,
-      records,
-      dailies: records,
+      gameState: stateKeys.filter((row) => !isPracticeGameStateKey(row.key)),
+      records: records.filter((row) => !isPracticeRecord(row)),
+      dailies: records.filter((row) => !isPracticeRecord(row)),
     };
   }
 
@@ -395,7 +421,8 @@ export class WordaholicStorage {
     if (Array.isArray(payload.gameState)) {
       for (const row of payload.gameState) {
         const key = String(row.key || '').replace(new RegExp(`^${gameId}:`), '');
-        if (key) await this.setGameState(gameId, key, row.value);
+        if (!key || isPracticeGameStateKey(key)) continue;
+        await this.setGameState(gameId, key, row.value);
       }
     }
     const docs = Array.isArray(payload.records)
@@ -404,7 +431,7 @@ export class WordaholicStorage {
         ? payload.dailies
         : [];
     for (const row of docs) {
-      if (!row || typeof row !== 'object') continue;
+      if (!row || typeof row !== 'object' || isPracticeRecord(row)) continue;
       const id = row.id || `${gameId}:${row.language}:${row.vocabLevel}:${row.difficulty}:${row.gameDate}`;
       await this.putRecord({ ...row, id, gameId });
     }

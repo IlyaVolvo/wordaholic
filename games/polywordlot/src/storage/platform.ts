@@ -78,6 +78,7 @@ async function migrateOnce(): Promise<void> {
   let maxId = legacy.nextId || 1;
   for (const game of legacy.games) {
     if (!game || typeof game !== 'object') continue;
+    if (Number((game as StoredGame).is_random_mode) === 1) continue;
     await putStoredGame(game as StoredGame, { skipCache: true });
     maxId = Math.max(maxId, (game.id || 0) + 1);
   }
@@ -96,6 +97,7 @@ async function migrateOnce(): Promise<void> {
   await storage.setGameState(GAME_ID, 'feedback', Array.isArray(legacy.feedback) ? legacy.feedback : []);
 
   await storage.setMetadata(MIGRATE_META, true);
+  await purgePracticeRecords();
   clearLegacyLocalStorage();
   gamesCache = null;
   metaCache = { nextId: maxId };
@@ -198,14 +200,29 @@ function fromRecord(row: GameRecord | Record<string, unknown>): StoredGame | nul
   };
 }
 
+async function purgePracticeRecords(): Promise<void> {
+  const rows = await storage.listRecords(GAME_ID);
+  for (const row of rows) {
+    if (Number(row.is_random_mode) !== 1) continue;
+    await storage.deleteRecord(row.id);
+  }
+  if (gamesCache) {
+    for (const [id, game] of [...gamesCache.entries()]) {
+      if (game.is_random_mode) gamesCache.delete(id);
+    }
+  }
+}
+
 async function loadGamesMap(): Promise<Map<string, StoredGame>> {
   await ensurePolywordlotMigrated();
   if (gamesCache) return gamesCache;
+  await purgePracticeRecords();
   const rows = await storage.listRecords(GAME_ID);
   const map = new Map<string, StoredGame>();
   for (const row of rows) {
     const game = fromRecord(row as GameRecord);
-    if (game) map.set(gameIdentity(game), game);
+    if (!game || game.is_random_mode) continue;
+    map.set(gameIdentity(game), game);
   }
   gamesCache = map;
   return map;
@@ -220,6 +237,7 @@ export async function putStoredGame(
   game: StoredGame,
   opts: { skipCache?: boolean } = {}
 ): Promise<void> {
+  if (Number(game.is_random_mode) === 1) return;
   if (!opts.skipCache) await ensurePolywordlotMigrated();
   await storage.putRecord(toRecord(game));
   if (!opts.skipCache) {
@@ -284,6 +302,7 @@ export async function ingestLegacyStore(store: {
   let count = 0;
   for (const game of store.games || []) {
     if (!game || typeof game !== 'object') continue;
+    if (Number(game.is_random_mode) === 1) continue;
     map.set(gameIdentity(game), game);
     await putStoredGame(game);
     count += 1;

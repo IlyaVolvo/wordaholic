@@ -160,8 +160,9 @@ class ApiClient {
     isComplete: boolean;
     isWon: boolean;
   }): Promise<{ success: boolean; gameId: number }> {
+    if (gameData.isRandomMode) return { success: true, gameId: 0 };
     const games = await listStoredGames();
-    const isRandom = gameData.isRandomMode ? 1 : 0;
+    const isRandom = 0;
     const seed = gameData.wordSeed ?? null;
     const identity = gameIdentity({
       language: gameData.language,

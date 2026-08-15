@@ -174,8 +174,19 @@ function rememberActiveCombo() {
   activeCombo = currentCombo();
 }
 
-function practiceStateKey(combo) {
-  return `practice:${combo.language}:${combo.vocabLevel}:${combo.difficulty}`;
+function gameStateLocalKey(fullKey) {
+  const prefix = `${GAME_ID}:`;
+  const key = String(fullKey || '');
+  return key.startsWith(prefix) ? key.slice(prefix.length) : key;
+}
+
+async function purgePracticeState() {
+  const rows = await storage.listGameStates(GAME_ID);
+  for (const row of rows) {
+    const key = gameStateLocalKey(row.key);
+    if (!key.startsWith('practice:')) continue;
+    await storage.deleteGameState(GAME_ID, key);
+  }
 }
 
 function refreshEndBfs() {
@@ -416,7 +427,7 @@ async function setPlayMode(mode) {
     selectedGameDate = formatLocalDate();
     await loadDailyForSelection();
   } else {
-    await loadPracticeForSelection();
+    startPracticePuzzle();
   }
 }
 
@@ -579,50 +590,9 @@ async function persistLeavingGame() {
   stopTimer(true);
   const combo = activeCombo;
   if (!puzzle || !combo) return;
-  if (playMode === 'daily') {
-    if (solved && readOnly) return;
-    await upsertDaily(dailyFields({ combo, elapsedMs: elapsedMsStored }));
-    return;
-  }
-  const key = practiceStateKey(combo);
-  if (solved) {
-    await storage.setGameState(GAME_ID, key, null);
-    return;
-  }
-  await storage.setGameState(GAME_ID, key, {
-    start: puzzle.start,
-    end: puzzle.end,
-    dist: puzzle.dist,
-    path: [...chain],
-    elapsedMs: elapsedMsStored,
-    deadendCount,
-    helpCount,
-  });
-}
-
-async function loadPracticeForSelection() {
-  rememberActiveCombo();
-  const saved = await storage.getGameState(GAME_ID, practiceStateKey(activeCombo));
-  if (saved?.start && saved?.end && Array.isArray(saved.path) && saved.path.length) {
-    readOnly = false;
-    solved = false;
-    puzzle = {
-      start: saved.start,
-      end: saved.end,
-      dist: optimalStepCount(saved.start, saved.end, saved.dist),
-    };
-    chain = [...saved.path];
-    elapsedMsStored = Number(saved.elapsedMs) || 0;
-    resetAssist(saved);
-    setSessionActive(GAME_ID, true);
-    $('#target-word').textContent = puzzle.end;
-    $('#optimal-count').textContent = String(puzzle.dist);
-    $('#win-overlay').classList.add('hidden');
-    startTimer();
-    renderChain();
-    return;
-  }
-  startPracticePuzzle();
+  if (playMode !== 'daily') return;
+  if (solved && readOnly) return;
+  await upsertDaily(dailyFields({ combo, elapsedMs: elapsedMsStored }));
 }
 
 async function pauseAndPersist() {
@@ -634,8 +604,7 @@ async function beginForCurrentSettings({ fresh = false } = {}) {
     await loadDailyForSelection({ fresh });
     return;
   }
-  if (fresh) startPracticePuzzle();
-  else await loadPracticeForSelection();
+  startPracticePuzzle();
 }
 
 function diffLetters(prev, cur, op) {
@@ -1129,6 +1098,7 @@ async function onComboControlsChanged() {
 
 async function init() {
   await storage.open();
+  await purgePracticeState();
   await hydrateDisplayPrefs();
   showLoading('Loading languages…');
   languageOptions = await loadLanguagesCatalog();
