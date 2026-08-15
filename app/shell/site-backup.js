@@ -29,14 +29,91 @@ export async function exportSiteBackup() {
   };
 }
 
-export function downloadSiteBackup(payload) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
+function backupFileName() {
+  return `wordaholic-backup-${new Date().toISOString().slice(0, 10)}.json`;
+}
+
+/** iPad/iPhone, including Chrome (desktop UA + touch). WebKit will not honor a hidden download. */
+function needsTapToSave() {
+  const ua = navigator.userAgent || '';
+  const touchPoints = navigator.maxTouchPoints || 0;
+  const coarse =
+    typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+  if (/iPad|iPhone|iPod|CriOS|FxiOS/.test(ua)) return true;
+  if (navigator.platform === 'MacIntel' && touchPoints > 1) return true;
+  if (/Chrome\//.test(ua) && !/Android/.test(ua) && (touchPoints > 1 || coarse)) return true;
+  return false;
+}
+
+function canShareFile(file) {
+  try {
+    return typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] });
+  } catch {
+    return false;
+  }
+}
+
+function offerBackupSave(file, url, name) {
+  document.querySelector('[data-backup-save]')?.remove();
+  const host = document.createElement('div');
+  host.className = 'update-dialog';
+  host.dataset.backupSave = '';
+  const shareOk = canShareFile(file);
+  host.innerHTML = `
+    <div class="update-dialog-backdrop" data-close></div>
+    <div class="update-dialog-card" role="dialog" aria-modal="true" aria-labelledby="backup-save-title">
+      <h2 id="backup-save-title">Save backup</h2>
+      <p class="update-lead">${
+        shareOk
+          ? 'Tap Save to Files, then choose Downloads or iCloud Drive.'
+          : 'Tap Open file, then use Share → Save to Files.'
+      }</p>
+      <div class="update-actions">
+        ${shareOk ? '<button type="button" class="btn primary" data-share>Save to Files</button>' : ''}
+        <a class="btn${shareOk ? '' : ' primary'}" data-open href="${url}" target="_blank" rel="noopener" download="${name}">Open file</a>
+        <button type="button" class="btn" data-close>Close</button>
+      </div>
+    </div>
+  `;
+  const close = () => {
+    host.remove();
+    URL.revokeObjectURL(url);
+  };
+  host.querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', close));
+  host.querySelector('[data-share]')?.addEventListener('click', async () => {
+    try {
+      await navigator.share({ files: [file], title: name });
+      close();
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+      window.open(url, '_blank', 'noopener');
+    }
+  });
+  document.body.appendChild(host);
+}
+
+export async function downloadSiteBackup(payload) {
+  const name = backupFileName();
+  const text = JSON.stringify(payload, null, 2);
+  const type = 'application/json';
+  const file = new File([text], name, { type });
+  const url = URL.createObjectURL(new Blob([text], { type }));
+
+  if (needsTapToSave()) {
+    offerBackupSave(file, url, name);
+    return;
+  }
+
   const a = document.createElement('a');
   a.href = url;
-  a.download = `wordaholic-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.download = name;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => {
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, 2000);
 }
 
 /**

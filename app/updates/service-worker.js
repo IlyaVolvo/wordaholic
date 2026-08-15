@@ -1,5 +1,5 @@
 /* Wordaholic service worker — cache shell + requested wordsets */
-const CACHE_SHELL = 'wordaholic-shell-v32';
+const CACHE_SHELL = 'wordaholic-shell-v34';
 const CACHE_DATA = 'wordaholic-data-v2';
 
 const PRECACHE = [

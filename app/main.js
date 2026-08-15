@@ -138,7 +138,7 @@ async function renderGateway() {
     onExportData: async () => {
       try {
         const payload = await exportSiteBackup();
-        downloadSiteBackup(payload);
+        await downloadSiteBackup(payload);
       } catch (err) {
         console.error(err);
         alert(err instanceof Error ? err.message : 'Export failed');
