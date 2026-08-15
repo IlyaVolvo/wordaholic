@@ -3,6 +3,11 @@
  * Games (in-progress and completed) are records; prefs live in gameState.
  */
 import { storage } from '@wordaholic/storage';
+import { loadKeyboard } from '../data/languageLoader';
+import { isWinningGuessForLanguage } from '../utils/characterNormalization';
+
+export const STORAGE_IMPORTED_EVENT = 'wordaholic:storage-imported';
+const MAX_GUESSES = 6;
 
 export const GAME_ID = 'polywordlot';
 
@@ -228,22 +233,56 @@ async function purgePracticeRecords(): Promise<void> {
   }
 }
 
-async function loadGamesMap(): Promise<Map<string, StoredGame>> {
+function isCompletedDaily(game: StoredGame): boolean {
+  if (game.is_random_mode) return false;
+  if (game.guesses.length >= MAX_GUESSES) return true;
+  const last = game.guesses[game.guesses.length - 1];
+  if (last && game.target_word && isWinningGuessForLanguage(last, game.target_word, game.language)) {
+    return true;
+  }
+  return game.is_complete === 1;
+}
+
+/**
+ * Drop in-memory game state and rebuild it from IndexedDB, the same way a
+ * fresh start does. Imported rows become playable/visible after this.
+ */
+export async function refreshGamesFromIndexedDb(): Promise<StoredGame[]> {
   await ensurePolywordlotMigrated();
-  if (gamesCache) return gamesCache;
+  gamesCache = null;
   await purgePracticeRecords();
-  const rows = await storage.listRecords(GAME_ID);
+  const rows = (await storage.listRecords(GAME_ID)) as GameRecord[];
+  const languages = [
+    ...new Set(rows.map((row) => String(row.language || '').trim()).filter((language) => language.length > 0)),
+  ];
+  await Promise.all(languages.map((language) => loadKeyboard(language)));
+
   const map = new Map<string, StoredGame>();
   for (const row of rows) {
     const game = fromRecord(row as GameRecord);
     if (!game || game.is_random_mode) continue;
-    map.set(gameIdentity(game), game);
-    const raw = (row as GameRecord).guesses;
-    const needsRewrite = Array.isArray(raw) && raw.some((g) => typeof g !== 'string');
-    if (needsRewrite) await putStoredGame(game, { skipCache: true });
+    const complete = isCompletedDaily(game);
+    const next: StoredGame = {
+      ...game,
+      is_complete: complete ? 1 : 0,
+      completed_at: complete ? game.completed_at || game.updated_at : game.completed_at,
+    };
+    map.set(gameIdentity(next), next);
+    const rawGuesses = (row as GameRecord).guesses;
+    const needsRewrite =
+      next.is_complete !== Number(row.is_complete) ||
+      next.game_date !== String(row.game_date || '') ||
+      (Array.isArray(rawGuesses) && rawGuesses.some((guess) => typeof guess !== 'string'));
+    if (needsRewrite) await putStoredGame(next, { skipCache: true });
   }
   gamesCache = map;
-  return map;
+  return [...map.values()];
+}
+
+async function loadGamesMap(): Promise<Map<string, StoredGame>> {
+  if (gamesCache) return gamesCache;
+  await refreshGamesFromIndexedDb();
+  return gamesCache || new Map();
 }
 
 export async function listStoredGames(): Promise<StoredGame[]> {

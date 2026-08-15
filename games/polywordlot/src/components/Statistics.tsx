@@ -56,7 +56,16 @@ interface StatisticsProps {
   initialStatisticType?: StatisticType;
 }
 
-type StatisticType = 
+function isCompletedDailyStat(game: GameData): boolean {
+  if (game.isComplete) return true;
+  const guesses = Array.isArray(game.guesses) ? game.guesses : [];
+  if (guesses.length >= 6) return true;
+  const last = guesses[guesses.length - 1];
+  const target = String(game.targetWord || '').trim().toLowerCase();
+  return Boolean(last && target && String(last).trim().toLowerCase() === target);
+}
+
+type StatisticType =  
   | 'attempts-distribution'
   | 'running-daily'
   | 'calendar-weekly'
@@ -90,6 +99,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
       setLoading(true);
       setError(null);
       try {
+        await apiClient.refreshFromStorage();
         const response = await apiClient.getHistory(
           language,
           wordLength,
@@ -97,7 +107,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
         );
         // Stats are only maintained for daily games (non-random mode)
         const filteredGames: GameData[] = (response.games as GameData[]).filter(game => !game.isRandomMode);
-        const completedGames = filteredGames.filter(game => game.isComplete);
+        const completedGames = filteredGames.filter(isCompletedDailyStat);
         setGames(completedGames);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load statistics');
@@ -124,13 +134,14 @@ export const Statistics: React.FC<StatisticsProps> = ({
 
     const loadAllGames = async () => {
       try {
+        await apiClient.refreshFromStorage();
         const response = await apiClient.getHistory(
           undefined, // no language filter
           undefined, // no wordLength filter
           10000
         );
         const filteredGames: GameData[] = (response.games as GameData[]).filter(
-          game => !game.isRandomMode && game.isComplete
+          (game) => !game.isRandomMode && isCompletedDailyStat(game)
         );
         setAllGames(filteredGames);
         setAllGamesLoaded(true);

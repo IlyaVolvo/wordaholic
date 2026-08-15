@@ -414,6 +414,9 @@ export class WordaholicStorage {
     if (gameId === 'polywordlot') {
       await this.setGameState(gameId, 'meta', { nextId: nextNumeric });
     }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('wordaholic:storage-imported', { detail: { gameId } }));
+    }
     return { gameId, importedRecords: imported };
   }
 

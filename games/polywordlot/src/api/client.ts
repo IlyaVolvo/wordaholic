@@ -7,6 +7,7 @@ import {
   getPrefs,
   listStoredGames,
   putStoredGame,
+  refreshGamesFromIndexedDb,
   setMeta,
   setPrefs,
   type StoredGame,
@@ -198,6 +199,10 @@ class ApiClient {
       completed_at: gameData.isComplete ? now : null,
     });
     return { success: true, gameId: id };
+  }
+
+  async refreshFromStorage(): Promise<void> {
+    await refreshGamesFromIndexedDb();
   }
 
   async getHistory(

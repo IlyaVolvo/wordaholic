@@ -12,6 +12,7 @@ import { normalizeForLanguage, loadNormalization, isWinningGuessForLanguage } fr
 import { loadPreferences, savePreferences, getSelectedDate, setSelectedDate } from '../utils/preferences';
 import { apiClient } from '../api/client';
 import { gameCacheUtils } from '../utils/gameCache';
+import { refreshGamesFromIndexedDb, STORAGE_IMPORTED_EVENT } from '../storage/platform';
 
 const MAX_GUESSES = 6;
 
@@ -216,6 +217,8 @@ export const Game: React.FC<GameProps> = ({
       setError(null);
 
       try {
+        await refreshGamesFromIndexedDb();
+        gameCacheUtils.clearAllCache();
         const [dict] = await Promise.all([
           loadDictionary(language, wordLength),
           loadNormalization(language),
@@ -242,6 +245,17 @@ export const Game: React.FC<GameProps> = ({
     initialize();
     return () => { cancelled = true; };
   }, [userId, language, wordLength]);
+
+  useEffect(() => {
+    const onImported = () => {
+      void (async () => {
+        await refreshGamesFromIndexedDb();
+        gameCacheUtils.clearAllCache();
+      })();
+    };
+    window.addEventListener(STORAGE_IMPORTED_EVENT, onImported);
+    return () => window.removeEventListener(STORAGE_IMPORTED_EVENT, onImported);
+  }, []);
 
   // Store selected date per (language, wordLength) combination
   const loadStoredDate = useCallback((lang: string, len: number): string | null => {
@@ -743,6 +757,26 @@ export const Game: React.FC<GameProps> = ({
             }
           }
           setCalendarGames(dailyGames);
+
+          const monthKey = (year: number, monthIndex: number) => `${year}-${monthIndex}`;
+          const viewing = calendarMonthRef.current;
+          const viewingKey = monthKey(viewing.getFullYear(), viewing.getMonth());
+          const gameDates = dailyGames
+            .map((game: { game_date?: string; gameDate?: string }) => {
+              const match = /^(\d{4}-\d{2}-\d{2})/.exec(String(game.game_date || game.gameDate || '').trim());
+              return match ? match[1] : '';
+            })
+            .filter(Boolean)
+            .sort();
+          const viewingHasGames = gameDates.some((date) => {
+            const [year, month] = date.split('-').map(Number);
+            return monthKey(year, month - 1) === viewingKey;
+          });
+          if (!viewingHasGames && gameDates.length) {
+            const latest = gameDates[gameDates.length - 1];
+            const [year, month] = latest.split('-').map(Number);
+            setCalendarMonth(new Date(year, month - 1, 1));
+          }
 
           if (staleDates.size > 0) {
             setCalendarBlinkingDates(staleDates);
