@@ -28,6 +28,8 @@ export function dailyRecordId(key) {
  * @property {number} deadendCount
  * @property {number} helpCount
  * @property {boolean} isComplete
+ * @property {boolean} [timerStarted]
+ * @property {string} [draft]
  * @property {string} updatedAt
  */
 
@@ -53,6 +55,8 @@ export async function upsertDaily(record) {
     deadendCount: Math.max(0, Number(record.deadendCount) || 0),
     helpCount: Math.max(0, Number(record.helpCount) || 0),
     isComplete: !!record.isComplete,
+    timerStarted: !!record.timerStarted || (Number(record.elapsedMs) || 0) > 0,
+    draft: record.isComplete ? '' : String(record.draft || ''),
     updatedAt: record.updatedAt || new Date().toISOString(),
   };
   await storage.putDaily(row);

@@ -115,6 +115,10 @@ let chain = [];
 let elapsedMsStored = 0;
 let timerSegmentStart = null;
 let timerHandle = null;
+/** False until the player types (or uses help) for the first time. */
+let timerStarted = false;
+/** In-progress input text, restored when returning to this game. */
+let inputDraft = '';
 let solved = false;
 let readOnly = false;
 let playMode = 'daily';
@@ -170,6 +174,30 @@ function currentCombo() {
 
 /** Combo the current puzzle was started with — used so mid-game setting changes persist the old game. */
 let activeCombo = null;
+
+/** In-memory practice sessions only — never written to IndexedDB. */
+const practiceSessions = new Map();
+
+function practiceKey(combo = currentCombo()) {
+  return `${combo.language}|${combo.vocabLevel}|${combo.difficulty}`;
+}
+
+function snapshotPractice(combo = activeCombo) {
+  if (!puzzle || !combo) return;
+  currentDraft();
+  practiceSessions.set(practiceKey(combo), {
+    start: puzzle.start,
+    end: puzzle.end,
+    dist: puzzle.dist,
+    path: [...chain],
+    elapsedMs: elapsedMsStored,
+    timerStarted,
+    draft: solved ? '' : inputDraft,
+    deadendCount,
+    helpCount,
+    solved,
+  });
+}
 
 function rememberActiveCombo() {
   activeCombo = currentCombo();
@@ -265,6 +293,8 @@ function dailyFields(extra = {}) {
     isComplete: extra.isComplete ?? (solved || isPathSolved(chain, puzzle.start, puzzle.end)),
     deadendCount,
     helpCount,
+    timerStarted: extra.timerStarted ?? timerStarted,
+    draft: extra.draft ?? (solved ? '' : currentDraft()),
   };
 }
 
@@ -428,11 +458,11 @@ async function setPlayMode(mode) {
     selectedGameDate = formatLocalDate();
     await loadDailyForSelection();
   } else {
-    startPracticePuzzle();
+    loadPracticeForSelection();
   }
 }
 
-async function switchLanguage(code, startPuzzle = true, { fresh = false } = {}) {
+async function switchLanguage(code, startPuzzle = true) {
   const opt = languageOptions.find((l) => l.code === code) || languageOptions.find((l) => l.dir === code);
   if (!opt) throw new Error(`Unknown language ${code}`);
   await persistLeavingGame();
@@ -449,14 +479,62 @@ async function switchLanguage(code, startPuzzle = true, { fresh = false } = {}) 
   renderLanguageDropdown();
   hideLoading();
   if (startPuzzle) {
-    await beginForCurrentSettings({ fresh });
+    await beginForCurrentSettings();
   }
 }
 
+function applyPracticeSnapshot(snap) {
+  puzzle = {
+    start: snap.start,
+    end: snap.end,
+    dist: optimalStepCount(snap.start, snap.end, snap.dist),
+  };
+  chain = Array.isArray(snap.path) && snap.path.length ? [...snap.path] : [snap.start];
+  elapsedMsStored = Number(snap.elapsedMs) || 0;
+  timerStarted = !!snap.timerStarted || elapsedMsStored > 0 || chain.length > 1;
+  inputDraft = snap.solved ? '' : String(snap.draft || '');
+  resetAssist(snap);
+  solved = !!snap.solved;
+  readOnly = false;
+  rememberActiveCombo();
+  $('#target-word').textContent = puzzle.end;
+  $('#optimal-count').textContent = String(puzzle.dist);
+  if (solved) {
+    stopTimer();
+    setSessionActive(GAME_ID, false);
+    renderChain();
+    showWin(false);
+    return;
+  }
+  setSessionActive(GAME_ID, true);
+  $('#win-overlay').classList.add('hidden');
+  if (timerStarted) startTimer();
+  else {
+    stopTimer(false);
+    updateTimerDisplay();
+  }
+  renderChain();
+}
+
 function startPracticePuzzle() {
+  loadPracticeForSelection({ fresh: true });
+}
+
+function loadPracticeForSelection({ fresh = false } = {}) {
+  const combo = currentCombo();
+  if (!fresh) {
+    const snap = practiceSessions.get(practiceKey(combo));
+    if (snap) {
+      applyPracticeSnapshot(snap);
+      return;
+    }
+  }
   readOnly = false;
   solved = false;
   elapsedMsStored = 0;
+  timerStarted = false;
+  inputDraft = '';
+  stopTimer(false);
   const [min, max] = difficultyRangeFromValue(selectedDifficulty());
   const puzzles = generatePuzzles(puzzleGraph, { minSteps: min, maxSteps: max, count: 5, sampleSize: 400 });
   if (!puzzles.length) {
@@ -472,22 +550,21 @@ function startPracticePuzzle() {
   chain = [puzzle.start];
   resetAssist();
   rememberActiveCombo();
+  practiceSessions.delete(practiceKey(combo));
   setSessionActive(GAME_ID, true);
   $('#target-word').textContent = puzzle.end;
   $('#optimal-count').textContent = String(puzzle.dist);
   $('#win-overlay').classList.add('hidden');
-  startTimer();
+  updateTimerDisplay();
   renderChain();
-  void persistLeavingGame();
 }
 
-async function loadDailyForSelection({ fresh = false } = {}) {
+async function loadDailyForSelection() {
   readOnly = false;
   solved = false;
   updateDateDisplay();
   const combo = currentCombo();
   let record = await getDaily(combo);
-  if (fresh && record && !record.isComplete) record = null;
 
   if (!record) {
     const generated = getDailyPuzzle(puzzleGraph, combo);
@@ -502,10 +579,12 @@ async function loadDailyForSelection({ fresh = false } = {}) {
     };
     chain = [puzzle.start];
     elapsedMsStored = 0;
+    timerStarted = false;
+    inputDraft = '';
     resetAssist();
     rememberActiveCombo();
     record = await upsertDaily({
-      ...dailyFields({ elapsedMs: 0, isComplete: false }),
+      ...dailyFields({ elapsedMs: 0, isComplete: false, timerStarted: false, draft: '' }),
     });
   } else {
     puzzle = {
@@ -515,11 +594,16 @@ async function loadDailyForSelection({ fresh = false } = {}) {
     };
     chain = Array.isArray(record.path) && record.path.length ? [...record.path] : [record.start];
     elapsedMsStored = Number(record.elapsedMs) || 0;
+    timerStarted =
+      !!record.timerStarted || elapsedMsStored > 0 || (Array.isArray(record.path) && record.path.length > 1);
+    inputDraft = record.isComplete ? '' : String(record.draft || '');
     resetAssist(record);
     rememberActiveCombo();
     if (record.isComplete || isPathSolved(chain, record.start, record.end)) {
       solved = true;
       readOnly = true;
+      timerStarted = true;
+      inputDraft = '';
       stopTimer();
       setSessionActive(GAME_ID, false);
       $('#target-word').textContent = puzzle.end;
@@ -533,7 +617,11 @@ async function loadDailyForSelection({ fresh = false } = {}) {
   $('#target-word').textContent = puzzle.end;
   $('#optimal-count').textContent = String(puzzle.dist);
   $('#win-overlay').classList.add('hidden');
-  startTimer();
+  if (timerStarted) startTimer();
+  else {
+    stopTimer(false);
+    updateTimerDisplay();
+  }
   renderChain();
 }
 
@@ -543,9 +631,23 @@ function currentElapsedMs() {
   return Math.max(0, total);
 }
 
+function currentDraft() {
+  const input = $('#word-input');
+  if (input) inputDraft = input.value;
+  return inputDraft;
+}
+
+function noteTyping() {
+  if (solved || readOnly) return;
+  currentDraft();
+  if (timerStarted && timerSegmentStart != null) return;
+  timerStarted = true;
+  startTimer();
+}
+
 function startTimer() {
   stopTimer(false);
-  if (solved || readOnly) {
+  if (solved || readOnly || !timerStarted) {
     updateTimerDisplay();
     return;
   }
@@ -588,24 +690,28 @@ function updateTimerDisplay() {
 }
 
 async function persistLeavingGame() {
+  currentDraft();
   stopTimer(true);
   const combo = activeCombo;
   if (!puzzle || !combo) return;
-  if (playMode !== 'daily') return;
+  if (playMode === 'practice') {
+    snapshotPractice(combo);
+    return;
+  }
   if (solved && readOnly) return;
-  await upsertDaily(dailyFields({ combo, elapsedMs: elapsedMsStored }));
+  await upsertDaily(dailyFields({ combo, elapsedMs: elapsedMsStored, draft: inputDraft, timerStarted }));
 }
 
 async function pauseAndPersist() {
   await persistLeavingGame();
 }
 
-async function beginForCurrentSettings({ fresh = false } = {}) {
+async function beginForCurrentSettings() {
   if (playMode === 'daily') {
-    await loadDailyForSelection({ fresh });
+    await loadDailyForSelection();
     return;
   }
-  startPracticePuzzle();
+  loadPracticeForSelection();
 }
 
 function diffLetters(prev, cur, op) {
@@ -691,7 +797,8 @@ function makeWordNode(word, isStart, isEnd, canUndo, prevWord, isDeadend = false
         chain.pop();
         syncDeadendState();
         renderChain();
-        await persistDailyProgress();
+        if (playMode === 'practice') snapshotPractice();
+        else await persistDailyProgress();
       }
     });
     wrap.appendChild(x);
@@ -732,10 +839,13 @@ function typeIntoWordInput(key) {
   }
   if (key === 'Backspace') {
     input.value = rtl ? input.value.slice(1) : input.value.slice(0, -1);
+    if (input.value) noteTyping();
+    else currentDraft();
     return;
   }
   if (key.length === 1) {
     input.value = (rtl ? `${key}${input.value}` : `${input.value}${key}`).toLowerCase();
+    noteTyping();
   }
 }
 
@@ -751,6 +861,10 @@ function configureWordInput(input) {
     input.setAttribute('aria-readonly', 'true');
     input.addEventListener('focus', () => input.blur());
   }
+  input.addEventListener('input', () => {
+    if (input.value) noteTyping();
+    else currentDraft();
+  });
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -780,6 +894,7 @@ function makeInputNode() {
   input.className = 'input-slot';
   input.placeholder = 'type a word…';
   input.id = 'word-input';
+  input.value = inputDraft;
   configureWordInput(input);
   const hint = document.createElement('div');
   hint.className = 'error-hint';
@@ -813,6 +928,7 @@ async function submitWord(word, opts = {}) {
   const input = $('#word-input');
   const hint = $('#error-hint');
   if (!word) return;
+  noteTyping();
   const normalizedWord = normalizeForLanguage(word);
   const prev = chain[chain.length - 1];
   if (normalizedWord === prev) return flashError(input, hint, 'Same as previous word');
@@ -829,16 +945,21 @@ async function submitWord(word, opts = {}) {
     notifySessionEnded();
     updateAssistChrome();
     renderChain();
+    inputDraft = '';
     if (playMode === 'daily') {
       readOnly = true;
-      await upsertDaily(dailyFields({ elapsedMs: elapsedMsStored, isComplete: true }));
+      await upsertDaily(dailyFields({ elapsedMs: elapsedMsStored, isComplete: true, draft: '' }));
+    } else {
+      snapshotPractice();
     }
     showWin(true);
     return;
   }
+  inputDraft = '';
   syncDeadendState({ countEntry: true });
   renderChain();
-  await persistDailyProgress();
+  if (playMode === 'practice') snapshotPractice();
+  else await persistDailyProgress();
 }
 
 async function requestHelp() {
@@ -1094,7 +1215,7 @@ async function refreshStats() {
 async function onComboControlsChanged() {
   await persistLeavingGame();
   buildGraphs(corpusEntries);
-  await beginForCurrentSettings({ fresh: true });
+  await beginForCurrentSettings();
 }
 
 async function init() {
@@ -1131,7 +1252,7 @@ async function init() {
     const item = /** @type {HTMLElement} */ (e.target).closest('[data-code]');
     if (!item) return;
     setLanguageMenuOpen(false);
-    void switchLanguage(item.getAttribute('data-code'), true, { fresh: true });
+    void switchLanguage(item.getAttribute('data-code'), true);
   });
   document.addEventListener('click', (e) => {
     const dd = $('#language-dropdown');
@@ -1188,7 +1309,7 @@ async function init() {
 
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) void pauseAndPersist();
-    else if (playMode === 'daily' && !solved && !readOnly) startTimer();
+    else if (!solved && !readOnly && timerStarted) startTimer();
   });
   window.addEventListener('pagehide', () => {
     void pauseAndPersist();
