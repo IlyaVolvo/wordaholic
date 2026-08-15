@@ -27,6 +27,45 @@
           <img class="header-brand-home-svg" src="/brand/wordaholic-mark.svg" width="34" height="34" alt="" />
         </a>
         <span class="header-game-name">TransWord</span>
+        <div class="header-more" id="header-more">
+          <button type="button" id="header-more-trigger" class="icon-btn" title="Game menu" aria-label="Game menu" aria-haspopup="menu" aria-expanded="false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <circle cx="12" cy="5" r="2"></circle>
+              <circle cx="12" cy="12" r="2"></circle>
+              <circle cx="12" cy="19" r="2"></circle>
+            </svg>
+          </button>
+          <ul class="header-more-menu hidden" id="header-more-menu" role="menu" aria-label="Game menu">
+            <li role="none">
+              <button type="button" role="menuitem" data-header-action="stats">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <line x1="18" y1="20" x2="18" y2="10"></line>
+                  <line x1="12" y1="20" x2="12" y2="4"></line>
+                  <line x1="6" y1="20" x2="6" y2="14"></line>
+                </svg>
+                <span>Statistics</span>
+              </button>
+            </li>
+            <li role="none">
+              <button type="button" role="menuitem" data-header-action="display">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"></path>
+                </svg>
+                <span>Display</span>
+              </button>
+            </li>
+            <li role="none">
+              <button type="button" role="menuitem" data-header-action="howto">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+                <span>How to play</span>
+              </button>
+            </li>
+          </ul>
+        </div>
         <button type="button" id="btn-howto" class="help-trigger help-trigger--game" aria-label="How to play TransWord">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
@@ -34,12 +73,12 @@
           </svg>
           <span class="help-trigger-tip">How to play TransWord</span>
         </button>
-      </div>
-      <div class="header-center">
-        <div class="target-label">Target</div>
-        <div id="target-word" class="target-word"></div>
-      </div>
-      <div class="header-right">
+        <button type="button" id="btn-display" class="icon-btn" title="Display settings" aria-label="Display settings">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"></path>
+          </svg>
+        </button>
         <button type="button" id="btn-stats" class="icon-btn" title="Statistics" aria-label="Statistics">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <line x1="18" y1="20" x2="18" y2="10"></line>
@@ -47,23 +86,29 @@
             <line x1="6" y1="20" x2="6" y2="14"></line>
           </svg>
         </button>
-        <div class="stat" id="stat-time" data-pref="showTime">
+      </div>
+      <div class="header-center">
+        <div class="target-label">Target</div>
+        <div id="target-word" class="target-word"></div>
+      </div>
+      <div class="header-right">
+        <div class="stat" id="stat-time" data-pref="showTime" title="Time">
           <span class="stat-label">Time</span>
           <span id="timer" class="stat-value">0:00</span>
         </div>
-        <div class="stat">
+        <div class="stat" title="Steps">
           <span class="stat-label">Steps</span>
           <span id="step-count" class="stat-value">0</span>
         </div>
-        <div class="stat" id="stat-optimal" data-pref="showOptimal">
+        <div class="stat" id="stat-optimal" data-pref="showOptimal" title="Optimal">
           <span class="stat-label">Optimal</span>
           <span id="optimal-count" class="stat-value">–</span>
         </div>
-        <div class="stat">
+        <div class="stat" title="Dead ends">
           <span class="stat-label">Dead ends</span>
           <span id="deadend-count" class="stat-value">0</span>
         </div>
-        <div class="stat">
+        <div class="stat" title="Helps">
           <span class="stat-label">Helps</span>
           <span id="help-count" class="stat-value">0</span>
         </div>
@@ -78,21 +123,11 @@
     </div>
 
     <footer id="toolbar">
-      <div class="display-prefs" role="group" aria-label="Display options">
-        <label class="pref-toggle" title="Show timer while playing">
-          <input type="checkbox" id="pref-show-time" />
-          <span>Time</span>
-        </label>
-        <label class="pref-toggle" title="Show optimal step count (spoilers for some players)">
-          <input type="checkbox" id="pref-show-optimal" />
-          <span>Optimal</span>
-        </label>
-      </div>
       <div class="toolbar-picks">
         <select id="difficulty" title="Difficulty" aria-label="Difficulty">
-          <option value="3">Easy (2–3)</option>
-          <option value="4" selected>Medium (4–5)</option>
-          <option value="6">Hard (6–8)</option>
+          <option value="3" title="2–3 steps">Easy</option>
+          <option value="4" selected title="4–5 steps">Medium</option>
+          <option value="6" title="6–8 steps">Hard</option>
         </select>
         <select id="level-select" title="Vocabulary" aria-label="Vocabulary">
           <option value="1">Basic</option>
@@ -210,6 +245,23 @@
         <div><dt>Avg time</dt><dd id="stats-avg-time">—</dd></div>
       </dl>
       <p class="panel-hint">Daily stats use the filters above. Streak needs a specific language, vocabulary, and difficulty.</p>
+    </div>
+  </div>
+
+  <div id="display-popover" class="display-popover hidden" hidden role="dialog" aria-labelledby="display-title">
+    <div class="panel-header">
+      <h2 id="display-title">Display</h2>
+      <button type="button" class="panel-close" data-display-close aria-label="Close">×</button>
+    </div>
+    <div class="display-prefs" role="group" aria-label="Display options">
+      <label class="pref-toggle" title="Show timer while playing">
+        <input type="checkbox" id="pref-show-time-menu" data-display-pref="showTime" />
+        <span>Show time</span>
+      </label>
+      <label class="pref-toggle" title="Show optimal step count (spoilers for some players)">
+        <input type="checkbox" id="pref-show-optimal-menu" data-display-pref="showOptimal" />
+        <span>Show optimal</span>
+      </label>
     </div>
   </div>
 

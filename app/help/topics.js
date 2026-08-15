@@ -134,7 +134,7 @@ export const HELP_TOPICS = {
       {
         title: 'Settings',
         screenshot: '/help/transword/settings.svg',
-        body: 'Time shows or hides the timer while you play. Some people prefer not to see the clock.\n\nOptimal shows or hides the shortest-path length. That can feel like a spoiler, so it is off unless you want it.\n\nBoth choices stay on this device. Language, vocabulary, difficulty, and Daily vs Practice are the other controls on the same bar.',
+        body: 'Open Display from the gear to show or hide the timer and the shortest-path length. Some people prefer not to see the clock. Optimal can feel like a spoiler, so leave it off unless you want it.\n\nBoth choices stay on this device.',
       },
     ],
   },

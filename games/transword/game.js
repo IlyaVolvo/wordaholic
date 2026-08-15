@@ -85,23 +85,25 @@ function applyDisplayPrefs() {
   $('#stat-optimal')?.classList.toggle('stat--hidden', !optOn);
   $('#win-stat-time')?.classList.toggle('stat--hidden', !timeOn);
   $('#win-stat-optimal')?.classList.toggle('stat--hidden', !optOn);
-  const timeCb = /** @type {HTMLInputElement | null} */ ($('#pref-show-time'));
-  const optCb = /** @type {HTMLInputElement | null} */ ($('#pref-show-optimal'));
-  if (timeCb) timeCb.checked = timeOn;
-  if (optCb) optCb.checked = optOn;
+  document.querySelectorAll('[data-display-pref="showTime"]').forEach((el) => {
+    /** @type {HTMLInputElement} */ (el).checked = timeOn;
+  });
+  document.querySelectorAll('[data-display-pref="showOptimal"]').forEach((el) => {
+    /** @type {HTMLInputElement} */ (el).checked = optOn;
+  });
 }
 
 function wireDisplayPrefs() {
-  $('#pref-show-time')?.addEventListener('change', (e) => {
-    displayPrefs.showTime = /** @type {HTMLInputElement} */ (e.target).checked;
-    saveDisplayPrefs();
-    applyDisplayPrefs();
-    if (displayPrefs.showTime) updateTimerDisplay();
-  });
-  $('#pref-show-optimal')?.addEventListener('change', (e) => {
-    displayPrefs.showOptimal = /** @type {HTMLInputElement} */ (e.target).checked;
-    saveDisplayPrefs();
-    applyDisplayPrefs();
+  document.querySelectorAll('[data-display-pref]').forEach((el) => {
+    el.addEventListener('change', (e) => {
+      const input = /** @type {HTMLInputElement} */ (e.target);
+      const key = input.dataset.displayPref;
+      if (key !== 'showTime' && key !== 'showOptimal') return;
+      displayPrefs[key] = input.checked;
+      saveDisplayPrefs();
+      applyDisplayPrefs();
+      if (key === 'showTime' && displayPrefs.showTime) updateTimerDisplay();
+    });
   });
   applyDisplayPrefs();
 }
@@ -374,6 +376,13 @@ async function loadLanguagesCatalog() {
   }
   const filtered = playable.filter((l) => preferred.has(l.code));
   return filtered.length ? filtered : playable;
+}
+
+function setHeaderMoreOpen(open) {
+  const menu = $('#header-more-menu');
+  const trigger = $('#header-more-trigger');
+  menu?.classList.toggle('hidden', !open);
+  trigger?.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 function applyModeChrome() {
@@ -1002,6 +1011,15 @@ function renderKeyboard() {
     row: Number.isInteger(actions?.backspace?.row) ? actions.backspace.row : lastRow,
   };
 
+  let maxRowKeys = 1;
+  for (let rowIndex = 0; rowIndex < layout.length; rowIndex++) {
+    let count = layout[rowIndex].length;
+    if (enterCfg.row === rowIndex) count += 1;
+    if (backCfg.row === rowIndex) count += 1;
+    if (count > maxRowKeys) maxRowKeys = count;
+  }
+  root.style.setProperty('--kb-max-keys', String(maxRowKeys));
+
   for (let rowIndex = 0; rowIndex < layout.length; rowIndex++) {
     const rowEl = document.createElement('div');
     rowEl.className = 'keyboard-row';
@@ -1189,6 +1207,44 @@ function closeStats() {
   overlay.classList.add('hidden');
 }
 
+function displayAnchor() {
+  const phone = window.matchMedia('(max-width: 720px)').matches;
+  return phone ? $('#header-more-trigger') : $('#btn-display');
+}
+
+function placeDisplayPopover() {
+  const pop = $('#display-popover');
+  const anchor = displayAnchor();
+  if (!pop || !anchor || pop.classList.contains('hidden')) return;
+  const r = anchor.getBoundingClientRect();
+  pop.style.top = `${Math.round(r.bottom + 8)}px`;
+  const width = pop.getBoundingClientRect().width || 184;
+  const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+  pop.style.left = `${Math.round(left)}px`;
+}
+
+function openDisplay() {
+  const pop = $('#display-popover');
+  if (!pop) return;
+  applyDisplayPrefs();
+  pop.hidden = false;
+  pop.classList.remove('hidden');
+  placeDisplayPopover();
+}
+
+function closeDisplay() {
+  const pop = $('#display-popover');
+  if (!pop) return;
+  pop.hidden = true;
+  pop.classList.add('hidden');
+}
+
+function toggleDisplay() {
+  const pop = $('#display-popover');
+  if (!pop || pop.classList.contains('hidden')) openDisplay();
+  else closeDisplay();
+}
+
 async function refreshStats() {
   const filters = {
     language: $('#stats-lang')?.value || 'all',
@@ -1242,7 +1298,27 @@ async function init() {
   $('#btn-calendar')?.addEventListener('click', () => openHistory());
   $('#btn-new-practice')?.addEventListener('click', () => startPracticePuzzle());
   $('#btn-stats')?.addEventListener('click', () => openStats());
+  $('#btn-display')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleDisplay();
+  });
   $('#btn-howto')?.addEventListener('click', () => openHelp('transword'));
+  $('#header-more-trigger')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeDisplay();
+    const menu = $('#header-more-menu');
+    setHeaderMoreOpen(!!menu?.classList.contains('hidden'));
+  });
+  $('#header-more-menu')?.addEventListener('click', (e) => {
+    const item = /** @type {HTMLElement} */ (e.target).closest('[data-header-action]');
+    if (!item) return;
+    e.stopPropagation();
+    setHeaderMoreOpen(false);
+    const action = item.getAttribute('data-header-action');
+    if (action === 'stats') openStats();
+    else if (action === 'display') openDisplay();
+    else if (action === 'howto') openHelp('transword');
+  });
   $('#language-trigger')?.addEventListener('click', (e) => {
     e.stopPropagation();
     const list = $('#language-list');
@@ -1255,9 +1331,24 @@ async function init() {
     void switchLanguage(item.getAttribute('data-code'), true);
   });
   document.addEventListener('click', (e) => {
+    const target = /** @type {Node} */ (e.target);
     const dd = $('#language-dropdown');
-    if (dd && !dd.contains(/** @type {Node} */ (e.target))) setLanguageMenuOpen(false);
+    if (dd && !dd.contains(target)) setLanguageMenuOpen(false);
+    const more = $('#header-more');
+    if (more && !more.contains(target)) setHeaderMoreOpen(false);
+    const pop = $('#display-popover');
+    const displayBtn = $('#btn-display');
+    if (
+      pop &&
+      !pop.classList.contains('hidden') &&
+      !pop.contains(target) &&
+      !displayBtn?.contains(target) &&
+      !more?.contains(target)
+    ) {
+      closeDisplay();
+    }
   });
+  window.addEventListener('resize', placeDisplayPopover);
   $('#win-new-btn')?.addEventListener('click', () => {
     $('#win-overlay').classList.add('hidden');
     startPracticePuzzle();
@@ -1267,6 +1358,7 @@ async function init() {
   });
   document.querySelectorAll('[data-history-close]').forEach((el) => el.addEventListener('click', closeHistory));
   document.querySelectorAll('[data-stats-close]').forEach((el) => el.addEventListener('click', closeStats));
+  document.querySelectorAll('[data-display-close]').forEach((el) => el.addEventListener('click', closeDisplay));
   $('#history-overlay')?.addEventListener('click', (e) => {
     if (e.target === $('#history-overlay')) closeHistory();
   });
