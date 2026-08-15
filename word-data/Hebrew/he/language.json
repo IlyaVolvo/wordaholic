@@ -68,7 +68,7 @@
       }
     }
   ],
-  "blocked": "yes",
+  "blocked": ["transword"],
   "winMessage": "מזל טוב! ניצחת!",
   "helpTip": "Words are entered right-to-left. Only valid Hebrew words are accepted.",
   "loseMessage": "התשובה הייתה: {word}",

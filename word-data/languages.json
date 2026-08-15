@@ -72,8 +72,7 @@
     "lat": 31.5,
     "lon": 34.8,
     "games": [
-      "polywordlot",
-      "transword"
+      "polywordlot"
     ],
     "polywordlotLengths": [
       4,
@@ -88,8 +87,7 @@
     "lat": 40.2,
     "lon": 44.5,
     "games": [
-      "polywordlot",
-      "transword"
+      "polywordlot"
     ],
     "polywordlotLengths": [
       5,

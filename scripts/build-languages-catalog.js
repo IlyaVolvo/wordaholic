@@ -19,6 +19,18 @@ const MAP_COORDS = {
   hy: { lat: 40.2, lon: 44.5 },
 };
 
+/** @param {unknown} raw */
+function blockedGameIds(raw) {
+  if (raw === true) return ['transword'];
+  if (typeof raw === 'string') {
+    const v = raw.trim().toLowerCase();
+    if (v === 'yes' || v === 'true') return ['transword'];
+    return v ? [v] : [];
+  }
+  if (Array.isArray(raw)) return raw.map((id) => String(id)).filter(Boolean);
+  return [];
+}
+
 function polyLengths(dictRoot, language, locale) {
   const dir = path.join(dictRoot, language, locale);
   if (!fs.existsSync(dir)) return [];
@@ -57,6 +69,7 @@ export function buildLanguagesCatalog() {
       polywordlotLengths: lengths,
       polyDir: `${language}/${locale}`,
       wordDir,
+      blockedIds: blockedGameIds(meta.blocked),
     });
   }
 
@@ -83,11 +96,29 @@ export function buildLanguagesCatalog() {
       existing.wordDir = existing.wordDir || wordDir;
       existing.menu = existing.menu || entry.menu;
       existing.flag = existing.flag || entry.flag || '';
+      if (!existing.blockedIds) {
+        const langJsonPath = path.join(wordData, wordDir, 'language.json');
+        if (fs.existsSync(langJsonPath)) {
+          const meta = JSON.parse(fs.readFileSync(langJsonPath, 'utf8'));
+          existing.blockedIds = blockedGameIds(meta.blocked);
+        } else {
+          existing.blockedIds = [];
+        }
+      }
       byCode.set(code, existing);
     }
   }
 
-  return [...byCode.values()].filter((l) => l.games.length > 0);
+  return [...byCode.values()]
+    .map((l) => {
+      const blocked = l.blockedIds || [];
+      const { blockedIds, ...rest } = l;
+      return {
+        ...rest,
+        games: (l.games || []).filter((g) => !blocked.includes(g)),
+      };
+    })
+    .filter((l) => l.games.length > 0);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

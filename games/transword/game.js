@@ -337,12 +337,20 @@ async function loadLanguageConfig(dir) {
   return res.json();
 }
 
-function isBlockedInGame(cfg) {
+function blockedGameIds(cfg) {
   const raw = cfg?.blocked;
-  if (raw === true) return true;
-  if (raw === false || raw == null) return false;
-  const v = String(raw).trim().toLowerCase();
-  return v === 'yes' || v === 'true';
+  if (raw === true) return ['transword'];
+  if (typeof raw === 'string') {
+    const v = raw.trim().toLowerCase();
+    if (v === 'yes' || v === 'true') return ['transword'];
+    return v ? [v] : [];
+  }
+  if (Array.isArray(raw)) return raw.map((id) => String(id));
+  return [];
+}
+
+function isBlockedInGame(cfg) {
+  return blockedGameIds(cfg).includes(GAME_ID);
 }
 
 async function loadLanguagesCatalog() {

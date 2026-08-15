@@ -31,7 +31,7 @@ registerGame({
   id: 'transword',
   name: 'TransWord',
   storageSchema: 1,
-  languages: ['en', 'es', 'fr', 'ru', 'hy', 'he', 'de'],
+  languages: ['en', 'es', 'fr', 'ru', 'de'],
   async initialize() {},
   start() {},
   saveState() { return null; },
@@ -71,10 +71,9 @@ function favoriteLanguageObjects() {
 }
 
 function gameNamesForLanguage(lang) {
-  const games = listGames();
-  return (lang.games || [])
-    .map((id) => games.find((g) => g.id === id)?.name)
-    .filter(Boolean);
+  return listGames()
+    .filter((g) => (lang.games || []).includes(g.id) && (g.languages || []).includes(lang.code))
+    .map((g) => g.name);
 }
 
 function renderFavoritesChrome() {

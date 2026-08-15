@@ -699,7 +699,9 @@ export function renderGameRail(rail, opts) {
   const { games, favoriteLanguages, onGameSelect } = opts;
   const playable = games
     .map((game) => {
-      const langs = favoriteLanguages.filter((l) => (l.games || []).includes(game.id));
+      const langs = favoriteLanguages.filter(
+        (l) => (l.games || []).includes(game.id) && (game.languages || []).includes(l.code)
+      );
       if (!langs.length) return null;
       return { game, langs };
     })
@@ -714,12 +716,15 @@ export function renderGameRail(rail, opts) {
     .map(({ game, langs }) => {
       const langLabel = langs.map((l) => l.menu).join(', ');
       const icon = GAME_ICONS[game.id] || GAME_ICONS.polywordlot;
+      const tipLangs = langs
+        .map((l) => `<span class="rail-game-tip-lang">${l.menu}</span>`)
+        .join('');
       return `
         <button type="button" class="rail-game" data-game="${game.id}"
-          aria-label="${game.name}. Languages: ${langLabel}"
-          title="${game.name} — ${langLabel}">
+          aria-label="${game.name}. Languages: ${langLabel}">
           <span class="map-game-icon">${icon}</span>
           <span class="map-game-name">${game.name}</span>
+          <span class="rail-game-tip" role="tooltip">${tipLangs}</span>
         </button>`;
     })
     .join('');

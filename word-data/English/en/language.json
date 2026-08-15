@@ -51,6 +51,7 @@
   "winMessage": "Congratulations! You won!",
   "helpTip": "Frequently used in the language singular nouns, present form verbs, adjectives and adverbs are used for answers - much more could be used to guess a word",
   "loseMessage": "Answer was: {word}",
+  "blocked": [],
   "about": {
     "contributorLabel": "Contributors",
     "contributor": "Ilya Volvovski",

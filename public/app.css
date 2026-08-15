@@ -231,6 +231,7 @@ main {
   min-width: 0;
 }
 .rail-game {
+  position: relative;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
@@ -246,6 +247,31 @@ main {
   width: 5.5rem;
   min-width: 5.5rem;
   box-sizing: border-box;
+}
+.rail-game-tip {
+  display: none;
+  position: absolute;
+  right: calc(100% + 0.4rem);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 6;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  min-width: 7.5rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(20, 35, 43, 0.14);
+  box-shadow: 0 8px 20px rgba(20, 35, 43, 0.16);
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+.rail-game:hover .rail-game-tip,
+.rail-game:focus-visible .rail-game-tip {
+  display: flex;
 }
 .rail-empty {
   margin: 0;
