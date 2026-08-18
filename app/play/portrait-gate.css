@@ -1,0 +1,46 @@
+/* Phone landscape is too short to play. Tablets in landscape are left alone. */
+.portrait-gate {
+  display: none;
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .portrait-gate {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 4000;
+    align-items: center;
+    justify-content: center;
+    padding: max(1.25rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right))
+      max(1.25rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
+    background: var(--water, #6fa8c9);
+    color: var(--text-on-water, #000);
+    text-align: center;
+  }
+}
+
+.portrait-gate-card {
+  max-width: 22rem;
+}
+
+.portrait-gate-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 0.75rem;
+  display: block;
+}
+
+.portrait-gate-title {
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+}
+
+.portrait-gate-body {
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-size: 1rem;
+  font-weight: 500;
+  margin: 0;
+  line-height: 1.4;
+}

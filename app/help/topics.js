@@ -68,9 +68,9 @@ export const HELP_TOPICS = {
         title: 'Invitation to collaborate',
         screenshot: '/help/site/tower-of-babel.jpg',
         body:
-          'The ideas for new games are welcome. I am open to suggestions, just contact me at ilya@volvovski.com' +
+          'The ideas for new games are welcome. I am open to suggestions, just contact me at ilya@volvovski.com\n\n' +
           'The addition of new language is a tedious process now but I am working on improving it.\n\n' +
-          'Supported languages: English, French, Spanish, Russian, Hebrew, Armenian.\n\n',
+          'Supported languages: English, French, Spanish, Russian, Hebrew, Armenian.\n\n' +
           'The langauges I would like to add: German, Italian, Portuguese, Greek and Ukranian.',
       },
       {

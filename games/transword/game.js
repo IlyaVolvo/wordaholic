@@ -18,6 +18,9 @@ import {
 import { languageDirForTranswordDir } from '../../app/shell/locales.js';
 import { normalizeWithMappings } from '../../app/i18n/normalize.js';
 import { openHelp } from '../../app/help/dialog.js';
+import { mountPortraitGate } from '../../app/play/portrait-gate.js';
+
+mountPortraitGate();
 
 const GAME_ID = 'transword';
 const PREFS_KEY = 'wordaholic-transword-prefs';

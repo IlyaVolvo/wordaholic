@@ -474,16 +474,24 @@ h1 .logout-wrapper:hover .logout-tooltip {
   color: #555;
 }
 
-/* Play area wrapper (for Random mode watermark) */
+/* Play area: board keeps its natural size and centers; shrinks only if it cannot fit. */
 .game-play-area {
+  --result-space: 0px;
   position: relative;
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   padding: 1.25rem 1rem 1rem;
+  container-type: size;
+  container-name: play;
+}
+
+.game-play-area--complete {
+  --result-space: 5.5rem;
 }
 
 .game-play-area__content {
@@ -523,16 +531,37 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .game-board {
+  --board-cols: 5;
+  --board-rows: 6;
+  --cell-natural: 60px;
+  --gap-natural: 8px;
+  --board-natural-w: calc(
+    var(--board-cols) * var(--cell-natural) + (var(--board-cols) - 1) * var(--gap-natural)
+  );
+  --board-natural-h: calc(
+    var(--board-rows) * var(--cell-natural) + (var(--board-rows) - 1) * var(--gap-natural)
+  );
+  --board-scale: 1;
+  --cell-size: calc(var(--cell-natural) * var(--board-scale));
+  --cell-gap: calc(var(--gap-natural) * var(--board-scale));
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: var(--cell-gap);
+  margin-bottom: 0;
   align-items: center;
+}
+
+.game-play-area .game-board {
+  --board-scale: min(
+    1,
+    calc(100cqw / var(--board-natural-w)),
+    calc((100cqh - var(--result-space, 0px)) / var(--board-natural-h))
+  );
 }
 
 .row {
   display: flex;
-  gap: 8px;
+  gap: var(--cell-gap);
 }
 
 .row.shake {
@@ -552,19 +581,21 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .cell {
-  width: 60px;
-  height: 60px;
+  width: var(--cell-size, 60px);
+  height: var(--cell-size, 60px);
   border: 2px solid #c4c7ca;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--board-scale, 1));
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: calc(var(--cell-size, 60px) * 0.4);
   font-weight: 700;
   text-transform: uppercase;
-  transition: all 0.2s;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
   background: white;
   color: #333;
+  flex-shrink: 0;
+  position: relative;
 }
 
 .cell.empty {
@@ -600,10 +631,6 @@ h1 .logout-wrapper:hover .logout-tooltip {
   background: #787c7e;
   border-color: #787c7e;
   color: white;
-}
-
-.cell {
-  position: relative;
 }
 
 .cell-cursor {
@@ -1005,15 +1032,6 @@ h1 .logout-wrapper:hover .logout-tooltip {
     overflow: hidden;
   }
 
-  .game-board {
-    gap: 6px;
-    margin-bottom: 12px;
-  }
-
-  .row {
-    gap: 6px;
-  }
-
   .keyboard {
     gap: 6px;
   }
@@ -1056,21 +1074,6 @@ h1 .logout-wrapper:hover .logout-tooltip {
   .game-controls {
     gap: 6px;
     margin-bottom: 10px;
-  }
-
-  .cell {
-    width: 50px;
-    height: 50px;
-    font-size: 1.2rem;
-  }
-
-  .row {
-    gap: 5px;
-  }
-
-  .game-board {
-    gap: 5px;
-    margin-bottom: 8px;
   }
 
   .key {
@@ -1169,21 +1172,6 @@ h1 .logout-wrapper:hover .logout-tooltip {
   .settings {
     gap: 0.35rem;
     padding: 0.45rem 0.7rem;
-  }
-
-  .cell {
-    width: 42px;
-    height: 42px;
-    font-size: 1.05rem;
-  }
-
-  .row {
-    gap: 4px;
-  }
-
-  .game-board {
-    gap: 4px;
-    margin-bottom: 8px;
   }
 
   .key {

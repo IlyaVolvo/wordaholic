@@ -57,6 +57,8 @@ export async function prepareOffline(onProgress) {
     '/app/help/help.css',
     '/app/help/dialog.js',
     '/app/help/topics.js',
+    '/app/play/portrait-gate.css',
+    '/app/play/portrait-gate.js',
     ...helpScreenshotUrls(),
     '/deployment-manifest.json',
     '/data/languages.json',

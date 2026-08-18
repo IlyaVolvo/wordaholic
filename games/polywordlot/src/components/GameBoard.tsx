@@ -93,6 +93,18 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     );
   }
 
-  return <div className="game-board">{rows}</div>;
+  return (
+    <div
+      className="game-board"
+      style={
+        {
+          '--board-cols': wordLength,
+          '--board-rows': maxGuesses,
+        } as React.CSSProperties
+      }
+    >
+      {rows}
+    </div>
+  );
 };
 

@@ -1248,7 +1248,9 @@ export const Game: React.FC<GameProps> = ({
           </div>
         </div>
       </div>
-      <div className={`game-play-area ${randomMode ? 'game-play-area--random' : ''}`}>
+      <div
+        className={`game-play-area${randomMode ? ' game-play-area--random' : ''}${gameState?.isComplete ? ' game-play-area--complete' : ''}`}
+      >
         {randomMode && (
           <div className="random-watermark" aria-hidden="true">
             {Array.from({ length: 30 }).map((_, i) => (
