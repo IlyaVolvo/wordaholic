@@ -14,10 +14,13 @@ function write(rel, svg) {
   fs.writeFileSync(dest, svg.trim() + '\n');
 }
 
+const CORRECT = '#2d7a36';
+const PRESENT = '#f0c400';
+
 const CELL = {
   empty: { fill: '#fff', stroke: '#c4c7ca', text: '#333' },
-  correct: { fill: '#6aaa64', stroke: '#6aaa64', text: '#fff' },
-  present: { fill: '#c9b458', stroke: '#c9b458', text: '#fff' },
+  correct: { fill: CORRECT, stroke: CORRECT, text: '#fff' },
+  present: { fill: PRESENT, stroke: PRESENT, text: '#000' },
   absent: { fill: '#787c7e', stroke: '#787c7e', text: '#fff' },
 };
 
@@ -111,8 +114,8 @@ write(
     let fill = '#f4f6f8';
     let stroke = '#e2e6ea';
     let color = '#1a2330';
-    if (n === 12) { fill = '#6aaa64'; color = '#fff'; stroke = '#6aaa64'; }
-    if (n === 15) { fill = '#c9b458'; color = '#fff'; stroke = '#c9b458'; }
+    if (n === 12) { fill = CORRECT; color = '#fff'; stroke = CORRECT; }
+    if (n === 15) { fill = PRESENT; color = '#000'; stroke = PRESENT; }
     if (n === 18) { fill = '#fff'; stroke = '#6c8cff'; }
     return `<rect x="${x}" y="${y}" width="20" height="18" rx="4" fill="${fill}" stroke="${stroke}"/><text x="${x+10}" y="${y+13}" text-anchor="middle" font-size="9" font-family="DM Sans, system-ui, sans-serif" fill="${color}">${n}</text>`;
   }).join('')}
@@ -125,11 +128,11 @@ write(
   <rect width="220" height="90" rx="12" fill="#fff"/>
   <rect x="14" y="18" width="28" height="28" rx="8" fill="none" stroke="#6c8cff" stroke-width="2"/>
   <path d="M21 40v-8M28 40v-14M35 40v-5" fill="none" stroke="#6c8cff" stroke-width="2" stroke-linecap="round"/>
-  <rect x="56" y="58" width="18" height="18" rx="3" fill="#6aaa64"/>
-  <rect x="80" y="46" width="18" height="30" rx="3" fill="#6aaa64"/>
-  <rect x="104" y="28" width="18" height="48" rx="3" fill="#6aaa64"/>
-  <rect x="128" y="40" width="18" height="36" rx="3" fill="#6aaa64"/>
-  <rect x="152" y="52" width="18" height="24" rx="3" fill="#6aaa64"/>
+  <rect x="56" y="58" width="18" height="18" rx="3" fill="${CORRECT}"/>
+  <rect x="80" y="46" width="18" height="30" rx="3" fill="${CORRECT}"/>
+  <rect x="104" y="28" width="18" height="48" rx="3" fill="${CORRECT}"/>
+  <rect x="128" y="40" width="18" height="36" rx="3" fill="${CORRECT}"/>
+  <rect x="152" y="52" width="18" height="24" rx="3" fill="${CORRECT}"/>
   <rect x="176" y="64" width="18" height="12" rx="3" fill="#787c7e"/>
 </svg>`
 );

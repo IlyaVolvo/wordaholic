@@ -15,6 +15,8 @@
   --text-on-water: #000;
   --accent: #6c8cff;
   --accent-glow: rgba(108, 140, 255, 0.25);
+  --correct: #2d7a36;
+  --present: #f0c400;
   --radius: 8px;
   --font-body: 'DM Sans', system-ui, sans-serif;
 }
@@ -583,15 +585,15 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .cell.correct {
-  background: #6aaa64;
-  border-color: #6aaa64;
+  background: var(--correct);
+  border-color: var(--correct);
   color: white;
 }
 
 .cell.present {
-  background: #c9b458;
-  border-color: #c9b458;
-  color: white;
+  background: var(--present);
+  border-color: var(--present);
+  color: #000;
 }
 
 .cell.absent {
@@ -748,15 +750,15 @@ h1 .logout-wrapper:hover .logout-tooltip {
 .key.correct,
 .key.correct:hover,
 .key.correct.long-press-active {
-  background: #6aaa64;
+  background: var(--correct);
   color: white;
 }
 
 .key.present,
 .key.present:hover,
 .key.present.long-press-active {
-  background: #c9b458;
-  color: white;
+  background: var(--present);
+  color: #000;
 }
 
 .key.absent,
@@ -2363,7 +2365,7 @@ a.header-brand-home:focus-visible {
 }
 
 .calendar-day-won {
-  background: #6aaa64;
+  background: var(--correct);
   color: white;
 }
 
@@ -2575,7 +2577,7 @@ a.header-brand-home:focus-visible {
 }
 
 .legend-won {
-  background: #6aaa64;
+  background: var(--correct);
 }
 
 .legend-lost {
@@ -2999,7 +3001,7 @@ a.header-brand-home:focus-visible {
 }
 
 .feedback-message.success {
-  color: #6aaa64;
+  color: var(--correct);
 }
 
 .feedback-message.error {
@@ -3054,7 +3056,7 @@ a.header-brand-home:focus-visible {
 }
 
 .tutorial-progress-dot.completed {
-  background: #6aaa64;
+  background: var(--correct);
 }
 
 .tutorial-board-area {
