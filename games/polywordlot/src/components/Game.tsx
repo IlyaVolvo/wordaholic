@@ -17,7 +17,28 @@ import { openHelp, isHelpOpen } from '@wordaholic/help';
 
 const MAX_GUESSES = 6;
 
-/** Put the end-of-game message beside the board when it cannot fit below without shrinking it. */
+/** Extra width (in letter tiles) required before the end-of-game message may sit to the right. */
+const RESULT_SIDE_MIN_LETTERS = 10;
+
+function boardNaturalSize(board: HTMLElement) {
+  const cs = getComputedStyle(board);
+  const cols = Number.parseFloat(cs.getPropertyValue('--board-cols')) || 5;
+  const rows = Number.parseFloat(cs.getPropertyValue('--board-rows')) || 6;
+  const cell = Number.parseFloat(cs.getPropertyValue('--cell-natural')) || 60;
+  const gap = Number.parseFloat(cs.getPropertyValue('--gap-natural')) || 8;
+  return {
+    natW: cols * cell + (cols - 1) * gap,
+    natH: rows * cell + (rows - 1) * gap,
+    cell,
+    gap,
+  };
+}
+
+/**
+ * Bottom if the message fits under a full-size board.
+ * Right if leftover width can hold at least 10 letter tiles.
+ * Otherwise shrink the board and keep the message under it.
+ */
 function syncEndgameMessagePlacement(pane: HTMLElement) {
   const board = pane.querySelector<HTMLElement>('.game-board');
   const result = pane.querySelector<HTMLElement>('.game-result');
@@ -27,23 +48,47 @@ function syncEndgameMessagePlacement(pane: HTMLElement) {
     result.style.top = '';
     result.style.removeProperty('--result-side-max');
   }
-  if (!board || !result) return;
+  if (!board || !result) {
+    pane.style.removeProperty('--result-reserve');
+    return;
+  }
 
   const paneCs = getComputedStyle(pane);
+  const innerW =
+    pane.clientWidth - parseFloat(paneCs.paddingLeft) - parseFloat(paneCs.paddingRight);
   const innerH =
     pane.clientHeight - parseFloat(paneCs.paddingTop) - parseFloat(paneCs.paddingBottom);
-  const gap = parseFloat(getComputedStyle(result).marginTop) || 0;
-  if (board.offsetHeight + gap + result.offsetHeight <= innerH + 0.5) return;
+  const { natW, natH, cell, gap } = boardNaturalSize(board);
+  const scale0 = Math.min(1, innerW / natW, innerH / natH);
+  const boardW0 = natW * scale0;
+  const boardH0 = natH * scale0;
+  const cell0 = cell * scale0;
+  const gap0 = gap * scale0;
+  const resultGap = parseFloat(getComputedStyle(result).marginTop) || 0;
+  const resultH = result.offsetHeight;
 
-  pane.classList.add('game-play-area--result-side');
-  const host = (result.offsetParent as HTMLElement) || pane;
-  const hostRect = host.getBoundingClientRect();
-  const boardRect = board.getBoundingClientRect();
-  const gapX = 12;
-  const room = pane.getBoundingClientRect().right - parseFloat(paneCs.paddingRight) - boardRect.right - gapX;
-  result.style.left = `${boardRect.right - hostRect.left + gapX}px`;
-  result.style.top = `${(boardRect.top + boardRect.bottom) / 2 - hostRect.top}px`;
-  result.style.setProperty('--result-side-max', `${Math.max(room, 176)}px`);
+  if (boardH0 + resultGap + resultH <= innerH + 0.5) {
+    pane.style.removeProperty('--result-reserve');
+    return;
+  }
+
+  const tenLetterRow = RESULT_SIDE_MIN_LETTERS * cell0 + (RESULT_SIDE_MIN_LETTERS - 1) * gap0;
+  if (innerW - boardW0 >= tenLetterRow) {
+    pane.style.removeProperty('--result-reserve');
+    pane.classList.add('game-play-area--result-side');
+    const host = (result.offsetParent as HTMLElement) || pane;
+    const hostRect = host.getBoundingClientRect();
+    const boardRect = board.getBoundingClientRect();
+    const gapX = 12;
+    const room =
+      pane.getBoundingClientRect().right - parseFloat(paneCs.paddingRight) - boardRect.right - gapX;
+    result.style.left = `${boardRect.right - hostRect.left + gapX}px`;
+    result.style.top = `${(boardRect.top + boardRect.bottom) / 2 - hostRect.top}px`;
+    result.style.setProperty('--result-side-max', `${Math.max(room, 0)}px`);
+    return;
+  }
+
+  pane.style.setProperty('--result-reserve', `${resultGap + resultH}px`);
 }
 
 function guessWord(g: { word?: string } | string | null | undefined): string {

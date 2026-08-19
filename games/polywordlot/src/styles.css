@@ -493,6 +493,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
 
 /* Play area: board keeps its natural size and centers; shrinks only if it cannot fit. */
 .game-play-area {
+  --result-reserve: 0px;
   position: relative;
   flex: 1;
   min-height: 0;
@@ -574,7 +575,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
   --board-scale: min(
     1,
     calc(100cqw / var(--board-natural-w)),
-    calc(100cqh / var(--board-natural-h))
+    calc(max(0px, 100cqh - var(--result-reserve)) / var(--board-natural-h))
   );
 }
 
