@@ -3,6 +3,7 @@ import type { LanguageConfig } from '../types';
 import { formatDate } from '../utils/dailyWord';
 import { apiClient } from '../api/client';
 import { LanguageDropdown } from './LanguageDropdown';
+import { ModeDropdown } from './ModeDropdown';
 
 interface SettingsProps {
   userId: number;
@@ -188,16 +189,11 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
       </div>
       <div className="toolbar-mode">
-        <select
-          className="mode-select"
-          value={randomMode ? 'practice' : 'daily'}
-          onChange={(e) => onRandomModeChange(e.target.value === 'practice')}
+        <ModeDropdown
+          randomMode={randomMode}
+          onChange={onRandomModeChange}
           disabled={disabled}
-          aria-label="Game mode: Daily or Practice"
-        >
-          <option value="daily">Daily</option>
-          <option value="practice">Practice</option>
-        </select>
+        />
         {randomMode && onRestartPractice && (
           <button
             type="button"

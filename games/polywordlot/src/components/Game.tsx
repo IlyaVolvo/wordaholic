@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import type { GameState, DictionaryEntry, LetterState, LanguageConfig } from '../types';
 import { GameBoard } from './GameBoard';
 import { Keyboard } from './Keyboard';
@@ -16,6 +16,35 @@ import { refreshGamesFromIndexedDb, STORAGE_IMPORTED_EVENT } from '../storage/pl
 import { openHelp, isHelpOpen } from '@wordaholic/help';
 
 const MAX_GUESSES = 6;
+
+/** Put the end-of-game message beside the board when it cannot fit below without shrinking it. */
+function syncEndgameMessagePlacement(pane: HTMLElement) {
+  const board = pane.querySelector<HTMLElement>('.game-board');
+  const result = pane.querySelector<HTMLElement>('.game-result');
+  pane.classList.remove('game-play-area--result-side');
+  if (result) {
+    result.style.left = '';
+    result.style.top = '';
+    result.style.removeProperty('--result-side-max');
+  }
+  if (!board || !result) return;
+
+  const paneCs = getComputedStyle(pane);
+  const innerH =
+    pane.clientHeight - parseFloat(paneCs.paddingTop) - parseFloat(paneCs.paddingBottom);
+  const gap = parseFloat(getComputedStyle(result).marginTop) || 0;
+  if (board.offsetHeight + gap + result.offsetHeight <= innerH + 0.5) return;
+
+  pane.classList.add('game-play-area--result-side');
+  const host = (result.offsetParent as HTMLElement) || pane;
+  const hostRect = host.getBoundingClientRect();
+  const boardRect = board.getBoundingClientRect();
+  const gapX = 12;
+  const room = pane.getBoundingClientRect().right - parseFloat(paneCs.paddingRight) - boardRect.right - gapX;
+  result.style.left = `${boardRect.right - hostRect.left + gapX}px`;
+  result.style.top = `${(boardRect.top + boardRect.bottom) / 2 - hostRect.top}px`;
+  result.style.setProperty('--result-side-max', `${Math.max(room, 176)}px`);
+}
 
 function guessWord(g: { word?: string } | string | null | undefined): string {
   return typeof g === 'string' ? g : g?.word || '';
@@ -76,6 +105,7 @@ export const Game: React.FC<GameProps> = ({
   const initializedRef = useRef<boolean>(false);
   /** Ref set when dictionary is loaded so load effect only runs for current language/wordLength */
   const dictionaryForRef = useRef<{ language: string; wordLength: number } | null>(null);
+  const playAreaRef = useRef<HTMLDivElement>(null);
   const [selectedPlayDate, setSelectedPlayDate] = useState<string>('');
   const [keyboardRtl, setKeyboardRtl] = useState<boolean>(false);
   const [shakeRowIndex, setShakeRowIndex] = useState<number | null>(null);
@@ -203,6 +233,18 @@ export const Game: React.FC<GameProps> = ({
     });
     return () => { cancelled = true; };
   }, [language]);
+
+  useLayoutEffect(() => {
+    const pane = playAreaRef.current;
+    if (!pane) return;
+    const sync = () => syncEndgameMessagePlacement(pane);
+    sync();
+    const ro = new ResizeObserver(sync);
+    ro.observe(pane);
+    const board = pane.querySelector('.game-board');
+    if (board) ro.observe(board);
+    return () => ro.disconnect();
+  }, [gameState?.isComplete, gameState?.isWon, winMessage, loseMessage, targetWord, wordLength]);
 
   // Initialize component - just load dictionary and normalization, don't create game
   useEffect(() => {
@@ -1249,6 +1291,7 @@ export const Game: React.FC<GameProps> = ({
         </div>
       </div>
       <div
+        ref={playAreaRef}
         className={`game-play-area${randomMode ? ' game-play-area--random' : ''}${gameState?.isComplete ? ' game-play-area--complete' : ''}`}
       >
         {randomMode && (

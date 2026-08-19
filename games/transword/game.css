@@ -728,16 +728,53 @@ h1 {
   margin-left: auto;
 }
 
-.mode-select {
+.mode-dropdown {
+  position: relative;
+  z-index: 50;
+}
+
+.mode-select,
+.mode-dropdown-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
   width: auto;
   min-width: 5.5rem;
-  padding: 0.35rem 1.6rem 0.35rem 0.55rem;
-  -webkit-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237a7e94' d='M6 8 L2 4 L10 4 Z'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 0.4rem center;
-  background-size: 10px 10px;
+  height: 32px;
+  padding: 0.35rem 0.55rem;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.mode-dropdown-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 100%;
+  width: max-content;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  z-index: 40;
+  color: var(--text);
+}
+
+.mode-select:hover:not(:disabled),
+.mode-dropdown-trigger:hover:not(:disabled) {
+  background: var(--surface2);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.mode-select:focus,
+.mode-dropdown-trigger:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .restart-practice-button {

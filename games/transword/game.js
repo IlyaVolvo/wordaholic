@@ -398,11 +398,25 @@ function setHeaderMoreOpen(open) {
 
 function applyModeChrome() {
   const daily = playMode === 'daily';
-  const modeSel = /** @type {HTMLSelectElement | null} */ ($('#mode-select'));
-  if (modeSel) modeSel.value = playMode;
+  const label = $('#mode-trigger-label');
+  if (label) label.textContent = daily ? 'Daily' : 'Practice';
+  document.querySelectorAll('#mode-list [data-mode]').forEach((el) => {
+    const selected = el.getAttribute('data-mode') === playMode;
+    el.classList.toggle('selected', selected);
+    el.setAttribute('aria-selected', selected ? 'true' : 'false');
+  });
   $('#btn-calendar')?.classList.toggle('hidden', !daily);
   $('#btn-new-practice')?.classList.toggle('hidden', daily);
   updateDateDisplay();
+}
+
+function setModeMenuOpen(open) {
+  const list = $('#mode-list');
+  const trigger = $('#mode-trigger');
+  const chev = trigger?.querySelector('.language-dropdown-chevron');
+  list?.classList.toggle('hidden', !open);
+  trigger?.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (chev) chev.textContent = open ? '▲' : '▼';
 }
 
 function formatDateDisplay(selectedDate, today) {
@@ -1303,8 +1317,17 @@ async function init() {
   wireDisplayPrefs();
   applyModeChrome();
 
-  $('#mode-select')?.addEventListener('change', (e) => {
-    void setPlayMode(/** @type {HTMLSelectElement} */ (e.target).value);
+  $('#mode-trigger')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setLanguageMenuOpen(false);
+    const list = $('#mode-list');
+    setModeMenuOpen(!!list?.classList.contains('hidden'));
+  });
+  $('#mode-list')?.addEventListener('click', (e) => {
+    const item = /** @type {HTMLElement} */ (e.target).closest('[data-mode]');
+    if (!item) return;
+    setModeMenuOpen(false);
+    void setPlayMode(item.getAttribute('data-mode'));
   });
   $('#btn-calendar')?.addEventListener('click', () => openHistory());
   $('#btn-new-practice')?.addEventListener('click', () => startPracticePuzzle());
@@ -1332,6 +1355,7 @@ async function init() {
   });
   $('#language-trigger')?.addEventListener('click', (e) => {
     e.stopPropagation();
+    setModeMenuOpen(false);
     const list = $('#language-list');
     setLanguageMenuOpen(!!list?.classList.contains('hidden'));
   });
@@ -1345,6 +1369,8 @@ async function init() {
     const target = /** @type {Node} */ (e.target);
     const dd = $('#language-dropdown');
     if (dd && !dd.contains(target)) setLanguageMenuOpen(false);
+    const modeDd = $('#mode-dropdown');
+    if (modeDd && !modeDd.contains(target)) setModeMenuOpen(false);
     const more = $('#header-more');
     if (more && !more.contains(target)) setHeaderMoreOpen(false);
     const pop = $('#display-popover');

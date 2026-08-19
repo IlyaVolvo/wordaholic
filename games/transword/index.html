@@ -143,10 +143,16 @@
         </div>
       </div>
       <div class="toolbar-mode">
-        <select id="mode-select" class="mode-select" aria-label="Game mode: Daily or Practice">
-          <option value="daily">Daily</option>
-          <option value="practice">Practice</option>
-        </select>
+        <div class="mode-dropdown" id="mode-dropdown">
+          <button type="button" class="mode-select mode-dropdown-trigger" id="mode-trigger" aria-label="Game mode: Daily or Practice" aria-haspopup="listbox" aria-expanded="false">
+            <span id="mode-trigger-label">Daily</span>
+            <span class="language-dropdown-chevron" aria-hidden="true">▼</span>
+          </button>
+          <ul class="mode-dropdown-list hidden" id="mode-list" role="listbox" aria-label="Game mode: Daily or Practice">
+            <li role="option" class="language-dropdown-option selected" data-mode="daily" aria-selected="true">Daily</li>
+            <li role="option" class="language-dropdown-option" data-mode="practice" aria-selected="false">Practice</li>
+          </ul>
+        </div>
         <button type="button" id="btn-new-practice" class="restart-practice-button hidden" title="New practice game" aria-label="New practice game">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="23 4 23 10 17 10"></polyline>
