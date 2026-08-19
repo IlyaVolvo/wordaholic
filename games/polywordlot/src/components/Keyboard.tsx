@@ -152,6 +152,14 @@ export const Keyboard: React.FC<KeyboardProps> = ({
     return position !== 'none';
   };
 
+  let maxRowKeys = 1;
+  layout.forEach((row, rowIndex) => {
+    let count = row.length;
+    if (shouldShowEnter(rowIndex)) count += 1;
+    if (shouldShowBackspace(rowIndex)) count += 1;
+    if (count > maxRowKeys) maxRowKeys = count;
+  });
+
   const getEnterPosition = (): 'start' | 'end' => {
     const pos = actions.enter.position;
     return pos === 'none' ? 'start' : (pos as 'start' | 'end');
@@ -259,7 +267,10 @@ export const Keyboard: React.FC<KeyboardProps> = ({
   };
 
   return (
-    <div className="keyboard">
+    <div
+      className="keyboard"
+      style={{ '--kb-max-keys': maxRowKeys } as React.CSSProperties}
+    >
       {layout.map((row, rowIndex) => (
         <div key={rowIndex} className="keyboard-row">
           {shouldShowEnter(rowIndex) && getEnterPosition() === 'start' && (
