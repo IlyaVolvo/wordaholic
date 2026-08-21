@@ -54,15 +54,21 @@ export const HELP_TOPICS = {
         title: 'Export and import',
         screenshot: '/help/site/export-import.svg',
         body:
-          'Wordaholic keeps completed games on this device — there is no account. The two ' +
-          'tray icons at the bottom left move that history.\n\n' +
+          'Wordaholic keeps completed games on this device — there is no account. The tray ' +
+          'icons at the bottom are used to export/import the historyy.\n\n' +
           'Export (arrow into the tray) saves a JSON file: finished PolyWordlot and ' +
           'TransWord games, plus the languages you selected. Use it as a backup, or to copy ' +
           'progress to another browser or phone.\n\n' +
           'Import (arrow out of the tray) reads that file. Puzzles merge with what is ' +
           'already here. If the same daily exists on both, the worse result is kept. ' +
           'Selected languages from the file are restored too.\n\n' +
-          'On a phone, export may ask you to save the file instead of downloading it.',
+          'On a phone, export may ask you to save the file instead of downloading it.\n\n' +
+          'Auto export (the A nleft from export) keeps the master file of completed ' +
+          'games. Turn it on there. On Chrome or Edge you pick a folder once and the file ' +
+          'is overwritten after each Daily. On Safari or a phone, home asks you to save at ' +
+          'most once a day when there is something new. Each browser writes its own filename ' +
+          'so Safari and Chrome do not overwrite each other.\n\n' +
+          'Keep in mind the behavior may differ in browsers and OSes.',
       },
       {
         title: 'Invitation to collaborate',

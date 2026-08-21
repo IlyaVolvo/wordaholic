@@ -310,6 +310,18 @@ export class WordaholicStorage {
     await this._tx('records', 'readwrite', (store) => {
       store.put(record);
     });
+    this._scheduleAutoExport(record);
+  }
+
+  /**
+   * Completed dailies only. Dynamic import avoids a cycle with auto-export → backup → storage.
+   * @param {{ id: string, gameId: string }} record
+   */
+  _scheduleAutoExport(record) {
+    if (!isCompletedRecord(record)) return;
+    void import('../shell/auto-export.js')
+      .then((mod) => mod.scheduleAutoExport())
+      .catch((err) => console.warn('Auto export skipped', err));
   }
 
   async getRecord(id) {

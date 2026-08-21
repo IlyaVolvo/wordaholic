@@ -331,6 +331,16 @@ main {
   transform-origin: 0 0;
   will-change: transform;
 }
+.map-corner-left {
+  position: absolute;
+  left: 0.65rem;
+  bottom: 0.65rem;
+  z-index: 6;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3rem;
+}
 .map-zoom-controls {
   position: absolute;
   right: 0.65rem;
@@ -339,9 +349,15 @@ main {
   display: flex;
   flex-direction: row;
   align-items: flex-end;
-  gap: 0.9rem; /* 3× icon gap within each group */
+  gap: 2rem;
 }
 .map-transfer-controls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.7rem;
+}
+.map-transfer-group {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -367,22 +383,47 @@ main {
   display: grid;
   place-items: center;
   padding: 0;
+  position: relative;
 }
 .map-zoom-btn svg {
   width: 1rem;
   height: 1rem;
   display: block;
 }
-.map-transfer-controls .map-zoom-btn {
+.map-transfer-controls .map-zoom-btn,
+.map-corner-left .map-zoom-btn {
   color: #111;
 }
 .map-transfer-controls .map-zoom-btn svg,
 .map-transfer-controls .map-zoom-btn svg path,
 .map-transfer-controls .map-zoom-btn svg polyline,
-.map-transfer-controls .map-zoom-btn svg line {
+.map-transfer-controls .map-zoom-btn svg line,
+.map-corner-left .map-zoom-btn svg,
+.map-corner-left .map-zoom-btn svg path,
+.map-corner-left .map-zoom-btn svg polyline,
+.map-corner-left .map-zoom-btn svg line {
   fill: none !important;
   stroke: #111 !important;
   stroke-width: 2.2 !important;
+}
+.map-auto-letter {
+  font-family: var(--font-display), sans-serif;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
+.map-transfer-controls .map-zoom-btn--auto-off .map-auto-letter {
+  color: transparent;
+  -webkit-text-stroke: 1.35px #8a9298;
+}
+.map-transfer-controls .map-zoom-btn--auto-idle .map-auto-letter {
+  color: #111;
+  -webkit-text-stroke: 0;
+}
+.map-transfer-controls .map-zoom-btn--auto-stale .map-auto-letter {
+  color: #c62828;
+  -webkit-text-stroke: 0;
 }
 .map-zoom-btn:hover,
 .map-zoom-btn:focus-visible {
@@ -718,6 +759,10 @@ main {
     right: 0.55rem;
     bottom: 0.55rem;
   }
+  .map-corner-left {
+    left: 0.55rem;
+    bottom: 0.55rem;
+  }
   .prep-overlay-corner {
     inset: auto 0.65rem 0.65rem 0.65rem;
   }
@@ -858,6 +903,24 @@ main {
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 1.15rem;
+}
+.auto-export-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.75rem;
+  font-weight: 600;
+}
+.auto-export-meta {
+  margin: 0 0 0.35rem;
+  font-size: 0.88rem;
+  color: var(--muted);
+  word-break: break-all;
+}
+.auto-export-error {
+  margin: 0.5rem 0 0;
+  color: #b42318;
+  font-size: 0.9rem;
 }
 
 .about-dialog {

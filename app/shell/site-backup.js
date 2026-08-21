@@ -1,6 +1,6 @@
 import { storage } from '../storage/idb.js';
 import { getFavoriteLanguages, getLastLanguage, setFavoriteLanguages, setLastLanguage } from '../i18n-prefs/favorites.js';
-import { listGames } from '../games-contract.js';
+import { listGameIds } from '../games-contract.js';
 
 const FORMAT = 'wordaholic-site-backup';
 /** Version this build writes. */
@@ -12,12 +12,15 @@ const READERS = {
   2: importFormatV2,
 };
 
-export async function exportSiteBackup() {
+/**
+ * @param {{ origin?: { browserFamily: string, browserId: string } }} [opts]
+ */
+export async function exportSiteBackup(opts = {}) {
   const games = {};
-  for (const game of listGames()) {
-    games[game.id] = await storage.exportGame(game.id);
+  for (const id of listGameIds()) {
+    games[id] = await storage.exportGame(id);
   }
-  return {
+  const payload = {
     format: FORMAT,
     formatVersion: WRITER_FORMAT_VERSION,
     exportedAt: new Date().toISOString(),
@@ -27,6 +30,13 @@ export async function exportSiteBackup() {
     },
     games,
   };
+  if (opts.origin && opts.origin.browserFamily && opts.origin.browserId) {
+    payload.origin = {
+      browserFamily: opts.origin.browserFamily,
+      browserId: opts.origin.browserId,
+    };
+  }
+  return payload;
 }
 
 function backupFileName() {
@@ -34,7 +44,7 @@ function backupFileName() {
 }
 
 /** iPad/iPhone, including Chrome (desktop UA + touch). WebKit will not honor a hidden download. */
-function needsTapToSave() {
+export function needsTapToSave() {
   const ua = navigator.userAgent || '';
   const touchPoints = navigator.maxTouchPoints || 0;
   const coarse =
@@ -53,16 +63,23 @@ function canShareFile(file) {
   }
 }
 
-function offerBackupSave(file, url, name) {
+/**
+ * @param {File} file
+ * @param {string} url
+ * @param {string} name
+ * @param {{ title?: string, onSaved?: () => void, onDismissed?: () => void }} [opts]
+ */
+function offerBackupSave(file, url, name, opts = {}) {
   document.querySelector('[data-backup-save]')?.remove();
   const host = document.createElement('div');
   host.className = 'update-dialog';
   host.dataset.backupSave = '';
   const shareOk = canShareFile(file);
+  const title = opts.title || 'Save backup';
   host.innerHTML = `
     <div class="update-dialog-backdrop" data-close></div>
     <div class="update-dialog-card" role="dialog" aria-modal="true" aria-labelledby="backup-save-title">
-      <h2 id="backup-save-title">Save backup</h2>
+      <h2 id="backup-save-title">${title}</h2>
       <p class="update-lead">${
         shareOk
           ? 'Tap Save to Files, then choose Downloads or iCloud Drive.'
@@ -75,32 +92,53 @@ function offerBackupSave(file, url, name) {
       </div>
     </div>
   `;
+  let settled = false;
+  const finish = (saved) => {
+    if (settled) return;
+    settled = true;
+    if (saved) opts.onSaved?.();
+    else opts.onDismissed?.();
+  };
   const close = () => {
     host.remove();
     URL.revokeObjectURL(url);
   };
-  host.querySelectorAll('[data-close]').forEach((el) => el.addEventListener('click', close));
+  host.querySelectorAll('[data-close]').forEach((el) =>
+    el.addEventListener('click', () => {
+      finish(false);
+      close();
+    })
+  );
+  host.querySelector('[data-open]')?.addEventListener('click', () => {
+    finish(true);
+  });
   host.querySelector('[data-share]')?.addEventListener('click', async () => {
     try {
       await navigator.share({ files: [file], title: name });
+      finish(true);
       close();
     } catch (err) {
       if (err && err.name === 'AbortError') return;
       window.open(url, '_blank', 'noopener');
+      finish(true);
     }
   });
   document.body.appendChild(host);
 }
 
-export async function downloadSiteBackup(payload) {
-  const name = backupFileName();
+/**
+ * @param {object} payload
+ * @param {{ filename?: string, title?: string, onSaved?: () => void, onDismissed?: () => void }} [opts]
+ */
+export async function downloadSiteBackup(payload, opts = {}) {
+  const name = opts.filename || backupFileName();
   const text = JSON.stringify(payload, null, 2);
   const type = 'application/json';
   const file = new File([text], name, { type });
   const url = URL.createObjectURL(new Blob([text], { type }));
 
   if (needsTapToSave()) {
-    offerBackupSave(file, url, name);
+    offerBackupSave(file, url, name, opts);
     return;
   }
 
@@ -114,6 +152,7 @@ export async function downloadSiteBackup(payload) {
     a.remove();
     URL.revokeObjectURL(url);
   }, 2000);
+  opts.onSaved?.();
 }
 
 /**
@@ -142,7 +181,7 @@ function readFormatVersion(payload) {
 }
 
 function knownGameIds() {
-  return new Set(listGames().map((game) => game.id));
+  return new Set(listGameIds());
 }
 
 function normalizeGameTree(gameId, tree) {

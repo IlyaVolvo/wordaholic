@@ -12,6 +12,14 @@ import {
 } from './i18n-prefs/favorites.js';
 import { AUTHOR_EMAIL } from './shell/author.js';
 import { downloadSiteBackup, exportSiteBackup, importSiteBackup } from './shell/site-backup.js';
+import {
+  AUTO_EXPORT_STATUS_EVENT,
+  applyAutoExportBadge,
+  getAutoExportStatus,
+  getBackupOrigin,
+  openAutoExportPanel,
+  runHomeAutoExport,
+} from './shell/auto-export.js';
 import { reloadLatestFromServer } from './updates/reload-latest.js';
 import { openHelp } from './help/dialog.js';
 
@@ -116,10 +124,22 @@ async function renderGateway() {
   const favorites = favoriteLanguageObjects();
   renderFavoritesChrome();
   const languageMenus = Object.fromEntries(allLanguages.map((l) => [l.code, l.menu]));
+  let autoExportEnabled = false;
+  let autoExportOutOfSync = false;
+  try {
+    const status = await getAutoExportStatus();
+    autoExportEnabled = status.enabled;
+    autoExportOutOfSync = status.outOfSync;
+  } catch {
+    autoExportEnabled = false;
+    autoExportOutOfSync = false;
+  }
   await renderWorldMap($('#map-root'), {
     favoriteLanguages: favorites,
     supportedLanguageCodes: allLanguages.map((l) => l.code),
     languageMenus,
+    autoExportEnabled,
+    autoExportOutOfSync,
     onFavoriteLanguages: async (codes) => {
       const current = getFavoriteLanguages();
       const next = [...current];
@@ -142,12 +162,21 @@ async function renderGateway() {
     },
     onExportData: async () => {
       try {
-        const payload = await exportSiteBackup();
+        let origin;
+        try {
+          origin = await getBackupOrigin();
+        } catch {
+          origin = undefined;
+        }
+        const payload = await exportSiteBackup({ origin });
         await downloadSiteBackup(payload);
       } catch (err) {
         console.error(err);
         alert(err instanceof Error ? err.message : 'Export failed');
       }
+    },
+    onAutoExport: () => {
+      void openAutoExportPanel();
     },
     onImportData: async (file) => {
       try {
@@ -161,6 +190,7 @@ async function renderGateway() {
         await importSiteBackup(payload);
         await renderGateway();
         showPreparing().catch((err) => console.warn('Offline prep failed', err));
+        runHomeAutoExport().catch((err) => console.warn('Auto export failed', err));
         alert('Import complete');
       } catch (err) {
         console.error(err);
@@ -215,6 +245,7 @@ async function paintHome() {
   allLanguages = await loadLanguages();
   await renderGateway();
   showView('map');
+  runHomeAutoExport().catch((err) => console.warn('Auto export failed', err));
 }
 
 let chromeBound = false;
@@ -260,6 +291,7 @@ function bindChrome() {
     if (aboutDialog && !aboutDialog.hidden) closeAbout();
     const feedbackDialog = $('#feedback-dialog');
     if (feedbackDialog && !feedbackDialog.hidden) feedbackDialog.hidden = true;
+    document.querySelector('[data-auto-export-panel]')?.remove();
   });
 
   const feedbackDialog = $('#feedback-dialog');
@@ -296,6 +328,14 @@ function bindChrome() {
   $('#btn-feedback-copy')?.addEventListener('click', () => {
     void copyText(AUTHOR_EMAIL, `Copied ${AUTHOR_EMAIL}`);
   });
+  window.addEventListener(AUTO_EXPORT_STATUS_EVENT, () => {
+    void getAutoExportStatus()
+      .then((status) => {
+        applyAutoExportBadge(document.querySelector('[data-transfer="auto-export"]'), status);
+      })
+      .catch(() => {});
+  });
+
   $('#btn-feedback-copy-note')?.addEventListener('click', () => {
     const note = (feedbackText?.value || '').trim();
     if (!note) {

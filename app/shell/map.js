@@ -49,6 +49,9 @@ async function loadMapSvg() {
  *   onImportData?: (file: File) => void | Promise<void>,
  *   onFeedback?: () => void,
  *   onReloadLatest?: () => void | Promise<void>,
+ *   onAutoExport?: () => void | Promise<void>,
+ *   autoExportEnabled?: boolean,
+ *   autoExportOutOfSync?: boolean,
  * }} [opts]
  */
 export async function renderWorldMap(container, opts = {}) {
@@ -72,33 +75,46 @@ export async function renderWorldMap(container, opts = {}) {
       <div class="world-map-layer" aria-hidden="true">
         <div class="world-map-svg">${mapSvg}</div>
       </div>
-      <div class="map-zoom-controls" role="group" aria-label="Map tools">
+      <div class="map-chrome map-corner-left" role="group" aria-label="Site tools">
+        <button type="button" class="map-zoom-btn" data-transfer="feedback" title="Send feedback" aria-label="Send feedback">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+        </button>
+        <button type="button" class="map-zoom-btn" data-transfer="reload" title="Reload latest version" aria-label="Reload latest version">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="map-chrome map-zoom-controls" role="group" aria-label="Map tools">
         <div class="map-transfer-controls">
-          <button type="button" class="map-zoom-btn" data-transfer="reload" title="Reload latest version" aria-label="Reload latest version">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <polyline points="23 4 23 10 17 10"></polyline>
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-            </svg>
-          </button>
-          <button type="button" class="map-zoom-btn" data-transfer="export" title="Export completed games" aria-label="Export completed games">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-          </button>
-          <button type="button" class="map-zoom-btn" data-transfer="import" title="Import game data" aria-label="Import game data">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="17 8 12 3 7 8"></polyline>
-              <line x1="12" y1="3" x2="12" y2="15"></line>
-            </svg>
-          </button>
-          <button type="button" class="map-zoom-btn" data-transfer="feedback" title="Send feedback" aria-label="Send feedback">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-          </button>
+          <div class="map-transfer-group">
+            <button type="button" class="map-zoom-btn map-zoom-btn--auto${
+              opts.autoExportEnabled
+                ? opts.autoExportOutOfSync
+                  ? ' map-zoom-btn--auto-stale'
+                  : ' map-zoom-btn--auto-idle'
+                : ' map-zoom-btn--auto-off'
+            }" data-transfer="auto-export" title="Auto export" aria-label="Auto export">
+              <span class="map-auto-letter" aria-hidden="true">A</span>
+            </button>
+            <button type="button" class="map-zoom-btn" data-transfer="export" title="Export completed games" aria-label="Export completed games">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+            </button>
+            <button type="button" class="map-zoom-btn" data-transfer="import" title="Import game data" aria-label="Import game data">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </button>
+          </div>
           <input data-transfer-file type="file" accept="application/json,.json" hidden />
         </div>
         <div class="map-zoom-stack" role="group" aria-label="Map zoom">
@@ -195,6 +211,8 @@ export async function renderWorldMap(container, opts = {}) {
         void opts.onExportData();
       } else if (action === 'import') {
         transferFile?.click();
+      } else if (action === 'auto-export' && typeof opts.onAutoExport === 'function') {
+        void opts.onAutoExport();
       } else if (action === 'feedback' && typeof opts.onFeedback === 'function') {
         opts.onFeedback();
       }
@@ -230,7 +248,7 @@ export async function renderWorldMap(container, opts = {}) {
   stage?.addEventListener('pointerdown', (e) => {
     if (!stage) return;
     if (mapView.scale <= MIN_SCALE) return;
-    if (e.target instanceof Element && e.target.closest('.map-zoom-controls, .map-lang-tooltip')) return;
+    if (e.target instanceof Element && e.target.closest('.map-chrome, .map-lang-tooltip')) return;
     if (e.pointerType === 'touch') return; // touch handled via touch events for pinch
     stage.setPointerCapture(e.pointerId);
     pan = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
@@ -264,7 +282,7 @@ export async function renderWorldMap(container, opts = {}) {
   stage?.addEventListener(
     'touchstart',
     (e) => {
-      if (e.target instanceof Element && e.target.closest('.map-zoom-controls, .map-lang-tooltip')) return;
+      if (e.target instanceof Element && e.target.closest('.map-chrome, .map-lang-tooltip')) return;
       if (e.touches.length === 2) {
         const [a, b] = [e.touches[0], e.touches[1]];
         pinch = {
@@ -410,7 +428,7 @@ export async function renderWorldMap(container, opts = {}) {
     for (const el of stack) {
       if (!(el instanceof Element)) continue;
       if (tooltip?.contains(el)) return 'tooltip';
-      if (el.closest?.('.map-zoom-controls')) return null;
+      if (el.closest?.('.map-chrome')) return null;
       const shape = countryShape(/** @type {SVGElement} */ (el));
       if (shape) return shape;
       // Walk up in case the event target is a child / use-element wrapper.
@@ -559,7 +577,7 @@ export async function renderWorldMap(container, opts = {}) {
 
   stage.addEventListener('pointermove', (e) => {
     if (pan?.moved) return;
-    if (e.target instanceof Element && e.target.closest('.map-zoom-controls')) return;
+    if (e.target instanceof Element && e.target.closest('.map-chrome')) return;
 
     const hit = countryAtPoint(e.clientX, e.clientY);
 
@@ -595,7 +613,7 @@ export async function renderWorldMap(container, opts = {}) {
       suppressClickAfterPan = false;
       return;
     }
-    if (e.target instanceof Element && e.target.closest('.map-zoom-controls')) return;
+    if (e.target instanceof Element && e.target.closest('.map-chrome')) return;
     if (tooltip?.contains(/** @type {Node} */ (e.target))) return;
 
     const hit = countryAtPoint(e.clientX, e.clientY);

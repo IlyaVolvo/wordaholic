@@ -28,6 +28,9 @@
  * @property {() => Promise<void>|void} [onUpdateApproved]
  */
 
+/** Stable ids even when the plugin registry has not been populated (game pages). */
+export const KNOWN_GAME_IDS = ['polywordlot', 'transword'];
+
 /** @type {Map<string, GamePlugin>} */
 const registry = new Map();
 
@@ -42,6 +45,13 @@ export function registerGame(plugin) {
 /** @returns {GamePlugin[]} */
 export function listGames() {
   return [...registry.values()];
+}
+
+/** @returns {string[]} */
+export function listGameIds() {
+  const ids = new Set(KNOWN_GAME_IDS);
+  for (const id of registry.keys()) ids.add(id);
+  return [...ids];
 }
 
 /** @param {string} id */
