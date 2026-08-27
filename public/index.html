@@ -85,14 +85,12 @@
     <div class="feedback-dialog-backdrop" data-feedback-close></div>
     <div class="feedback-dialog-card" role="dialog" aria-modal="true" aria-labelledby="feedback-title">
       <h2 id="feedback-title">Send feedback</h2>
-      <p class="feedback-lead">Copy the address and email your note from any mail app.</p>
-      <p class="feedback-email" id="feedback-author-email">ivolvo12@gmail.com</p>
-      <textarea id="feedback-text" class="feedback-textarea" rows="4" placeholder="Optional: draft your note here, then paste it into the email…"></textarea>
+      <p class="feedback-lead">Opens your device’s mail app to email <span class="feedback-email-inline" id="feedback-author-email">ilya@volvovski.com</span>.</p>
+      <textarea id="feedback-text" class="feedback-textarea" rows="4" placeholder="Optional message…"></textarea>
       <p id="feedback-status" class="feedback-status" hidden></p>
       <div class="feedback-actions">
         <button type="button" class="btn ghost" data-feedback-close>Close</button>
-        <button type="button" class="btn ghost" id="btn-feedback-copy-note">Copy note</button>
-        <button type="button" class="btn primary" id="btn-feedback-copy">Copy address</button>
+        <button type="button" class="btn primary" id="btn-feedback-send">Open mail</button>
       </div>
     </div>
   </div>

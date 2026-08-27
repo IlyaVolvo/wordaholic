@@ -301,35 +301,11 @@ function bindChrome() {
   const feedbackText = /** @type {HTMLTextAreaElement | null} */ ($('#feedback-text'));
   const feedbackStatus = $('#feedback-status');
 
-  /**
-   * @param {string} value
-   * @param {string} okMessage
-   */
-  async function copyText(value, okMessage) {
-    try {
-      await navigator.clipboard.writeText(value);
-      if (feedbackStatus) {
-        feedbackStatus.hidden = false;
-        feedbackStatus.textContent = okMessage;
-        feedbackStatus.classList.add('feedback-status--hint');
-      }
-    } catch {
-      if (feedbackStatus) {
-        feedbackStatus.hidden = false;
-        feedbackStatus.textContent = value;
-        feedbackStatus.classList.remove('feedback-status--hint');
-      }
-    }
-  }
-
   const closeFeedback = () => {
     if (feedbackDialog) feedbackDialog.hidden = true;
   };
   feedbackDialog?.querySelectorAll('[data-feedback-close]').forEach((el) => {
     el.addEventListener('click', closeFeedback);
-  });
-  $('#btn-feedback-copy')?.addEventListener('click', () => {
-    void copyText(AUTHOR_EMAIL, `Copied ${AUTHOR_EMAIL}`);
   });
   window.addEventListener(AUTO_EXPORT_STATUS_EVENT, () => {
     void getAutoExportStatus()
@@ -339,17 +315,19 @@ function bindChrome() {
       .catch(() => {});
   });
 
-  $('#btn-feedback-copy-note')?.addEventListener('click', () => {
+  $('#btn-feedback-send')?.addEventListener('click', () => {
     const note = (feedbackText?.value || '').trim();
-    if (!note) {
-      if (feedbackStatus) {
-        feedbackStatus.hidden = false;
-        feedbackStatus.textContent = 'Write a note first, or just copy the address.';
-        feedbackStatus.classList.remove('feedback-status--hint');
-      }
-      return;
+    const params = new URLSearchParams();
+    params.set('subject', 'Wordaholic feedback');
+    if (note) params.set('body', note);
+    // URLSearchParams encodes spaces as '+'; mailto prefers '%20'
+    const qs = params.toString().replace(/\+/g, '%20');
+    location.href = `mailto:${AUTHOR_EMAIL}?${qs}`;
+    if (feedbackStatus) {
+      feedbackStatus.hidden = false;
+      feedbackStatus.textContent = 'If nothing opened, set a default mail app on this device.';
+      feedbackStatus.classList.add('feedback-status--hint');
     }
-    void copyText(note, 'Note copied — paste it into your email.');
   });
 }
 

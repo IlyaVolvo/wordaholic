@@ -1067,10 +1067,8 @@ main {
   font-size: 0.88rem;
   line-height: 1.35;
 }
-.feedback-email {
-  margin: 0 0 0.75rem;
+.feedback-email-inline {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.95rem;
   font-weight: 600;
   color: var(--ink);
   word-break: break-all;
