@@ -1,0 +1,15 @@
+name = "wordaholic-stats"
+main = "src/index.js"
+compatibility_date = "2026-08-27"
+
+[[durable_objects.bindings]]
+name = "STATS"
+class_name = "StatsStore"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["StatsStore"]
+
+[[routes]]
+pattern = "wordaholic.volvovski.com/api/*"
+zone_name = "volvovski.com"

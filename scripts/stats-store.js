@@ -105,5 +105,35 @@ export function createStatsStore(opts = {}) {
     };
   }
 
-  return { merge, dump, prune };
+  /**
+   * Restore from dump() output (Durable Object storage).
+   * @param {{ hours?: { hour?: string, ips?: Record<string, unknown> }[] }|null|undefined} snapshot
+   */
+  function hydrate(snapshot) {
+    hours.clear();
+    const buckets = snapshot && Array.isArray(snapshot.hours) ? snapshot.hours : [];
+    for (const bucket of buckets) {
+      const hour = bucket && typeof bucket.hour === 'string' ? bucket.hour : '';
+      if (!hour) continue;
+      const byIp = new Map();
+      const ips = bucket.ips && typeof bucket.ips === 'object' ? bucket.ips : {};
+      for (const [ip, raw] of Object.entries(ips)) {
+        if (!ip) continue;
+        const rec = raw && typeof raw === 'object' ? raw : {};
+        const games = rec.games && typeof rec.games === 'object' ? rec.games : {};
+        byIp.set(ip, {
+          homeHits: Math.max(0, Number(rec.homeHits) || 0),
+          languages: { ...(rec.languages && typeof rec.languages === 'object' ? rec.languages : {}) },
+          games: {
+            polywordlot: { ...(games.polywordlot && typeof games.polywordlot === 'object' ? games.polywordlot : {}) },
+            transword: { ...(games.transword && typeof games.transword === 'object' ? games.transword : {}) },
+          },
+        });
+      }
+      hours.set(hour, byIp);
+    }
+    prune();
+  }
+
+  return { merge, dump, prune, hydrate };
 }
