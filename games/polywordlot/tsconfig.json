@@ -19,7 +19,8 @@
     "paths": {
       "@wordaholic/locales": ["../../app/shell/locales.js"],
       "@wordaholic/normalize": ["../../app/i18n/normalize.js"],
-      "@wordaholic/storage": ["../../app/storage/idb.js"]
+      "@wordaholic/storage": ["../../app/storage/idb.js"],
+      "@wordaholic/stats": ["../../app/stats/report.js"]
     }
   },
   "include": ["src", "../../app/shell/locales.js", "../../app/i18n/normalize.js", "../../app/storage/idb.js"]

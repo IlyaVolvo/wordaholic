@@ -14,6 +14,7 @@ import { apiClient } from '../api/client';
 import { gameCacheUtils } from '../utils/gameCache';
 import { refreshGamesFromIndexedDb, STORAGE_IMPORTED_EVENT } from '../storage/platform';
 import { openHelp, isHelpOpen } from '@wordaholic/help';
+import { reportStats } from '@wordaholic/stats';
 
 const MAX_GUESSES = 6;
 
@@ -992,6 +993,7 @@ export const Game: React.FC<GameProps> = ({
     // On normalized win, persist/display the canonical target form as the final guess.
     const committedGuess = isWon ? targetWord : guess;
     const evaluations = evaluateGuess(committedGuess, targetWord, language);
+    const isDailyStart = !gameState.isRandomMode && gameState.guesses.length === 0;
     const newGuesses = [...gameState.guesses, { word: committedGuess, evaluations }];
     const isComplete = isWon || newGuesses.length >= MAX_GUESSES;
 
@@ -1007,6 +1009,9 @@ export const Game: React.FC<GameProps> = ({
     saveGameToApi(updatedState);
     updateLetterStates(updatedState);
     onRecordPlayed?.();
+    if (isDailyStart) {
+      reportStats({ games: { polywordlot: { [`${language},${wordLength}`]: 1 } } });
+    }
   }, [gameState, dictionary, wordLength, targetWord, language, keyboardRtl, saveGameToApi, updateLetterStates, onRecordPlayed]);
 
   const handleBackspace = useCallback(() => {

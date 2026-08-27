@@ -19,6 +19,7 @@ import { languageDirForTranswordDir } from '../../app/shell/locales.js';
 import { normalizeWithMappings } from '../../app/i18n/normalize.js';
 import { openHelp } from '../../app/help/dialog.js';
 import { mountPortraitGate } from '../../app/play/portrait-gate.js';
+import { reportStats } from '../../app/stats/report.js';
 
 mountPortraitGate();
 
@@ -969,7 +970,14 @@ async function submitWord(word, opts = {}) {
   if (!fullGraph.has(normalizedWord)) return flashError(input, hint, 'Not in dictionary');
   const op = fullGraph.classifyOp(prev, normalizedWord);
   if (!op) return flashError(input, hint, 'Not a valid single-step transform');
+  const isDailyStart = playMode === 'daily' && chain.length === 1;
   chain.push(normalizedWord);
+  if (isDailyStart) {
+    const combo = currentCombo();
+    reportStats({
+      games: { transword: { [`${combo.language},${combo.vocabLevel},${combo.difficulty}`]: 1 } },
+    });
+  }
   if (opts.fromHelp) helpCount += 1;
   if (normalizedWord === puzzle.end || isPathSolved(chain, puzzle.start, puzzle.end)) {
     solved = true;

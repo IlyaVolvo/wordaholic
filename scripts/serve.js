@@ -3,11 +3,17 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createStatsStore, PRUNE_INTERVAL_MS } from './stats-store.js';
+import { createStatsHandler } from './stats-http.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../dist');
 const PORT = Number(process.env.PORT) || 4173;
 const HOST = process.env.HOST || '0.0.0.0';
+
+const statsStore = createStatsStore();
+const handleStats = createStatsHandler(statsStore);
+setInterval(() => statsStore.prune(), PRUNE_INTERVAL_MS).unref();
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -79,6 +85,16 @@ function lanAddresses() {
 const server = http.createServer((req, res) => {
   res.on('finish', () => logAccess(req, res));
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  if (urlPath === '/api/stats') {
+    void handleStats(req, res, clientIp(req)).catch((err) => {
+      console.error(err);
+      if (!res.headersSent) {
+        res.writeHead(500);
+        res.end('Internal error');
+      }
+    });
+    return;
+  }
   let filePath = path.join(ROOT, urlPath === '/' ? 'index.html' : urlPath);
   if (!filePath.startsWith(ROOT)) {
     res.writeHead(403);

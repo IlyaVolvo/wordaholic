@@ -1,5 +1,5 @@
 /* Wordaholic service worker — cache shell + requested wordsets */
-const CACHE_SHELL = 'wordaholic-shell-v61';
+const CACHE_SHELL = 'wordaholic-shell-v62';
 const CACHE_DATA = 'wordaholic-data-v4';
 
 const PRECACHE = [
@@ -27,6 +27,7 @@ const PRECACHE = [
   '/app/words/loader.js',
   '/app/updates/manifest.js',
   '/app/updates/reload-latest.js',
+  '/app/stats/report.js',
   '/brand/wordaholic-mark.svg',
   '/site.webmanifest',
   '/deployment-manifest.json',
@@ -133,7 +134,11 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  if (url.pathname === '/deployment-manifest.json' || url.pathname.startsWith('/games/transword/admin')) {
+  if (
+    url.pathname === '/deployment-manifest.json' ||
+    url.pathname.startsWith('/api/') ||
+    url.pathname.startsWith('/games/transword/admin')
+  ) {
     event.respondWith(fetch(req, { cache: 'no-store' }).catch(() => matchFromCache(req)));
     return;
   }

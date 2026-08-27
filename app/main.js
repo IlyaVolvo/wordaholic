@@ -22,6 +22,7 @@ import {
 } from './shell/auto-export.js';
 import { reloadLatestFromServer } from './updates/reload-latest.js';
 import { openHelp } from './help/dialog.js';
+import { reportStats } from './stats/report.js';
 
 registerGame({
   id: 'polywordlot',
@@ -142,21 +143,22 @@ async function renderGateway() {
     autoExportOutOfSync,
     onFavoriteLanguages: async (codes) => {
       const current = getFavoriteLanguages();
-      const next = [...current];
-      for (const code of codes) {
-        if (!next.includes(code)) next.push(code);
-      }
-      if (next.length === current.length) return;
+      const added = codes.filter((code) => !current.includes(code));
+      if (!added.length) return;
+      const next = [...current, ...added];
       await setFavoriteLanguages(next);
+      reportStats({ languages: Object.fromEntries(added.map((code) => [code, 1])) });
       renderFavoritesChrome();
       showPreparing().catch((err) => console.warn('Offline prep failed', err));
     },
     onUnfavoriteLanguages: async (codes) => {
       const remove = new Set(codes);
       const current = getFavoriteLanguages();
+      const removed = current.filter((code) => remove.has(code));
+      if (!removed.length) return;
       const next = current.filter((code) => !remove.has(code));
-      if (next.length === current.length) return;
       await setFavoriteLanguages(next);
+      reportStats({ languages: Object.fromEntries(removed.map((code) => [code, 1])) });
       renderFavoritesChrome();
       showPreparing().catch((err) => console.warn('Offline prep failed', err));
     },
@@ -245,6 +247,7 @@ async function paintHome() {
   allLanguages = await loadLanguages();
   await renderGateway();
   showView('map');
+  reportStats({ homeHits: 1 });
   runHomeAutoExport().catch((err) => console.warn('Auto export failed', err));
 }
 
