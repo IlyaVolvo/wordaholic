@@ -1,4 +1,6 @@
 import { BODY_MAX_BYTES, parseStatsDelta } from '../../../scripts/stats-delta.js';
+import { archiveClosedHours } from '../../../scripts/stats-archive.js';
+import { gcsConfigured } from '../../../scripts/gcs-xml-put.js';
 import { createStatsStore, PRUNE_INTERVAL_MS } from '../../../scripts/stats-store.js';
 
 const JSON_HEADERS = {
@@ -20,10 +22,12 @@ function clientIp(request) {
 export class StatsStore {
   /**
    * @param {DurableObjectState} ctx
+   * @param {{ GCS_BUCKET?: string, GCS_HMAC_ACCESS_KEY?: string, GCS_HMAC_SECRET?: string }} env
    */
-  constructor(ctx) {
+  constructor(ctx, env) {
     this.ctx = ctx;
-    this.store = createStatsStore();
+    this.env = env;
+    this.store = createStatsStore({ requireArchivedForPrune: true });
     this.ready = ctx.blockConcurrencyWhile(async () => {
       const snapshot = await ctx.storage.get('dump');
       if (snapshot) this.store.hydrate(snapshot);
@@ -35,7 +39,7 @@ export class StatsStore {
   }
 
   async persist() {
-    await this.ctx.storage.put('dump', this.store.dump());
+    await this.ctx.storage.put('dump', this.store.snapshot());
   }
 
   /**
@@ -90,7 +94,12 @@ export class StatsStore {
 
   async alarm() {
     await this.ready;
-    this.store.prune();
+    if (gcsConfigured(this.env)) {
+      await archiveClosedHours(this.store, this.env);
+      this.store.prune();
+    } else {
+      this.store.prune(Date.now(), { requireArchived: false });
+    }
     await this.persist();
     await this.ctx.storage.setAlarm(Date.now() + PRUNE_INTERVAL_MS);
   }

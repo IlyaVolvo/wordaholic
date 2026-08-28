@@ -1,6 +1,10 @@
 name = "wordaholic-stats"
 main = "src/index.js"
 compatibility_date = "2026-08-27"
+# Hourly archive (wrangler secret put, do not commit):
+#   GCS_BUCKET
+#   GCS_HMAC_ACCESS_KEY
+#   GCS_HMAC_SECRET
 
 [[durable_objects.bindings]]
 name = "STATS"

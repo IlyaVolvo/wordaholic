@@ -36,18 +36,52 @@ function mergeCounts(target, source) {
 }
 
 /**
+ * @param {Map<string, ReturnType<typeof emptyRecord>>} byIp
+ */
+function serializeIps(byIp) {
+  /** @type {Record<string, {
+   *   homeHits: number,
+   *   languages: Record<string, number>,
+   *   games: { polywordlot: Record<string, number>, transword: Record<string, number> },
+   * }>} */
+  const ips = {};
+  for (const [ip, rec] of byIp) {
+    ips[ip] = {
+      homeHits: rec.homeHits,
+      languages: { ...rec.languages },
+      games: {
+        polywordlot: { ...rec.games.polywordlot },
+        transword: { ...rec.games.transword },
+      },
+    };
+  }
+  return ips;
+}
+
+/**
  * In-memory UTC hourly buckets keyed by IP.
- * @param {{ retainMs?: number }} [opts]
+ * @param {{ retainMs?: number, requireArchivedForPrune?: boolean }} [opts]
  */
 export function createStatsStore(opts = {}) {
   const retainMs = opts.retainMs ?? RETAIN_MS;
+  const requireArchivedForPrune = Boolean(opts.requireArchivedForPrune);
   /** @type {Map<string, Map<string, ReturnType<typeof emptyRecord>>>} */
   const hours = new Map();
+  /** @type {Set<string>} */
+  const archived = new Set();
 
-  function prune(now = Date.now()) {
+  /**
+   * @param {number} [now]
+   * @param {{ requireArchived?: boolean }} [pruneOpts]
+   */
+  function prune(now = Date.now(), pruneOpts = {}) {
+    const requireArchived = pruneOpts.requireArchived ?? requireArchivedForPrune;
     const cutoff = hourIso(now - retainMs);
     for (const key of hours.keys()) {
-      if (key < cutoff) hours.delete(key);
+      if (key >= cutoff) continue;
+      if (requireArchived && !archived.has(key)) continue;
+      hours.delete(key);
+      archived.delete(key);
     }
   }
 
@@ -79,39 +113,68 @@ export function createStatsStore(opts = {}) {
     if (delta.games?.transword) mergeCounts(rec.games.transword, delta.games.transword);
   }
 
+  /**
+   * Last 24h for GET /api/stats. Does not drop unaarchived hours from memory.
+   * @param {number} [now]
+   */
   function dump(now = Date.now()) {
-    prune(now);
-    const keys = [...hours.keys()].sort();
+    const cutoff = hourIso(now - retainMs);
+    const keys = [...hours.keys()].filter((hour) => hour >= cutoff).sort();
     return {
-      hours: keys.map((hour) => {
-        /** @type {Record<string, {
-         *   homeHits: number,
-         *   languages: Record<string, number>,
-         *   games: { polywordlot: Record<string, number>, transword: Record<string, number> },
-         * }>} */
-        const ips = {};
-        for (const [ip, rec] of hours.get(hour) || []) {
-          ips[ip] = {
-            homeHits: rec.homeHits,
-            languages: { ...rec.languages },
-            games: {
-              polywordlot: { ...rec.games.polywordlot },
-              transword: { ...rec.games.transword },
-            },
-          };
-        }
-        return { hour, ips };
-      }),
+      hours: keys.map((hour) => ({
+        hour,
+        ips: serializeIps(hours.get(hour) || new Map()),
+      })),
     };
   }
 
   /**
-   * Restore from dump() output (Durable Object storage).
-   * @param {{ hours?: { hour?: string, ips?: Record<string, unknown> }[] }|null|undefined} snapshot
+   * Full Durable Object snapshot, including hours waiting on GCS.
+   * @param {number} [now]
    */
-  function hydrate(snapshot) {
+  function snapshot(now = Date.now()) {
+    prune(now);
+    const keys = [...hours.keys()].sort();
+    return {
+      hours: keys.map((hour) => ({
+        hour,
+        ips: serializeIps(hours.get(hour) || new Map()),
+      })),
+      archived: [...archived].sort(),
+    };
+  }
+
+  /**
+   * Hours strictly before the current UTC hour that are not archived yet.
+   * @param {number} [now]
+   */
+  function pendingArchive(now = Date.now()) {
+    const current = hourIso(now);
+    /** @type {{ hour: string, ips: ReturnType<typeof serializeIps> }[]} */
+    const out = [];
+    for (const hour of [...hours.keys()].sort()) {
+      if (hour >= current) continue;
+      if (archived.has(hour)) continue;
+      out.push({ hour, ips: serializeIps(hours.get(hour) || new Map()) });
+    }
+    return out;
+  }
+
+  function markArchived(hour) {
+    if (hours.has(hour)) archived.add(hour);
+  }
+
+  /**
+   * Restore from dump() or snapshot() output.
+   * @param {{
+   *   hours?: { hour?: string, ips?: Record<string, unknown> }[],
+   *   archived?: string[],
+   * }|null|undefined} state
+   */
+  function hydrate(state) {
     hours.clear();
-    const buckets = snapshot && Array.isArray(snapshot.hours) ? snapshot.hours : [];
+    archived.clear();
+    const buckets = state && Array.isArray(state.hours) ? state.hours : [];
     for (const bucket of buckets) {
       const hour = bucket && typeof bucket.hour === 'string' ? bucket.hour : '';
       if (!hour) continue;
@@ -132,8 +195,12 @@ export function createStatsStore(opts = {}) {
       }
       hours.set(hour, byIp);
     }
+    const listed = state && Array.isArray(state.archived) ? state.archived : [];
+    for (const hour of listed) {
+      if (typeof hour === 'string' && hours.has(hour)) archived.add(hour);
+    }
     prune();
   }
 
-  return { merge, dump, prune, hydrate };
+  return { merge, dump, snapshot, prune, hydrate, pendingArchive, markArchived };
 }
