@@ -2,7 +2,7 @@ import { registerGame, listGames } from './games-contract.js';
 import { loadLanguages } from './shell/languages.js';
 import { renderWorldMap, renderGameRail } from './shell/map.js';
 import { prepareOffline } from './shell/offline-prep.js';
-import { checkForUpdates } from './shell/update-ui.js';
+import { bindSilentUpdates } from './shell/update-ui.js';
 import {
   initFavorites,
   getFavoriteLanguages,
@@ -346,7 +346,7 @@ async function boot() {
   }
 
   showPreparing().catch((err) => console.warn('Offline prep failed', err));
-  checkForUpdates(document.body).catch(() => {});
+  bindSilentUpdates();
 }
 
 window.addEventListener('pageshow', (event) => {
