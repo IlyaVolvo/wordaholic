@@ -78,35 +78,46 @@ function canonicalUri(bucket, objectKey) {
  * @param {{
  *   accessKey: string,
  *   secret: string,
- *   bucket: string,
- *   objectKey: string,
- *   body: string,
+ *   method: string,
+ *   uri: string,
+ *   query?: string,
+ *   extraHeaders?: Record<string, string>,
+ *   body?: string,
  *   now?: Date,
  *   region?: string,
  *   fetchImpl?: typeof fetch,
  * }} opts
  */
-export async function putGcsObject(opts) {
+async function gcsSignedFetch(opts) {
   const region = opts.region || 'auto';
   const service = 's3';
   const now = opts.now || new Date();
   const amzDate = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const dateStamp = amzDate.slice(0, 8);
-  const uri = canonicalUri(opts.bucket, opts.objectKey);
   const host = 'storage.googleapis.com';
   const payloadHash = 'UNSIGNED-PAYLOAD';
-  const contentType = 'application/json; charset=utf-8';
-
-  const canonicalHeaders =
-    `content-type:${contentType}\n` +
-    `host:${host}\n` +
-    `x-amz-content-sha256:${payloadHash}\n` +
-    `x-amz-date:${amzDate}\n`;
-  const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
+  /** @type {Record<string, string>} */
+  const headerMap = {
+    host,
+    'x-amz-content-sha256': payloadHash,
+    'x-amz-date': amzDate,
+    ...(opts.extraHeaders || {}),
+  };
+  const signedNames = Object.keys(headerMap)
+    .map((name) => name.toLowerCase())
+    .sort();
+  const canonicalHeaders = signedNames
+    .map((name) => {
+      const key = Object.keys(headerMap).find((k) => k.toLowerCase() === name);
+      return `${name}:${headerMap[key]}\n`;
+    })
+    .join('');
+  const signedHeaders = signedNames.join(';');
+  const canonicalQuery = opts.query || '';
   const canonicalRequest = [
-    'PUT',
-    uri,
-    '',
+    opts.method,
+    opts.uri,
+    canonicalQuery,
     canonicalHeaders,
     signedHeaders,
     payloadHash,
@@ -126,22 +137,114 @@ export async function putGcsObject(opts) {
     `AWS4-HMAC-SHA256 Credential=${opts.accessKey}/${credentialScope}, ` +
     `SignedHeaders=${signedHeaders}, Signature=${signature}`;
 
+  const url = canonicalQuery
+    ? `https://${host}${opts.uri}?${canonicalQuery}`
+    : `https://${host}${opts.uri}`;
+  /** @type {Record<string, string>} */
+  const headers = {
+    'x-amz-content-sha256': payloadHash,
+    'x-amz-date': amzDate,
+    Authorization: authorization,
+  };
+  for (const [name, value] of Object.entries(opts.extraHeaders || {})) {
+    headers[name] = value;
+  }
   const fetchImpl = opts.fetchImpl || fetch;
-  const url = `https://${host}${uri}`;
-  const res = await fetchImpl(url, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': contentType,
-      'x-amz-content-sha256': payloadHash,
-      'x-amz-date': amzDate,
-      Authorization: authorization,
-    },
+  return fetchImpl(url, {
+    method: opts.method,
+    headers,
     body: opts.body,
+  });
+}
+
+/**
+ * @param {{
+ *   accessKey: string,
+ *   secret: string,
+ *   bucket: string,
+ *   objectKey: string,
+ *   body: string,
+ *   now?: Date,
+ *   region?: string,
+ *   fetchImpl?: typeof fetch,
+ * }} opts
+ */
+export async function putGcsObject(opts) {
+  const contentType = 'application/json; charset=utf-8';
+  const res = await gcsSignedFetch({
+    accessKey: opts.accessKey,
+    secret: opts.secret,
+    method: 'PUT',
+    uri: canonicalUri(opts.bucket, opts.objectKey),
+    extraHeaders: { 'Content-Type': contentType },
+    body: opts.body,
+    now: opts.now,
+    region: opts.region,
+    fetchImpl: opts.fetchImpl,
   });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`GCS PUT ${res.status} ${opts.objectKey}: ${text.slice(0, 500)}`);
   }
+}
+
+/**
+ * @param {{
+ *   accessKey: string,
+ *   secret: string,
+ *   bucket: string,
+ *   objectKey: string,
+ *   now?: Date,
+ *   region?: string,
+ *   fetchImpl?: typeof fetch,
+ * }} opts
+ */
+export async function getGcsObject(opts) {
+  const res = await gcsSignedFetch({
+    accessKey: opts.accessKey,
+    secret: opts.secret,
+    method: 'GET',
+    uri: canonicalUri(opts.bucket, opts.objectKey),
+    now: opts.now,
+    region: opts.region,
+    fetchImpl: opts.fetchImpl,
+  });
+  const text = await res.text().catch(() => '');
+  if (!res.ok) {
+    throw new Error(`GCS GET ${res.status} ${opts.objectKey}: ${text.slice(0, 500)}`);
+  }
+  return text;
+}
+
+/**
+ * @param {{
+ *   accessKey: string,
+ *   secret: string,
+ *   bucket: string,
+ *   prefix?: string,
+ *   now?: Date,
+ *   region?: string,
+ *   fetchImpl?: typeof fetch,
+ * }} opts
+ */
+export async function listGcsKeys(opts) {
+  const prefix = opts.prefix || '';
+  const query = prefix ? `prefix=${encodeURIComponent(prefix)}` : '';
+  const res = await gcsSignedFetch({
+    accessKey: opts.accessKey,
+    secret: opts.secret,
+    method: 'GET',
+    uri: `/${opts.bucket}`,
+    query,
+    now: opts.now,
+    region: opts.region,
+    fetchImpl: opts.fetchImpl,
+  });
+  const xml = await res.text().catch(() => '');
+  if (!res.ok) {
+    throw new Error(`GCS LIST ${res.status} ${opts.bucket}: ${xml.slice(0, 500)}`);
+  }
+  return [...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map((m) => m[1]);
 }
 
 /**
