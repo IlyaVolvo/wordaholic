@@ -3,8 +3,10 @@
  *
  * The in-memory store is a running snapshot, so the same UTC hour in two files
  * is overlap, not extra traffic. For each hour+IP, keep field-wise max (the
- * more complete snapshot). Different hours are then added. Distinct games are
- * permutation keys as stored (polywordlot en,5 and transword en,2,4 are two).
+ * more complete snapshot). IPv6 addresses then collapse to the first 8 bytes
+ * (/64 prefix); different IIDs in the same hour are summed. Different hours
+ * are added. Distinct games are permutation keys as stored (polywordlot en,5
+ * and transword en,2,4 are two).
  *
  *   node scripts/combine-stats.js dump1.json dump2.json
  *   curl -sS http://127.0.0.1:4173/api/stats | node scripts/combine-stats.js
@@ -113,6 +115,95 @@ function emptyRecord() {
 }
 
 /**
+ * Expand IPv6 to eight 16-bit hex groups (lowercase, zero-padded).
+ * @param {string} ip
+ * @returns {string[] | null}
+ */
+function expandIPv6(ip) {
+  const bare = ip.split('%')[0].trim().toLowerCase();
+  if (!bare.includes(':')) return null;
+  const v4tail = bare.match(/:(\d{1,3}(?:\.\d{1,3}){3})$/);
+  let core = v4tail ? bare.slice(0, -v4tail[1].length) : bare;
+  if (v4tail) {
+    const oct = v4tail[1].split('.').map(Number);
+    if (oct.length !== 4 || oct.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) {
+      return null;
+    }
+    const hi = ((oct[0] << 8) | oct[1]).toString(16).padStart(4, '0');
+    const lo = ((oct[2] << 8) | oct[3]).toString(16).padStart(4, '0');
+    core = `${core}${hi}:${lo}`;
+  }
+  let head;
+  let tail;
+  if (core.includes('::')) {
+    const parts = core.split('::');
+    if (parts.length !== 2) return null;
+    head = parts[0] ? parts[0].split(':') : [];
+    tail = parts[1] ? parts[1].split(':') : [];
+  } else {
+    head = core.split(':');
+    tail = [];
+  }
+  const norm = (groups) =>
+    groups
+      .filter((g) => g.length > 0)
+      .map((g) => {
+        if (!/^[0-9a-f]{1,4}$/.test(g)) return null;
+        return g.padStart(4, '0');
+      });
+  const left = norm(head);
+  const right = norm(tail);
+  if (left.includes(null) || right.includes(null)) return null;
+  const missing = 8 - left.length - right.length;
+  if (core.includes('::')) {
+    if (missing < 1) return null;
+  } else if (missing !== 0) {
+    return null;
+  }
+  const groups = [...left, ...Array(missing).fill('0000'), ...right];
+  return groups.length === 8 ? groups : null;
+}
+
+/**
+ * IPv6 identity is the first 8 bytes (network /64). IPv4-mapped IPv6 counts as
+ * IPv4. IPv4 and unparseable values are unchanged.
+ * @param {string} ip
+ */
+function ipIdentity(ip) {
+  const bare = String(ip).split('%')[0].trim();
+  const v4mapped = bare.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
+  if (v4mapped) return v4mapped[1];
+  if (bare.includes('.')) return bare;
+  const groups = expandIPv6(bare);
+  if (!groups) return bare;
+  const prefix = groups
+    .slice(0, 4)
+    .map((g) => g.replace(/^0+/, '') || '0')
+    .join(':');
+  return `${prefix}::/64`;
+}
+
+/**
+ * @param {Map<string, ReturnType<typeof normalizeRecord>>} byIp
+ * @returns {Map<string, { rec: ReturnType<typeof normalizeRecord>, addrs: Set<string> }>}
+ */
+function collapseHour(byIp) {
+  /** @type {Map<string, { rec: ReturnType<typeof normalizeRecord>, addrs: Set<string> }>} */
+  const out = new Map();
+  for (const [ip, rec] of byIp) {
+    const id = ipIdentity(ip);
+    const prev = out.get(id);
+    if (!prev) {
+      out.set(id, { rec, addrs: new Set([ip]) });
+    } else {
+      prev.rec = sumRecord(prev.rec, rec);
+      prev.addrs.add(ip);
+    }
+  }
+  return out;
+}
+
+/**
  * @param {unknown} body
  * @param {string} source
  * @returns {{ hour: string, ip: string, rec: ReturnType<typeof normalizeRecord> }[]}
@@ -197,23 +288,30 @@ async function main() {
     }
   }
 
-  /** @type {Map<string, ReturnType<typeof normalizeRecord>>} */
-  const byIp = new Map();
+  /** @type {Map<string, { rec: ReturnType<typeof normalizeRecord>, addrs: Set<string> }>} */
+  const byId = new Map();
   for (const hour of [...byHour.keys()].sort()) {
-    for (const [ip, rec] of byHour.get(hour) || []) {
-      const prev = byIp.get(ip);
-      byIp.set(ip, prev ? sumRecord(prev, rec) : rec);
+    const collapsed = collapseHour(byHour.get(hour) || new Map());
+    for (const [id, { rec, addrs }] of collapsed) {
+      const prev = byId.get(id);
+      if (!prev) {
+        byId.set(id, { rec, addrs: new Set(addrs) });
+      } else {
+        prev.rec = sumRecord(prev.rec, rec);
+        for (const addr of addrs) prev.addrs.add(addr);
+      }
     }
   }
 
-  const ips = [...byIp.keys()].sort();
-  const rows = ips.map((ip) => {
-    const rec = byIp.get(ip) || emptyRecord();
+  const ids = [...byId.keys()].sort();
+  const rows = ids.map((ip) => {
+    const { rec, addrs } = byId.get(ip) || { rec: emptyRecord(), addrs: new Set() };
     const perms = distinctPerms(rec);
     const poly = Object.keys(rec.games.polywordlot || {}).filter((k) => rec.games.polywordlot[k]);
     const trans = Object.keys(rec.games.transword || {}).filter((k) => rec.games.transword[k]);
     return {
       ip,
+      addrs: addrs.size,
       games: perms.length,
       polywordlot: poly.length,
       transword: trans.length,
@@ -223,19 +321,26 @@ async function main() {
     };
   });
 
-  const headers = ['IP', 'games', 'polywordlot', 'transword', 'homeHits', 'languages', 'perms'];
+  const headers = ['IP', 'addrs', 'games', 'polywordlot', 'transword', 'homeHits', 'languages', 'perms'];
   const widths = {
-    ip: Math.max(2, ...rows.map((r) => r.ip.length), headers[0].length),
+    ip: Math.max(
+      2,
+      ...rows.map((r) => r.ip.length),
+      headers[0].length,
+      `(${rows.length} networks)`.length
+    ),
+    addrs: Math.max(5, ...rows.map((r) => String(r.addrs).length), headers[1].length),
     games: Math.max(5, ...rows.map((r) => String(r.games).length)),
-    polywordlot: headers[2].length,
-    transword: headers[3].length,
-    homeHits: headers[4].length,
-    languages: headers[5].length,
+    polywordlot: headers[3].length,
+    transword: headers[4].length,
+    homeHits: headers[5].length,
+    languages: headers[6].length,
   };
 
   const line = (r) =>
     [
       pad(r.ip, widths.ip),
+      padLeft(r.addrs, widths.addrs),
       padLeft(r.games, widths.games),
       padLeft(r.polywordlot, widths.polywordlot),
       padLeft(r.transword, widths.transword),
@@ -247,30 +352,33 @@ async function main() {
   console.log(
     [
       pad(headers[0], widths.ip),
-      padLeft(headers[1], widths.games),
-      padLeft(headers[2], widths.polywordlot),
-      padLeft(headers[3], widths.transword),
-      padLeft(headers[4], widths.homeHits),
-      padLeft(headers[5], widths.languages),
-      headers[6],
+      padLeft(headers[1], widths.addrs),
+      padLeft(headers[2], widths.games),
+      padLeft(headers[3], widths.polywordlot),
+      padLeft(headers[4], widths.transword),
+      padLeft(headers[5], widths.homeHits),
+      padLeft(headers[6], widths.languages),
+      headers[7],
     ].join('  ')
   );
   for (const r of rows) console.log(line(r));
 
   const totals = rows.reduce(
     (acc, r) => ({
+      addrs: acc.addrs + r.addrs,
       games: acc.games + r.games,
       polywordlot: acc.polywordlot + r.polywordlot,
       transword: acc.transword + r.transword,
       homeHits: acc.homeHits + r.homeHits,
       languages: acc.languages + r.languages,
     }),
-    { games: 0, polywordlot: 0, transword: 0, homeHits: 0, languages: 0 }
+    { addrs: 0, games: 0, polywordlot: 0, transword: 0, homeHits: 0, languages: 0 }
   );
   if (rows.length) {
     console.log(
       line({
-        ip: `(${rows.length} IPs)`,
+        ip: `(${rows.length} networks)`,
+        addrs: totals.addrs,
         games: totals.games,
         polywordlot: totals.polywordlot,
         transword: totals.transword,

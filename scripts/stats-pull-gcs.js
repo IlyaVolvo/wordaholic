@@ -1,5 +1,6 @@
 /**
  * Download hour archives from GCS into a local directory.
+ * Objects whose basename already exists locally are skipped.
  *
  *   GCS_BUCKET=… GCS_HMAC_ACCESS_KEY=… GCS_HMAC_SECRET=… node scripts/stats-pull-gcs.js [dir]
  */
@@ -35,9 +36,17 @@ if (!keys.length) {
 }
 
 fs.mkdirSync(outDir, { recursive: true });
+let skipped = 0;
 for (const key of keys) {
-  const body = await getGcsObject({ ...creds, objectKey: key });
   const dest = path.join(outDir, path.basename(key));
+  if (fs.existsSync(dest)) {
+    skipped += 1;
+    continue;
+  }
+  const body = await getGcsObject({ ...creds, objectKey: key });
   fs.writeFileSync(dest, body);
   console.log(dest);
+}
+if (skipped) {
+  console.log(`skipped ${skipped} existing`);
 }
