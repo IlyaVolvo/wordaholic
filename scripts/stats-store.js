@@ -1,4 +1,4 @@
-import { normalizeGeo, pickRicherGeo } from './stats-combine.js';
+import { ipIdentity, normalizeGeo, pickRicherGeo } from './stats-combine.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 export const RETAIN_MS = 24 * HOUR_MS;
@@ -41,7 +41,11 @@ function mergeCounts(target, source) {
 /**
  * @param {Map<string, ReturnType<typeof emptyRecord>>} byIp
  */
-function serializeIps(byIp) {
+/**
+ * @param {Map<string, ReturnType<typeof emptyRecord>>} byIp
+ * @param {Map<string, import('./stats-combine.js').StatsGeo>} geoByIp
+ */
+function serializeIps(byIp, geoByIp) {
   /** @type {Record<string, {
    *   homeHits: number,
    *   languages: Record<string, number>,
@@ -63,7 +67,8 @@ function serializeIps(byIp) {
         transword: { ...rec.games.transword },
       },
     };
-    if (rec.geo) out.geo = { ...rec.geo };
+    const geo = rec.geo || geoByIp.get(ipIdentity(ip)) || null;
+    if (geo) out.geo = { ...geo };
     ips[ip] = out;
   }
   return ips;
@@ -80,6 +85,8 @@ export function createStatsStore(opts = {}) {
   const hours = new Map();
   /** @type {Set<string>} */
   const archived = new Set();
+  /** @type {Map<string, import('./stats-combine.js').StatsGeo>} */
+  const geoByIp = new Map();
 
   /**
    * @param {number} [now]
@@ -124,6 +131,18 @@ export function createStatsStore(opts = {}) {
     if (delta.games?.polywordlot) mergeCounts(rec.games.polywordlot, delta.games.polywordlot);
     if (delta.games?.transword) mergeCounts(rec.games.transword, delta.games.transword);
     rec.geo = pickRicherGeo(rec.geo, normalizeGeo(geo));
+    rememberGeo(ip, rec.geo);
+  }
+
+  /**
+   * @param {string} ip
+   * @param {import('./stats-combine.js').StatsGeo | null | undefined} geo
+   */
+  function rememberGeo(ip, geo) {
+    const normalized = normalizeGeo(geo);
+    if (!normalized) return;
+    const id = ipIdentity(ip);
+    geoByIp.set(id, pickRicherGeo(geoByIp.get(id), normalized));
   }
 
   /**
@@ -136,7 +155,7 @@ export function createStatsStore(opts = {}) {
     return {
       hours: keys.map((hour) => ({
         hour,
-        ips: serializeIps(hours.get(hour) || new Map()),
+        ips: serializeIps(hours.get(hour) || new Map(), geoByIp),
       })),
     };
   }
@@ -151,9 +170,10 @@ export function createStatsStore(opts = {}) {
     return {
       hours: keys.map((hour) => ({
         hour,
-        ips: serializeIps(hours.get(hour) || new Map()),
+        ips: serializeIps(hours.get(hour) || new Map(), geoByIp),
       })),
       archived: [...archived].sort(),
+      geoByIp: Object.fromEntries(geoByIp),
     };
   }
 
@@ -168,7 +188,7 @@ export function createStatsStore(opts = {}) {
     for (const hour of [...hours.keys()].sort()) {
       if (hour >= current) continue;
       if (archived.has(hour)) continue;
-      out.push({ hour, ips: serializeIps(hours.get(hour) || new Map()) });
+      out.push({ hour, ips: serializeIps(hours.get(hour) || new Map(), geoByIp) });
     }
     return out;
   }
@@ -182,11 +202,13 @@ export function createStatsStore(opts = {}) {
    * @param {{
    *   hours?: { hour?: string, ips?: Record<string, unknown> }[],
    *   archived?: string[],
+   *   geoByIp?: Record<string, unknown>,
    * }|null|undefined} state
    */
   function hydrate(state) {
     hours.clear();
     archived.clear();
+    geoByIp.clear();
     const buckets = state && Array.isArray(state.hours) ? state.hours : [];
     for (const bucket of buckets) {
       const hour = bucket && typeof bucket.hour === 'string' ? bucket.hour : '';
@@ -195,17 +217,19 @@ export function createStatsStore(opts = {}) {
       const ips = bucket.ips && typeof bucket.ips === 'object' ? bucket.ips : {};
       for (const [ip, raw] of Object.entries(ips)) {
         if (!ip) continue;
-        const rec = raw && typeof raw === 'object' ? raw : {};
-        const games = rec.games && typeof rec.games === 'object' ? rec.games : {};
+        const recObj = raw && typeof raw === 'object' ? raw : {};
+        const games = recObj.games && typeof recObj.games === 'object' ? recObj.games : {};
+        const geo = normalizeGeo(/** @type {{ geo?: unknown }} */ (recObj).geo);
         byIp.set(ip, {
-          homeHits: Math.max(0, Number(rec.homeHits) || 0),
-          languages: { ...(rec.languages && typeof rec.languages === 'object' ? rec.languages : {}) },
+          homeHits: Math.max(0, Number(recObj.homeHits) || 0),
+          languages: { ...(recObj.languages && typeof recObj.languages === 'object' ? recObj.languages : {}) },
           games: {
             polywordlot: { ...(games.polywordlot && typeof games.polywordlot === 'object' ? games.polywordlot : {}) },
             transword: { ...(games.transword && typeof games.transword === 'object' ? games.transword : {}) },
           },
-          geo: normalizeGeo(/** @type {{ geo?: unknown }} */ (rec).geo),
+          geo,
         });
+        rememberGeo(ip, geo);
       }
       hours.set(hour, byIp);
     }
@@ -213,8 +237,12 @@ export function createStatsStore(opts = {}) {
     for (const hour of listed) {
       if (typeof hour === 'string' && hours.has(hour)) archived.add(hour);
     }
+    const stored = state && state.geoByIp && typeof state.geoByIp === 'object' ? state.geoByIp : {};
+    for (const [ip, geo] of Object.entries(stored)) {
+      rememberGeo(ip, geo);
+    }
     prune();
   }
 
-  return { merge, dump, snapshot, prune, hydrate, pendingArchive, markArchived };
+  return { merge, dump, snapshot, prune, hydrate, pendingArchive, markArchived, rememberGeo };
 }

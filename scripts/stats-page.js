@@ -58,12 +58,13 @@ export function renderStatsHtml(opts) {
     })
     .join('\n');
 
+  const totalLangTip = (totals.languageCodes || []).map((code) => LANGUAGE_MENU.get(code) || code).join('\n');
   const totalRow = rows.length
     ? `<tr class="total">
   <td>(${rows.length} networks)</td>
   <td></td>
   <td class="n">${esc(totals.addrs)}</td>
-  <td class="n">${esc(totals.languages)}</td>
+  <td class="n">${tipCell(String(totals.languages), totalLangTip, 'lang-total')}</td>
   <td class="n">${esc(totals.games)}</td>
   <td class="n">${esc(totals.polywordlot)}</td>
   <td class="n">${esc(totals.transword)}</td>
@@ -126,7 +127,7 @@ export function renderStatsHtml(opts) {
     <button type="submit">Apply</button>
     <a href="/stats">All time</a>
   </form>
-  <p class="note">Hours are UTC. Location is Cloudflare IP geo (country · city, ISP) recorded on each hit. Languages is how many distinct language codes appear in games from that IP. Hover or tap an IP for permutation keys, or a language count for those codes. GET /api/stats is the raw 24h JSON dump.</p>
+  <p class="note">Hours are UTC. Location is country · city, region (and ISP). Languages is how many distinct language codes appear in games from that IP. Hover or tap an IP for permutation keys, or a language count for those codes. GET /api/stats is the raw 24h JSON dump.</p>
   ${notice}
   <table>
     <thead>

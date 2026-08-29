@@ -8,6 +8,7 @@ import { createStatsHandler } from './stats-http.js';
 import { combineBodies, parseDateRange } from './stats-combine.js';
 import { renderStatsHtml } from './stats-page.js';
 import { isStatsApiPath, isStatsPagePath } from './stats-path.js';
+import { lookupMissingGeos } from './stats-geo-lookup.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../dist');
@@ -92,7 +93,7 @@ function lanAddresses() {
  * @param {import('node:http').IncomingMessage} req
  * @param {import('node:http').ServerResponse} res
  */
-function handleStatsPage(req, res) {
+async function handleStatsPage(req, res) {
   const method = req.method || 'GET';
   if (method !== 'GET' && method !== 'HEAD') {
     res.writeHead(405, { Allow: 'GET', 'Content-Type': 'text/plain; charset=utf-8' });
@@ -118,8 +119,10 @@ function handleStatsPage(req, res) {
     }
   }
   const range = parseDateRange(url.searchParams.get('from') || '', url.searchParams.get('to') || '');
+  const rows = combineBodies(inputs, range);
+  await lookupMissingGeos(rows);
   const html = renderStatsHtml({
-    rows: combineBodies(inputs, range),
+    rows,
     from: url.searchParams.get('from') || '',
     to: url.searchParams.get('to') || '',
   });
@@ -134,15 +137,13 @@ const server = http.createServer((req, res) => {
   res.on('finish', () => logAccess(req, res));
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   if (isStatsPagePath(urlPath)) {
-    try {
-      handleStatsPage(req, res);
-    } catch (err) {
+    void handleStatsPage(req, res).catch((err) => {
       console.error(err);
       if (!res.headersSent) {
         res.writeHead(500);
         res.end('Internal error');
       }
-    }
+    });
     return;
   }
   if (isStatsApiPath(urlPath)) {

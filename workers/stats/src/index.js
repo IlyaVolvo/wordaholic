@@ -6,6 +6,7 @@ import { combineBodies, normalizeGeo, parseDateRange } from '../../../scripts/st
 import { isStatsApiPath, isStatsPagePath } from '../../../scripts/stats-path.js';
 import { renderStatsHtml } from '../../../scripts/stats-page.js';
 import { HOUR_PULL_BATCH, HOUR_STORAGE_GET_BATCH, hourFromObjectKey } from '../../../scripts/stats-hour-cache.js';
+import { lookupMissingGeos } from '../../../scripts/stats-geo-lookup.js';
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json; charset=utf-8',
@@ -50,6 +51,16 @@ function geoFromCf(request) {
  * @param {Request} request
  */
 function geoFromRequest(request) {
+  const url = new URL(request.url);
+  const fromQuery = url.searchParams.get('wh_geo');
+  if (fromQuery) {
+    try {
+      const parsed = normalizeGeo(JSON.parse(fromQuery));
+      if (parsed) return parsed;
+    } catch {
+      /* fall through */
+    }
+  }
   const raw = request.headers.get(GEO_HEADER);
   if (raw) {
     try {
@@ -63,17 +74,29 @@ function geoFromRequest(request) {
 }
 
 /**
+ * Durable Object fetches drop request.cf. Put edge geo on the URL for POSTs.
  * @param {Request} request
  */
 function requestWithEdgeGeo(request) {
   const headers = new Headers(request.headers);
   headers.delete(GEO_HEADER);
+  const method = request.method || 'GET';
+  if (method !== 'POST') {
+    return new Request(request, { headers });
+  }
   const geo = geoFromCf(request);
-  if (geo) headers.set(GEO_HEADER, JSON.stringify(geo));
-  /** @type {RequestInit & { cf?: unknown }} */
-  const init = { headers };
-  if (request.cf) init.cf = request.cf;
-  return new Request(request, init);
+  const url = new URL(request.url);
+  url.searchParams.delete('wh_geo');
+  if (geo) {
+    url.searchParams.set('wh_geo', JSON.stringify(geo));
+    headers.set(GEO_HEADER, JSON.stringify(geo));
+  }
+  return new Request(url, {
+    method,
+    headers,
+    body: request.body,
+    duplex: 'half',
+  });
 }
 
 /**
@@ -204,6 +227,9 @@ export class StatsStore {
         inputs.push({ source: `hour:${hour}`, body });
       }
       const rows = combineBodies(inputs, range);
+      const found = await lookupMissingGeos(rows);
+      for (const [ip, geo] of found) this.store.rememberGeo(ip, geo);
+      if (found.size) await this.persist();
       const html = renderStatsHtml({
         rows,
         from: url.searchParams.get('from') || '',

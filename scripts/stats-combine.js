@@ -31,6 +31,7 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
  *   languageCodes: string[],
  *   perms: string,
  *   location: string,
+ *   geo: StatsGeo | null,
  * }} StatsRow
  */
 
@@ -127,8 +128,10 @@ export function pickRicherGeo(a, b) {
 export function formatLocation(geo) {
   if (!geo) return '';
   const country = formatCountry(geo.country);
-  const place = geo.city || geo.region;
-  const left = [country, place].filter(Boolean).join(' · ');
+  const placeParts = [];
+  if (geo.city) placeParts.push(geo.city);
+  if (geo.region && geo.region !== geo.city) placeParts.push(geo.region);
+  const left = [country, placeParts.join(', ')].filter(Boolean).join(' · ');
   if (geo.asOrg) return left ? `${left} (${geo.asOrg})` : geo.asOrg;
   return left;
 }
@@ -453,6 +456,7 @@ export function combineBodies(inputs, range = {}) {
       languageCodes,
       perms: perms.join(' '),
       location: formatLocation(rec.geo),
+      geo: rec.geo,
     };
   });
 }
@@ -461,15 +465,21 @@ export function combineBodies(inputs, range = {}) {
  * @param {StatsRow[]} rows
  */
 export function combineTotals(rows) {
-  return rows.reduce(
-    (acc, r) => ({
-      addrs: acc.addrs + r.addrs,
-      games: acc.games + r.games,
-      polywordlot: acc.polywordlot + r.polywordlot,
-      transword: acc.transword + r.transword,
-      homeHits: acc.homeHits + r.homeHits,
-      languages: acc.languages + r.languages,
-    }),
-    { addrs: 0, games: 0, polywordlot: 0, transword: 0, homeHits: 0, languages: 0 }
+  /** @type {Set<string>} */
+  const languageCodes = new Set();
+  const acc = (rows || []).reduce(
+    (a, r) => {
+      for (const code of r.languageCodes || []) languageCodes.add(code);
+      return {
+        addrs: a.addrs + r.addrs,
+        games: a.games + r.games,
+        polywordlot: a.polywordlot + r.polywordlot,
+        transword: a.transword + r.transword,
+        homeHits: a.homeHits + r.homeHits,
+      };
+    },
+    { addrs: 0, games: 0, polywordlot: 0, transword: 0, homeHits: 0 }
   );
+  const codes = [...languageCodes].sort();
+  return { ...acc, languages: codes.length, languageCodes: codes };
 }
