@@ -892,6 +892,9 @@ main {
   font-size: 0.95rem;
   line-height: 1.4;
 }
+.update-announcement-body {
+  white-space: pre-wrap;
+}
 .update-list {
   margin: 0;
   padding-left: 1.15rem;

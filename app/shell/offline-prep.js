@@ -61,6 +61,7 @@ export async function prepareOffline(onProgress) {
     '/app/play/portrait-gate.js',
     ...helpScreenshotUrls(),
     '/deployment-manifest.json',
+    '/app/announcements.json',
     '/data/languages.json',
     '/map/world.svg',
     '/games/polywordlot/index.html',

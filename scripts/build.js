@@ -48,6 +48,39 @@ function hashFile(filePath) {
   return crypto.createHash('sha256').update(buf).digest('hex').slice(0, 16);
 }
 
+function isUnstampedCommit(commit) {
+  const value = String(commit || '').trim();
+  return !value || value === 'HEAD';
+}
+
+/**
+ * Freeze at most one HEAD/empty announcement to this build's git SHA.
+ * Writes source and dist so the runtime catalog identity is stable.
+ * @param {string} commit
+ */
+function stampAnnouncements(commit) {
+  const srcPath = path.join(ROOT, 'app/announcements.json');
+  const distPath = path.join(DIST, 'app/announcements.json');
+  if (!fs.existsSync(srcPath)) return;
+  const notes = JSON.parse(fs.readFileSync(srcPath, 'utf8'));
+  if (!Array.isArray(notes)) {
+    throw new Error('app/announcements.json must be an array');
+  }
+  const unstamped = notes.filter((note) => note && isUnstampedCommit(note.commit));
+  if (unstamped.length > 1) {
+    throw new Error('Only one announcement may use commit HEAD per build');
+  }
+  if (!unstamped.length) return;
+  if (!commit) {
+    throw new Error('Cannot stamp announcement: git commit is unknown');
+  }
+  unstamped[0].commit = commit;
+  const json = `${JSON.stringify(notes, null, 2)}\n`;
+  fs.writeFileSync(srcPath, json);
+  ensureDir(path.dirname(distPath));
+  fs.writeFileSync(distPath, json);
+}
+
 function hashTree(dir, prefix = '') {
   /** @type {Record<string, string>} */
   const out = {};
@@ -75,6 +108,8 @@ function main() {
 
   copyDir(path.join(ROOT, 'public'), DIST);
   copyDir(path.join(ROOT, 'app'), path.join(DIST, 'app'));
+  const commit = gitCommit();
+  stampAnnouncements(commit);
   // Shared language definitions for all games (skip local master.json lists)
   copyDir(path.join(ROOT, 'word-data'), path.join(DIST, 'word-data'), {
     skipNames: ['.DS_Store', 'master.json'],
@@ -125,7 +160,6 @@ function main() {
     if (langHash) words[`language:${lang.code}`] = langHash;
   }
 
-  const commit = gitCommit();
   const manifest = {
     builtAt: new Date().toISOString(),
     siteHash,

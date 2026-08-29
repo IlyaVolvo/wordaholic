@@ -3,6 +3,7 @@ import { loadLanguages } from './shell/languages.js';
 import { renderWorldMap, renderGameRail } from './shell/map.js';
 import { prepareOffline } from './shell/offline-prep.js';
 import { bindSilentUpdates } from './shell/update-ui.js';
+import { showUpgradeAnnouncements } from './shell/announcements.js';
 import {
   initFavorites,
   getFavoriteLanguages,
@@ -346,7 +347,8 @@ async function boot() {
   }
 
   showPreparing().catch((err) => console.warn('Offline prep failed', err));
-  bindSilentUpdates();
+  await bindSilentUpdates();
+  showUpgradeAnnouncements().catch((err) => console.warn('Announcements failed', err));
 }
 
 window.addEventListener('pageshow', (event) => {

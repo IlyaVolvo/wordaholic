@@ -55,21 +55,21 @@ let bound = false;
 
 /** Home: check on boot, reconnect, and tab focus. Reload when a new SW takes over. */
 export function bindSilentUpdates() {
-  if (bound) return;
+  if (bound) return Promise.resolve();
   bound = true;
+  const first = checkForUpdates();
   const run = () => {
     void checkForUpdates();
   };
-  run();
   window.addEventListener('online', run);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') run();
   });
-  if (!navigator.serviceWorker) return;
-  if (navigator.serviceWorker.controller) {
+  if (navigator.serviceWorker?.controller) {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (isGamePage()) return;
       location.reload();
     });
   }
+  return first;
 }
