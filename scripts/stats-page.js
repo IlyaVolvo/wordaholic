@@ -1,4 +1,5 @@
 import { combineTotals } from './stats-combine.js';
+import { STATS_GAMES } from './stats-games.js';
 import languageCatalog from '../word-data/languages.json' with { type: 'json' };
 
 const LANGUAGE_MENU = new Map(languageCatalog.map((row) => [row.code, row.menu]));
@@ -41,6 +42,9 @@ export function renderStatsHtml(opts) {
   const to = opts.to || '';
   const remaining = opts.backfillRemaining || 0;
 
+  const gameCells = (counts) =>
+    STATS_GAMES.map((g) => `  <td class="n">${esc(counts[g.id] ?? 0)}</td>`).join('\n');
+
   const bodyRows = rows
     .map((r, i) => {
       const langCodes = r.languageCodes || [];
@@ -51,8 +55,7 @@ export function renderStatsHtml(opts) {
   <td class="n">${esc(r.addrs)}</td>
   <td class="n">${tipCell(String(r.languages), langTip, `lang-${i}`)}</td>
   <td class="n">${esc(r.games)}</td>
-  <td class="n">${esc(r.polywordlot)}</td>
-  <td class="n">${esc(r.transword)}</td>
+${gameCells(r.byGame || {})}
   <td class="n">${esc(r.homeHits)}</td>
 </tr>`;
     })
@@ -66,8 +69,7 @@ export function renderStatsHtml(opts) {
   <td class="n">${esc(totals.addrs)}</td>
   <td class="n">${tipCell(String(totals.languages), totalLangTip, 'lang-total')}</td>
   <td class="n">${esc(totals.games)}</td>
-  <td class="n">${esc(totals.polywordlot)}</td>
-  <td class="n">${esc(totals.transword)}</td>
+${gameCells(totals.byGame || {})}
   <td class="n">${esc(totals.homeHits)}</td>
 </tr>`
     : '';
@@ -137,13 +139,12 @@ export function renderStatsHtml(opts) {
         <th class="n">addrs</th>
         <th class="n">languages</th>
         <th class="n">games</th>
-        <th class="n">polywordlot</th>
-        <th class="n">transword</th>
+${STATS_GAMES.map((g) => `        <th class="n">${esc(g.id)}</th>`).join('\n')}
         <th class="n">homeHits</th>
       </tr>
     </thead>
     <tbody>
-${bodyRows || '<tr><td colspan="8">No rows in this range.</td></tr>'}
+${bodyRows || `<tr><td colspan="${6 + STATS_GAMES.length}">No rows in this range.</td></tr>`}
 ${totalRow}
     </tbody>
   </table>

@@ -3,7 +3,7 @@
  * @param {{
  *   homeHits?: number,
  *   languages?: Record<string, number>,
- *   games?: { polywordlot?: Record<string, number>, transword?: Record<string, number> },
+ *   games?: Record<string, Record<string, number>>,
  * }} delta
  */
 export function reportStats(delta) {

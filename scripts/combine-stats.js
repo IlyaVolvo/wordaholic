@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import { stdin } from 'node:process';
 import { combineBodies, combineTotals } from './stats-combine.js';
+import { STATS_GAME_IDS } from './stats-games.js';
 
 function usage() {
   console.error('Usage: node scripts/combine-stats.js <stats.json> [stats.json ...]');
@@ -49,18 +50,15 @@ async function main() {
   const paths = process.argv.slice(2).filter((a) => a !== '--');
   const inputs = await loadBodies(paths);
   const rows = combineBodies(inputs);
+  const totals = combineTotals(rows);
 
-  const headers = [
-    'IP',
-    'location',
-    'addrs',
-    'languages',
-    'games',
-    'polywordlot',
-    'transword',
-    'homeHits',
-    'perms',
-  ];
+  const headers = ['IP', 'location', 'addrs', 'languages', 'games', ...STATS_GAME_IDS, 'homeHits', 'perms'];
+  const gameCol = (id) =>
+    Math.max(
+      id.length,
+      ...rows.map((r) => String(r.byGame?.[id] ?? 0).length),
+      String(totals.byGame?.[id] ?? 0).length
+    );
   const widths = {
     ip: Math.max(
       2,
@@ -75,10 +73,12 @@ async function main() {
     addrs: Math.max(5, ...rows.map((r) => String(r.addrs).length), headers[2].length),
     languages: Math.max(headers[3].length, ...rows.map((r) => String(r.languages).length)),
     games: Math.max(5, ...rows.map((r) => String(r.games).length), headers[4].length),
-    polywordlot: headers[5].length,
-    transword: headers[6].length,
-    homeHits: headers[7].length,
+    homeHits: headers[headers.length - 2].length,
   };
+  /** @type {Record<string, number>} */
+  const gameWidths = Object.fromEntries(STATS_GAME_IDS.map((id) => [id, gameCol(id)]));
+
+  const gameValues = (counts) => STATS_GAME_IDS.map((id) => padLeft(counts?.[id] ?? 0, gameWidths[id]));
 
   const line = (r) =>
     [
@@ -87,8 +87,7 @@ async function main() {
       padLeft(r.addrs, widths.addrs),
       padLeft(r.languages, widths.languages),
       padLeft(r.games, widths.games),
-      padLeft(r.polywordlot, widths.polywordlot),
-      padLeft(r.transword, widths.transword),
+      ...gameValues(r.byGame),
       padLeft(r.homeHits, widths.homeHits),
       r.perms,
     ].join('  ');
@@ -100,23 +99,20 @@ async function main() {
       padLeft(headers[2], widths.addrs),
       padLeft(headers[3], widths.languages),
       padLeft(headers[4], widths.games),
-      padLeft(headers[5], widths.polywordlot),
-      padLeft(headers[6], widths.transword),
-      padLeft(headers[7], widths.homeHits),
-      headers[8],
+      ...STATS_GAME_IDS.map((id) => padLeft(id, gameWidths[id])),
+      padLeft(headers[headers.length - 2], widths.homeHits),
+      headers[headers.length - 1],
     ].join('  ')
   );
   for (const r of rows) console.log(line(r));
 
-  const totals = combineTotals(rows);
   if (rows.length) {
     console.log(
       line({
         ip: `(${rows.length} networks)`,
         addrs: totals.addrs,
         games: totals.games,
-        polywordlot: totals.polywordlot,
-        transword: totals.transword,
+        byGame: totals.byGame,
         homeHits: totals.homeHits,
         languages: totals.languages,
         perms: '',

@@ -1,4 +1,5 @@
 import { ipIdentity, normalizeGeo, pickRicherGeo } from './stats-combine.js';
+import { STATS_GAME_IDS } from './stats-games.js';
 
 const HOUR_MS = 60 * 60 * 1000;
 export const RETAIN_MS = 24 * HOUR_MS;
@@ -15,14 +16,35 @@ export function hourIso(now = Date.now()) {
   return d.toISOString();
 }
 
+/**
+ * @returns {Record<string, Record<string, number>>}
+ */
+function emptyGames() {
+  /** @type {Record<string, Record<string, number>>} */
+  const games = {};
+  for (const id of STATS_GAME_IDS) games[id] = {};
+  return games;
+}
+
+/**
+ * @param {Record<string, unknown>} source
+ * @returns {Record<string, Record<string, number>>}
+ */
+function copyRegisteredGames(source) {
+  /** @type {Record<string, Record<string, number>>} */
+  const games = {};
+  for (const id of STATS_GAME_IDS) {
+    const src = source[id];
+    games[id] = src && typeof src === 'object' && !Array.isArray(src) ? { ...src } : {};
+  }
+  return games;
+}
+
 function emptyRecord() {
   return {
     homeHits: 0,
     languages: /** @type {Record<string, number>} */ ({}),
-    games: {
-      polywordlot: /** @type {Record<string, number>} */ ({}),
-      transword: /** @type {Record<string, number>} */ ({}),
-    },
+    games: emptyGames(),
     geo: /** @type {import('./stats-combine.js').StatsGeo | null} */ (null),
   };
 }
@@ -49,23 +71,20 @@ function serializeIps(byIp, geoByIp) {
   /** @type {Record<string, {
    *   homeHits: number,
    *   languages: Record<string, number>,
-   *   games: { polywordlot: Record<string, number>, transword: Record<string, number> },
+   *   games: Record<string, Record<string, number>>,
    * }>} */
   const ips = {};
   for (const [ip, rec] of byIp) {
     /** @type {{
      *   homeHits: number,
      *   languages: Record<string, number>,
-     *   games: { polywordlot: Record<string, number>, transword: Record<string, number> },
+     *   games: Record<string, Record<string, number>>,
      *   geo?: import('./stats-combine.js').StatsGeo,
      * }} */
     const out = {
       homeHits: rec.homeHits,
       languages: { ...rec.languages },
-      games: {
-        polywordlot: { ...rec.games.polywordlot },
-        transword: { ...rec.games.transword },
-      },
+      games: copyRegisteredGames(rec.games),
     };
     const geo = rec.geo || geoByIp.get(ipIdentity(ip)) || null;
     if (geo) out.geo = { ...geo };
@@ -108,7 +127,7 @@ export function createStatsStore(opts = {}) {
    * @param {{
    *   homeHits?: number,
    *   languages?: Record<string, number>,
-   *   games?: { polywordlot?: Record<string, number>, transword?: Record<string, number> },
+   *   games?: Record<string, Record<string, number>>,
    * }} delta
    * @param {number} [now]
    * @param {import('./stats-combine.js').StatsGeo | null} [geo]
@@ -128,8 +147,11 @@ export function createStatsStore(opts = {}) {
     }
     if (delta.homeHits) rec.homeHits += delta.homeHits;
     if (delta.languages) mergeCounts(rec.languages, delta.languages);
-    if (delta.games?.polywordlot) mergeCounts(rec.games.polywordlot, delta.games.polywordlot);
-    if (delta.games?.transword) mergeCounts(rec.games.transword, delta.games.transword);
+    if (delta.games) {
+      for (const id of STATS_GAME_IDS) {
+        if (delta.games[id]) mergeCounts(rec.games[id], delta.games[id]);
+      }
+    }
     rec.geo = pickRicherGeo(rec.geo, normalizeGeo(geo));
     rememberGeo(ip, rec.geo);
   }
@@ -218,15 +240,12 @@ export function createStatsStore(opts = {}) {
       for (const [ip, raw] of Object.entries(ips)) {
         if (!ip) continue;
         const recObj = raw && typeof raw === 'object' ? raw : {};
-        const games = recObj.games && typeof recObj.games === 'object' ? recObj.games : {};
+        const gamesIn = recObj.games && typeof recObj.games === 'object' ? recObj.games : {};
         const geo = normalizeGeo(/** @type {{ geo?: unknown }} */ (recObj).geo);
         byIp.set(ip, {
           homeHits: Math.max(0, Number(recObj.homeHits) || 0),
           languages: { ...(recObj.languages && typeof recObj.languages === 'object' ? recObj.languages : {}) },
-          games: {
-            polywordlot: { ...(games.polywordlot && typeof games.polywordlot === 'object' ? games.polywordlot : {}) },
-            transword: { ...(games.transword && typeof games.transword === 'object' ? games.transword : {}) },
-          },
+          games: copyRegisteredGames(/** @type {Record<string, unknown>} */ (gamesIn)),
           geo,
         });
         rememberGeo(ip, geo);

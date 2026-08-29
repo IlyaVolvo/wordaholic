@@ -8,7 +8,7 @@
  * are added.
  */
 
-const GAME_IDS = ['polywordlot', 'transword'];
+import { STATS_GAME_IDS } from './stats-games.js';
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -24,8 +24,7 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
  *   ip: string,
  *   addrs: number,
  *   games: number,
- *   polywordlot: number,
- *   transword: number,
+ *   byGame: Record<string, number>,
  *   homeHits: number,
  *   languages: number,
  *   languageCodes: string[],
@@ -173,7 +172,7 @@ export function normalizeRecord(raw) {
   const gamesIn = rec.games && typeof rec.games === 'object' ? rec.games : {};
   /** @type {Record<string, Record<string, number>>} */
   const games = {};
-  for (const gameId of new Set([...GAME_IDS, ...Object.keys(gamesIn)])) {
+  for (const gameId of STATS_GAME_IDS) {
     games[gameId] = asCountMap(gamesIn[gameId]);
   }
   return {
@@ -218,8 +217,7 @@ function sumMap(a, b) {
 function maxRecord(a, b) {
   /** @type {Record<string, Record<string, number>>} */
   const games = {};
-  const ids = new Set([...Object.keys(a.games), ...Object.keys(b.games)]);
-  for (const gameId of ids) {
+  for (const gameId of STATS_GAME_IDS) {
     games[gameId] = maxMap(a.games[gameId] || {}, b.games[gameId] || {});
   }
   return {
@@ -238,8 +236,7 @@ function maxRecord(a, b) {
 function sumRecord(a, b) {
   /** @type {Record<string, Record<string, number>>} */
   const games = {};
-  const ids = new Set([...Object.keys(a.games), ...Object.keys(b.games)]);
-  for (const gameId of ids) {
+  for (const gameId of STATS_GAME_IDS) {
     games[gameId] = sumMap(a.games[gameId] || {}, b.games[gameId] || {});
   }
   return {
@@ -377,7 +374,8 @@ export function extractRows(body, source, range = {}) {
 function distinctPerms(rec) {
   /** @type {string[]} */
   const keys = [];
-  for (const [gameId, counts] of Object.entries(rec.games)) {
+  for (const gameId of STATS_GAME_IDS) {
+    const counts = rec.games[gameId] || {};
     for (const perm of Object.keys(counts).sort()) {
       if (counts[perm]) keys.push(`${gameId}:${perm}`);
     }
@@ -393,8 +391,9 @@ function distinctPerms(rec) {
 function languageCodesPlayed(rec) {
   /** @type {Set<string>} */
   const codes = new Set();
-  for (const counts of Object.values(rec.games)) {
-    for (const [perm, n] of Object.entries(counts || {})) {
+  for (const gameId of STATS_GAME_IDS) {
+    const counts = rec.games[gameId] || {};
+    for (const [perm, n] of Object.entries(counts)) {
       if (!n) continue;
       const lang = perm.split(',')[0].trim();
       if (lang) codes.add(lang);
@@ -443,14 +442,17 @@ export function combineBodies(inputs, range = {}) {
     const { rec, addrs } = byId.get(ip) || { rec: emptyRecord(), addrs: new Set() };
     const perms = distinctPerms(rec);
     const languageCodes = languageCodesPlayed(rec);
-    const poly = Object.keys(rec.games.polywordlot || {}).filter((k) => rec.games.polywordlot[k]);
-    const trans = Object.keys(rec.games.transword || {}).filter((k) => rec.games.transword[k]);
+    /** @type {Record<string, number>} */
+    const byGame = {};
+    for (const gameId of STATS_GAME_IDS) {
+      const counts = rec.games[gameId] || {};
+      byGame[gameId] = Object.keys(counts).filter((k) => counts[k]).length;
+    }
     return {
       ip,
       addrs: addrs.size,
       games: perms.length,
-      polywordlot: poly.length,
-      transword: trans.length,
+      byGame,
       homeHits: rec.homeHits,
       languages: languageCodes.length,
       languageCodes,
@@ -467,18 +469,23 @@ export function combineBodies(inputs, range = {}) {
 export function combineTotals(rows) {
   /** @type {Set<string>} */
   const languageCodes = new Set();
+  const emptyByGame = Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0]));
   const acc = (rows || []).reduce(
     (a, r) => {
       for (const code of r.languageCodes || []) languageCodes.add(code);
+      /** @type {Record<string, number>} */
+      const byGame = {};
+      for (const id of STATS_GAME_IDS) {
+        byGame[id] = (a.byGame[id] || 0) + (r.byGame[id] || 0);
+      }
       return {
         addrs: a.addrs + r.addrs,
         games: a.games + r.games,
-        polywordlot: a.polywordlot + r.polywordlot,
-        transword: a.transword + r.transword,
+        byGame,
         homeHits: a.homeHits + r.homeHits,
       };
     },
-    { addrs: 0, games: 0, polywordlot: 0, transword: 0, homeHits: 0 }
+    { addrs: 0, games: 0, byGame: emptyByGame, homeHits: 0 }
   );
   const codes = [...languageCodes].sort();
   return { ...acc, languages: codes.length, languageCodes: codes };

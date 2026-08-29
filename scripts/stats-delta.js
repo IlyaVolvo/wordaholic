@@ -1,16 +1,13 @@
+import { STATS_GAMES, STATS_GAME_IDS, STATS_LANG, statsGameKeyRe } from './stats-games.js';
+
 export const BODY_MAX_BYTES = 8 * 1024;
 const MAX_HOME_HITS = 100;
 const MAX_KEYS = 32;
 const MAX_COUNT = 100;
-const LANG_RE = /^[a-z]{2,8}$/;
-const POLYWORDLOT_KEY_RE = /^[a-z]{2,8},\d{1,2}$/;
-const TRANSWORD_KEY_RE = /^[a-z]{2,8},\d{1,2},\d{1,2}$/;
+const LANG_RE = new RegExp(`^${STATS_LANG}$`);
 const KEY_MAX_LEN = 32;
 
-const GAME_KEY_RE = {
-  polywordlot: POLYWORDLOT_KEY_RE,
-  transword: TRANSWORD_KEY_RE,
-};
+const GAME_KEY_RE = Object.fromEntries(STATS_GAMES.map((g) => [g.id, statsGameKeyRe(g)]));
 
 /**
  * @param {unknown} value
@@ -38,7 +35,7 @@ function parseCountMap(value, keyRe) {
  * @returns {{ ok: true, delta: {
  *   homeHits?: number,
  *   languages?: Record<string, number>,
- *   games?: { polywordlot?: Record<string, number>, transword?: Record<string, number> },
+ *   games?: Record<string, Record<string, number>>,
  * } } | { ok: false }}
  */
 export function parseStatsDelta(body) {
@@ -46,7 +43,7 @@ export function parseStatsDelta(body) {
   /** @type {{
    *   homeHits?: number,
    *   languages?: Record<string, number>,
-   *   games?: { polywordlot?: Record<string, number>, transword?: Record<string, number> },
+   *   games?: Record<string, Record<string, number>>,
    * }} */
   const delta = {};
 
@@ -65,12 +62,12 @@ export function parseStatsDelta(body) {
   if ('games' in body) {
     const games = /** @type {{ games?: unknown }} */ (body).games;
     if (games == null || typeof games !== 'object' || Array.isArray(games)) return { ok: false };
-    /** @type {{ polywordlot?: Record<string, number>, transword?: Record<string, number> }} */
+    /** @type {Record<string, Record<string, number>>} */
     const outGames = {};
     for (const gameId of Object.keys(games)) {
       if (!(gameId in GAME_KEY_RE)) return { ok: false };
     }
-    for (const gameId of /** @type {const} */ (['polywordlot', 'transword'])) {
+    for (const gameId of STATS_GAME_IDS) {
       if (!(gameId in games)) continue;
       const counts = parseCountMap(games[gameId], GAME_KEY_RE[gameId]);
       if (!counts) return { ok: false };
