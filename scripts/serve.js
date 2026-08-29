@@ -5,6 +5,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createStatsStore, PRUNE_INTERVAL_MS } from './stats-store.js';
 import { createStatsHandler } from './stats-http.js';
+import { combineBodies, parseDateRange } from './stats-combine.js';
+import { renderStatsHtml } from './stats-page.js';
+import { isStatsApiPath, isStatsPagePath } from './stats-path.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../dist');
@@ -13,6 +16,7 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 const statsStore = createStatsStore();
 const handleStats = createStatsHandler(statsStore);
+const HOURS_DIR = path.resolve(__dirname, '../stats-hours');
 setInterval(() => statsStore.prune(), PRUNE_INTERVAL_MS).unref();
 
 const TYPES = {
@@ -82,10 +86,66 @@ function lanAddresses() {
   }
 }
 
+/**
+ * Local /stats: live in-memory dump plus ./stats-hours/*.json (from stats-pull-gcs).
+ * GET /api/stats stays the raw JSON dump.
+ * @param {import('node:http').IncomingMessage} req
+ * @param {import('node:http').ServerResponse} res
+ */
+function handleStatsPage(req, res) {
+  const method = req.method || 'GET';
+  if (method !== 'GET' && method !== 'HEAD') {
+    res.writeHead(405, { Allow: 'GET', 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Method not allowed');
+    return;
+  }
+  let url;
+  try {
+    url = new URL(req.url || '/stats', 'http://localhost');
+  } catch {
+    url = new URL('/stats', 'http://localhost');
+  }
+  /** @type {{ source: string, body: unknown }[]} */
+  const inputs = [{ source: 'live', body: statsStore.dump() }];
+  if (fs.existsSync(HOURS_DIR)) {
+    for (const name of fs.readdirSync(HOURS_DIR).filter((n) => n.endsWith('.json')).sort()) {
+      const file = path.join(HOURS_DIR, name);
+      try {
+        inputs.push({ source: file, body: JSON.parse(fs.readFileSync(file, 'utf8')) });
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : err);
+      }
+    }
+  }
+  const range = parseDateRange(url.searchParams.get('from') || '', url.searchParams.get('to') || '');
+  const html = renderStatsHtml({
+    rows: combineBodies(inputs, range),
+    from: url.searchParams.get('from') || '',
+    to: url.searchParams.get('to') || '',
+  });
+  res.writeHead(200, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-store',
+  });
+  res.end(method === 'HEAD' ? undefined : html);
+}
+
 const server = http.createServer((req, res) => {
   res.on('finish', () => logAccess(req, res));
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
-  if (urlPath === '/api/stats') {
+  if (isStatsPagePath(urlPath)) {
+    try {
+      handleStatsPage(req, res);
+    } catch (err) {
+      console.error(err);
+      if (!res.headersSent) {
+        res.writeHead(500);
+        res.end('Internal error');
+      }
+    }
+    return;
+  }
+  if (isStatsApiPath(urlPath)) {
     void handleStats(req, res, clientIp(req)).catch((err) => {
       console.error(err);
       if (!res.headersSent) {

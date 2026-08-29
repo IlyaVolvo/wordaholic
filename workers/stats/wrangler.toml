@@ -17,3 +17,8 @@ new_sqlite_classes = ["StatsStore"]
 [[routes]]
 pattern = "wordaholic.volvovski.com/api/*"
 zone_name = "volvovski.com"
+
+# Prefix: exact /stats does not match /stats/ (browsers and links often add the slash).
+[[routes]]
+pattern = "wordaholic.volvovski.com/stats*"
+zone_name = "volvovski.com"

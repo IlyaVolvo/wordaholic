@@ -229,22 +229,37 @@ export async function getGcsObject(opts) {
  */
 export async function listGcsKeys(opts) {
   const prefix = opts.prefix || '';
-  const query = prefix ? `prefix=${encodeURIComponent(prefix)}` : '';
-  const res = await gcsSignedFetch({
-    accessKey: opts.accessKey,
-    secret: opts.secret,
-    method: 'GET',
-    uri: `/${opts.bucket}`,
-    query,
-    now: opts.now,
-    region: opts.region,
-    fetchImpl: opts.fetchImpl,
-  });
-  const xml = await res.text().catch(() => '');
-  if (!res.ok) {
-    throw new Error(`GCS LIST ${res.status} ${opts.bucket}: ${xml.slice(0, 500)}`);
+  /** @type {string[]} */
+  const keys = [];
+  let marker = '';
+  for (;;) {
+    const params = [];
+    if (prefix) params.push(`prefix=${encodeURIComponent(prefix)}`);
+    if (marker) params.push(`marker=${encodeURIComponent(marker)}`);
+    const query = params.join('&');
+    const res = await gcsSignedFetch({
+      accessKey: opts.accessKey,
+      secret: opts.secret,
+      method: 'GET',
+      uri: `/${opts.bucket}`,
+      query,
+      now: opts.now,
+      region: opts.region,
+      fetchImpl: opts.fetchImpl,
+    });
+    const xml = await res.text().catch(() => '');
+    if (!res.ok) {
+      throw new Error(`GCS LIST ${res.status} ${opts.bucket}: ${xml.slice(0, 500)}`);
+    }
+    const page = [...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map((m) => m[1]);
+    keys.push(...page);
+    const truncated = /<IsTruncated>\s*true\s*<\/IsTruncated>/i.test(xml);
+    if (!truncated) break;
+    const next = xml.match(/<NextMarker>([^<]+)<\/NextMarker>/);
+    marker = next ? next[1] : page[page.length - 1] || '';
+    if (!marker) break;
   }
-  return [...xml.matchAll(/<Key>([^<]+)<\/Key>/g)].map((m) => m[1]);
+  return keys;
 }
 
 /**

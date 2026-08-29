@@ -9,9 +9,11 @@ import { closedHourFile, gcsConfigured, gcsHourObjectKey, putGcsObject } from '.
  * @param {number} [now]
  */
 export async function archiveClosedHours(store, env, now = Date.now()) {
-  if (!gcsConfigured(env)) return { configured: false, uploaded: [] };
+  if (!gcsConfigured(env)) return { configured: false, uploaded: [], files: [] };
   /** @type {string[]} */
   const uploaded = [];
+  /** @type {{ hour: string, ips: Record<string, unknown> }[]} */
+  const files = [];
   for (const { hour, ips } of store.pendingArchive(now)) {
     if (!Object.keys(ips).length) {
       store.markArchived(hour);
@@ -27,9 +29,10 @@ export async function archiveClosedHours(store, env, now = Date.now()) {
       });
       store.markArchived(hour);
       uploaded.push(hour);
+      files.push({ hour, ips });
     } catch (err) {
       console.error(err instanceof Error ? err.message : err);
     }
   }
-  return { configured: true, uploaded };
+  return { configured: true, uploaded, files };
 }

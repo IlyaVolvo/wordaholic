@@ -1,3 +1,5 @@
+import { normalizeGeo, pickRicherGeo } from './stats-combine.js';
+
 const HOUR_MS = 60 * 60 * 1000;
 export const RETAIN_MS = 24 * HOUR_MS;
 export const PRUNE_INTERVAL_MS = 10 * 60 * 1000;
@@ -21,6 +23,7 @@ function emptyRecord() {
       polywordlot: /** @type {Record<string, number>} */ ({}),
       transword: /** @type {Record<string, number>} */ ({}),
     },
+    geo: /** @type {import('./stats-combine.js').StatsGeo | null} */ (null),
   };
 }
 
@@ -46,7 +49,13 @@ function serializeIps(byIp) {
    * }>} */
   const ips = {};
   for (const [ip, rec] of byIp) {
-    ips[ip] = {
+    /** @type {{
+     *   homeHits: number,
+     *   languages: Record<string, number>,
+     *   games: { polywordlot: Record<string, number>, transword: Record<string, number> },
+     *   geo?: import('./stats-combine.js').StatsGeo,
+     * }} */
+    const out = {
       homeHits: rec.homeHits,
       languages: { ...rec.languages },
       games: {
@@ -54,6 +63,8 @@ function serializeIps(byIp) {
         transword: { ...rec.games.transword },
       },
     };
+    if (rec.geo) out.geo = { ...rec.geo };
+    ips[ip] = out;
   }
   return ips;
 }
@@ -93,8 +104,9 @@ export function createStatsStore(opts = {}) {
    *   games?: { polywordlot?: Record<string, number>, transword?: Record<string, number> },
    * }} delta
    * @param {number} [now]
+   * @param {import('./stats-combine.js').StatsGeo | null} [geo]
    */
-  function merge(ip, delta, now = Date.now()) {
+  function merge(ip, delta, now = Date.now(), geo = null) {
     prune(now);
     const hour = hourIso(now);
     let byIp = hours.get(hour);
@@ -111,6 +123,7 @@ export function createStatsStore(opts = {}) {
     if (delta.languages) mergeCounts(rec.languages, delta.languages);
     if (delta.games?.polywordlot) mergeCounts(rec.games.polywordlot, delta.games.polywordlot);
     if (delta.games?.transword) mergeCounts(rec.games.transword, delta.games.transword);
+    rec.geo = pickRicherGeo(rec.geo, normalizeGeo(geo));
   }
 
   /**
@@ -191,6 +204,7 @@ export function createStatsStore(opts = {}) {
             polywordlot: { ...(games.polywordlot && typeof games.polywordlot === 'object' ? games.polywordlot : {}) },
             transword: { ...(games.transword && typeof games.transword === 'object' ? games.transword : {}) },
           },
+          geo: normalizeGeo(/** @type {{ geo?: unknown }} */ (rec).geo),
         });
       }
       hours.set(hour, byIp);

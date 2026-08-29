@@ -1,5 +1,5 @@
 /* Wordaholic service worker — cache shell + requested wordsets */
-const CACHE_SHELL = 'wordaholic-shell-v64';
+const CACHE_SHELL = 'wordaholic-shell-v67';
 const CACHE_DATA = 'wordaholic-data-v4';
 
 const PRECACHE = [
@@ -96,6 +96,16 @@ self.addEventListener('message', (event) => {
   }
 });
 
+function canonicalPath(pathname) {
+  const p = pathname.replace(/\/+$/, '');
+  return p || '/';
+}
+
+/** Stats HTML — network only; never fall back to the home map. */
+function isStatsPagePath(pathname) {
+  return canonicalPath(pathname) === '/stats';
+}
+
 /**
  * Cache-first except the hash manifest. Reload should hit Cache Storage, not the network.
  * Navigations include ?lang= and often omit index.html; HEAD must reuse GET entries.
@@ -118,7 +128,7 @@ async function matchFromCache(request) {
   }
 
   const isDocument = request.mode === 'navigate' || request.destination === 'document';
-  if (isDocument) {
+  if (isDocument && !isStatsPagePath(url.pathname)) {
     let path = url.pathname;
     if (path.endsWith('/')) path += 'index.html';
     const indexHit = await caches.match(`${url.origin}${path}`);
@@ -135,6 +145,23 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+
+  if (isStatsPagePath(url.pathname)) {
+    event.respondWith(
+      fetch(req, { cache: 'no-store' }).catch(
+        () =>
+          new Response(req.method === 'HEAD' ? null : 'Stats are not available when offline', {
+            status: 503,
+            statusText: 'Offline',
+            headers: {
+              'Content-Type': 'text/plain; charset=utf-8',
+              'Cache-Control': 'no-store',
+            },
+          })
+      )
+    );
+    return;
+  }
 
   if (
     url.pathname === '/deployment-manifest.json' ||
@@ -167,7 +194,7 @@ self.addEventListener('fetch', (event) => {
         }
         return res;
       } catch {
-        if (req.mode === 'navigate') {
+        if (req.mode === 'navigate' && !isStatsPagePath(url.pathname)) {
           const fallback = await caches.match('/index.html');
           if (fallback) return fallback;
         }
