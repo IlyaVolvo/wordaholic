@@ -1,10 +1,12 @@
 /**
- * City / region via ipwho.is; country + network via Team Cymru if needed.
+ * City / region: ipwho.is, then geojs.io (Workers often cannot reach ipwho).
+ * Country + network via Team Cymru if neither has a city.
  */
 import { formatLocation, normalizeGeo, pickRicherGeo } from './stats-combine.js';
 
 const DOH = 'https://cloudflare-dns.com/dns-query';
 const IPWHO = 'https://ipwho.is';
+const GEOJS = 'https://get.geojs.io/v1/ip/geo';
 
 /**
  * @param {string} ipOrIdentity
@@ -32,15 +34,32 @@ function isPrivate(addr) {
 }
 
 /**
+ * @param {string} url
+ * @param {number} [ms]
+ */
+async function fetchJson(url, ms = 4000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const res = await fetch(url, {
+      headers: { Accept: 'application/json' },
+      signal: ctrl.signal,
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * @param {string} addr
  * @returns {Promise<import('./stats-combine.js').StatsGeo | null>}
  */
 async function lookupIpwho(addr) {
-  const res = await fetch(`${IPWHO}/${encodeURIComponent(addr)}`, {
-    headers: { Accept: 'application/json' },
-  });
-  if (!res.ok) return null;
-  const body = await res.json();
+  const body = await fetchJson(`${IPWHO}/${encodeURIComponent(addr)}`);
   if (!body || body.success === false) return null;
   const conn = body.connection && typeof body.connection === 'object' ? body.connection : {};
   return normalizeGeo({
@@ -48,6 +67,21 @@ async function lookupIpwho(addr) {
     city: body.city || '',
     region: body.region || '',
     asOrg: conn.isp || conn.org || '',
+  });
+}
+
+/**
+ * @param {string} addr
+ * @returns {Promise<import('./stats-combine.js').StatsGeo | null>}
+ */
+async function lookupGeojs(addr) {
+  const body = await fetchJson(`${GEOJS}/${encodeURIComponent(addr)}.json`);
+  if (!body || typeof body !== 'object') return null;
+  return normalizeGeo({
+    country: body.country_code || '',
+    city: body.city || '',
+    region: body.region || '',
+    asOrg: body.organization_name || body.organization || '',
   });
 }
 
@@ -146,17 +180,13 @@ async function lookupCymru(addr) {
 export async function lookupGeo(ipOrIdentity) {
   const addr = lookupAddress(ipOrIdentity);
   if (!addr) return null;
+  const [who, js] = await Promise.all([lookupIpwho(addr), lookupGeojs(addr)]);
+  if (who && (who.city || who.region)) return who;
+  if (js && (js.city || js.region)) return js;
   try {
-    const who = await lookupIpwho(addr);
-    if (who && (who.city || who.region)) return who;
-    const cymru = await lookupCymru(addr);
-    return pickRicherGeo(who, cymru);
+    return pickRicherGeo(pickRicherGeo(who, js), await lookupCymru(addr));
   } catch {
-    try {
-      return await lookupCymru(addr);
-    } catch {
-      return null;
-    }
+    return pickRicherGeo(who, js);
   }
 }
 
