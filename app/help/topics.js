@@ -201,7 +201,7 @@ export const HELP_TOPICS = {
           'Yellow = correct letter, wrong position\n' +
           'Gray = letter not in that board’s word\n\n' +
           'A solved board flashes green three times, then its grid disappears. The scoreboard ' +
-          'keeps n/m and adds the word with the attempt it was guessed on. Other boards keep ' +
+          'drops n/m and shows the word with the attempt it was guessed on. Other boards keep ' +
           'their numbers. Unused rows on open boards stay empty.',
       },
       {
@@ -210,8 +210,8 @@ export const HELP_TOPICS = {
         body:
           'The row of cells above the boards shows each board number on the left and n/m on ' +
           'the right: locked greens / known yellows. The cell color mixes those two counts ' +
-          '(0 is none, 5 is strongest). A solved board turns green and also shows the word ' +
-          'and the attempt number. Solved cells grow so that word and attempt stay readable; ' +
+          '(0 is none, 5 is strongest). A solved board turns green, hides n/m, and shows the ' +
+          'word and the attempt number. Solved cells grow so that word and attempt stay readable; ' +
           'the row wraps if needed. Tap a cell to scroll that board into view.',
       },
       {

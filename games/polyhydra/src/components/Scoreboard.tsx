@@ -48,8 +48,9 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
       {cells.map((cell, i) => {
         const showWord = Boolean((cell.solved || revealed) && cell.answer);
         const attempt = cell.solved && cell.solvedAt != null ? cell.solvedAt : null;
-        const nm = `${cell.greens}/${cell.yellows}`;
-        const topChars = String(i + 1).length + 1 + nm.length;
+        const showNm = !showWord;
+        const nm = showNm ? `${cell.greens}/${cell.yellows}` : '';
+        const topChars = String(i + 1).length + (showNm ? 1 + nm.length : 0);
         const wordChars = showWord
           ? cell.answer!.length + (attempt != null ? 2 : 0)
           : 0;
@@ -67,14 +68,14 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
               cell.solved ? ' guessed' : ''
             }${revealed && !cell.solved ? ' missed' : ''}${showWord ? ' has-word' : ''}`}
             style={{ ...style, ['--hydra-fit-chars' as string]: fitChars } as React.CSSProperties}
-            aria-label={`Board ${i + 1}, ${cell.greens} green, ${cell.yellows} yellow${
-              showWord ? `, ${cell.answer}${attempt != null ? `, guess ${attempt}` : ''}` : ''
-            }`}
+            aria-label={`Board ${i + 1}${
+              showNm ? `, ${cell.greens} green, ${cell.yellows} yellow` : ''
+            }${showWord ? `, ${cell.answer}${attempt != null ? `, guess ${attempt}` : ''}` : ''}`}
             onClick={() => onSelect(i)}
           >
             <span className="hydra-scoreboard-top">
               <span className="hydra-scoreboard-id">{i + 1}</span>
-              <span className="hydra-scoreboard-nm">{nm}</span>
+              {showNm ? <span className="hydra-scoreboard-nm">{nm}</span> : null}
             </span>
             {showWord ? (
               <span className="hydra-scoreboard-word">
