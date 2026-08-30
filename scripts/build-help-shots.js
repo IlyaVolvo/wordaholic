@@ -337,4 +337,104 @@ write(
 </svg>`
 );
 
+function hydraMiniBoards() {
+  const cell = 10;
+  const gap = 2;
+  const cols = 5;
+  const rows = 4;
+  const boardW = cols * cell + (cols - 1) * gap;
+  const boardH = rows * cell + (rows - 1) * gap;
+  let out = '';
+  for (let b = 0; b < 3; b++) {
+    const ox = 12 + b * (boardW + 14);
+    const oy = 36;
+    out += `<rect x="${ox - 4}" y="${oy - 4}" width="${boardW + 8}" height="${boardH + 8}" rx="6" fill="#fff"/>`;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const x = ox + c * (cell + gap);
+        const y = oy + r * (cell + gap);
+        let fill = '#fff';
+        let stroke = '#c4c7ca';
+        if (r === 0) {
+          fill = c === 4 ? CORRECT : c > 1 ? PRESENT : '#787c7e';
+          stroke = fill;
+        }
+        out += `<rect x="${x}" y="${y}" width="${cell}" height="${cell}" rx="2" fill="${fill}" stroke="${stroke}"/>`;
+      }
+    }
+  }
+  return out;
+}
+
+write(
+  'polyhydra/welcome.svg',
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 110" width="260" height="110">
+  <rect width="260" height="110" rx="12" fill="#6fa8c9"/>
+  ${[0,1,2,3,4,5].map((i) => `<rect x="${10 + i * 40}" y="10" width="34" height="14" rx="3" fill="${i < 2 ? CORRECT : i < 4 ? PRESENT : '#fff'}"/>`).join('')}
+  ${hydraMiniBoards()}
+</svg>`
+);
+
+write('polyhydra/boards.svg', pwBoard([STARE, BRAIN], 1));
+
+write(
+  'polyhydra/scoreboard.svg',
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 48" width="260" height="48">
+  <rect width="260" height="48" rx="10" fill="#6fa8c9"/>
+  ${[CORRECT, PRESENT, '#fff8c8', '#fff', '#ffe082', CORRECT, '#fffde7', PRESENT].map((fill, i) =>
+    `<rect x="${10 + i * 31}" y="12" width="26" height="24" rx="4" fill="${fill}"/><text x="${23 + i * 31}" y="29" text-anchor="middle" font-size="10" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="${fill === CORRECT ? '#fff' : '#111'}">${i + 1}</text>`
+  ).join('')}
+</svg>`
+);
+
+write(
+  'polyhydra/keyboard.svg',
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 70" width="260" height="70">
+  <rect width="260" height="70" rx="10" fill="#161923"/>
+  ${'QWERTYUIOP'.split('').map((k, i) => {
+    const used = 'STARE'.includes(k);
+    return `<rect x="${8 + i * 25}" y="18" width="22" height="34" rx="5" fill="${used ? '#9aa0a6' : '#d3d6da'}"/><text x="${19 + i * 25}" y="40" text-anchor="middle" font-size="11" font-weight="700" font-family="DM Sans, system-ui, sans-serif">${k}</text>`;
+  }).join('')}
+</svg>`
+);
+
+write(
+  'polyhydra/invalid.svg',
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 44" width="160" height="44">
+  <rect width="260" height="44" rx="8" fill="#6fa8c9"/>
+  ${'ZZZZZ'.split('').map((k, i) => `<rect x="${10 + i * 28}" y="8" width="24" height="28" rx="4" fill="#c62828"/><text x="${22 + i * 28}" y="27" text-anchor="middle" font-size="12" font-weight="700" fill="#fff" font-family="DM Sans, system-ui, sans-serif">${k}</text>`).join('')}
+</svg>`
+);
+
+write(
+  'polyhydra/attempts.svg',
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 56" width="240" height="56">
+  <rect width="240" height="56" rx="10" fill="#161923"/>
+  <text x="120" y="24" text-anchor="middle" font-size="13" font-weight="600" font-family="DM Sans, system-ui, sans-serif" fill="#e2e4ec">16 boards</text>
+  <text x="120" y="42" text-anchor="middle" font-size="12" font-family="DM Sans, system-ui, sans-serif" fill="#7a7e94">21 shared guesses</text>
+</svg>`
+);
+
+write(
+  'polyhydra/calendar.svg',
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 56" width="200" height="56">
+  <rect width="200" height="56" rx="10" fill="#161923"/>
+  <rect x="16" y="12" width="168" height="32" rx="8" fill="#1e2230" stroke="#6c8cff"/>
+  <text x="100" y="33" text-anchor="middle" font-size="13" font-family="DM Sans, system-ui, sans-serif" fill="#e2e4ec">📅 today</text>
+</svg>`
+);
+
+write(
+  'polyhydra/stats.svg',
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 90" width="220" height="90">
+  <rect width="220" height="90" rx="12" fill="#fff"/>
+  <text x="14" y="22" font-size="11" font-family="DM Sans, system-ui, sans-serif" fill="#4a5568">Wins by guesses</text>
+  <rect x="14" y="36" width="12" height="40" rx="2" fill="${CORRECT}"/>
+  <rect x="32" y="28" width="12" height="48" rx="2" fill="${CORRECT}"/>
+  <rect x="50" y="20" width="12" height="56" rx="2" fill="${CORRECT}"/>
+  <rect x="176" y="64" width="12" height="12" rx="2" fill="#787c7e"/>
+  <text x="182" y="86" text-anchor="middle" font-size="8" font-family="DM Sans, system-ui, sans-serif" fill="#4a5568">loss</text>
+</svg>`
+);
+
 console.log('Wrote help screenshots to public/help/');

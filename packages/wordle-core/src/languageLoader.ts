@@ -1,0 +1,427 @@
+import type { DictionaryEntry, LanguageConfig } from './types';
+import { languageDirForCode } from '@wordaholic/locales';
+
+/** Shared PolyWordlot word lists — Hydra uses the same files, not a copy. */
+const DICT_BASE = '/games/polywordlot/dict/';
+/** Shared language definitions: /word-data/<Language>/<locale>/language.json */
+const WORD_DATA_BASE = '/word-data/';
+
+// Cache for loaded dictionaries
+const dictionaryCache = new Map<string, DictionaryEntry>();
+
+// Cache for language configurations (from the build-time catalog)
+const languageConfigsCache = new Map<string, LanguageConfig>();
+
+// Cache for keyboard layouts
+const keyboardCache = new Map<string, string[][]>();
+
+// Cache for keyboard action buttons
+export interface KeyboardActions {
+  enter?: {
+    label: string;
+    position?: 'start' | 'end' | 'none';
+    /** Row index (0-based) where the key appears. Defaults to last row if omitted. */
+    row?: number;
+  };
+  backspace?: {
+    label: string;
+    position?: 'start' | 'end' | 'none';
+    /** Row index (0-based) where the key appears. Defaults to last row if omitted. */
+    row?: number;
+  };
+}
+
+/** Input plugin config: id + optional language-specific config */
+export interface InputPluginConfig {
+  id: string;
+  config?: Record<string, unknown>;
+}
+
+interface KeyboardConfig {
+  layout: string[][];
+  actions?: KeyboardActions;
+  /** If true, letters are entered right-to-left (e.g. Hebrew). Defaults to false when missing. */
+  rtl?: boolean;
+  /** Display name for the language selector menu (e.g. "Español" or "Español (MX)"). */
+  menu?: string;
+  /** Flag emoji for the language (e.g. "🇪🇸"); shown in selector. */
+  flag?: string;
+  /** Character normalization mappings (e.g. {"ä": "a", "ß": "ss"}). */
+  normalization?: Record<string, string>;
+  /** Optional input plugins invoked on every letter entry. */
+  plugins?: InputPluginConfig[];
+  /** Localized message shown on win. */
+  winMessage?: string;
+  /** Localized help tip text. */
+  helpTip?: string;
+  /** Localized lose message template, with {word} placeholder. */
+  loseMessage?: string;
+  /** About section with localized labels and contributor info. */
+  about?: {
+    contributorLabel?: string;
+    rulesLabel?: string;
+    contributor?: string;
+  };
+}
+
+const keyboardActionsCache = new Map<string, KeyboardActions>();
+const keyboardRtlCache = new Map<string, boolean>();
+const keyboardMenuCache = new Map<string, string>();
+const normalizationCache = new Map<string, Record<string, string>>();
+const inputPluginsCache = new Map<string, InputPluginConfig[]>();
+const winMessageCache = new Map<string, string>();
+const helpTipCache = new Map<string, string>();
+const loseMessageCache = new Map<string, string>();
+const aboutCache = new Map<string, { contributorLabel?: string; rulesLabel?: string; contributor?: string }>();
+
+/**
+ * Loads a dictionary file as text with support for comments (#) and empty lines
+ */
+async function loadDictionaryFile(path: string): Promise<string[]> {
+  try {
+    const response = await fetch(path);
+    
+    // Check if file exists (404 means file doesn't exist)
+    if (response.status === 404) {
+      return [];
+    }
+    
+    // Check if response is OK
+    if (!response.ok) {
+      return [];
+    }
+    
+    // Check Content-Type to ensure it's a text file, not HTML
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      // File doesn't exist (server returned HTML error page) - silently return empty
+      return [];
+    }
+    
+    // If it's a text file, read it
+    const text = await response.text();
+    const words = text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => {
+        // Ignore empty lines
+        if (!line) return false;
+        // Ignore lines starting with #
+        if (line.startsWith('#')) return false;
+        return true;
+      })
+      .map(line => {
+        // Extract only the first word (up to first whitespace)
+        // The rest is considered a comment and not used
+        const firstWord = line.split(/\s+/)[0];
+        return firstWord.toLowerCase();
+      })
+      .filter(word => word.length > 0);
+    
+    console.log(`Loaded ${path}: ${words.length} words`);
+    return words;
+  } catch (error) {
+    // File doesn't exist or error occurred - silently return empty
+    return [];
+  }
+}
+
+/**
+ * Language list and supported lengths come from the build catalog.
+ * Reload must not probe answer files with HEAD — those miss the service-worker GET cache.
+ */
+async function loadLanguageCatalog(): Promise<LanguageConfig[]> {
+  if (languageConfigsCache.size > 0) {
+    return Array.from(languageConfigsCache.values());
+  }
+
+  const response = await fetch('/data/languages.json');
+  if (!response.ok) {
+    throw new Error('Failed to load languages catalog');
+  }
+  const catalog = await response.json();
+  if (!Array.isArray(catalog)) {
+    throw new Error('Languages catalog is invalid');
+  }
+
+  for (const lang of catalog) {
+    const lengths = Array.isArray(lang.polywordlotLengths) ? lang.polywordlotLengths : [];
+    const games = lang.games || [];
+    if (!lengths.length || (!games.includes('polywordlot') && !games.includes('polyhydra'))) continue;
+    const config: LanguageConfig = {
+      code: lang.code,
+      name: typeof lang.menu === 'string' && lang.menu.trim() ? lang.menu.trim() : lang.code,
+      flag: typeof lang.flag === 'string' && lang.flag.trim() ? lang.flag.trim() : undefined,
+      supportedLengths: lengths,
+    };
+    languageConfigsCache.set(config.code, config);
+  }
+
+  return Array.from(languageConfigsCache.values());
+}
+
+/**
+ * Gets the directory path for a language/locale
+ */
+export function getLanguageDir(locale: string): string | null {
+  return languageDirForCode(locale);
+}
+
+export async function loadWinMessage(language: string): Promise<string | null> {
+  if (winMessageCache.has(language)) {
+    return winMessageCache.get(language)!;
+  }
+  await loadKeyboard(language);
+  return winMessageCache.get(language) || null;
+}
+
+export async function loadHelpTip(language: string): Promise<string | null> {
+  if (helpTipCache.has(language)) {
+    return helpTipCache.get(language)!;
+  }
+  await loadKeyboard(language);
+  return helpTipCache.get(language) || null;
+}
+
+export async function loadLoseMessage(language: string, word: string): Promise<string> {
+  if (!loseMessageCache.has(language)) {
+    await loadKeyboard(language);
+  }
+  const template = loseMessageCache.get(language) || 'Answer was: {word}';
+  return template.replace('{word}', word);
+}
+
+export async function loadAbout(language: string): Promise<{ contributorLabel?: string; rulesLabel?: string; contributor?: string } | null> {
+  if (aboutCache.has(language)) {
+    return aboutCache.get(language)!;
+  }
+  await loadKeyboard(language);
+  return aboutCache.get(language) || null;
+}
+
+/**
+ * Loads a dictionary for a specific language and word length
+ * Uses the new directory structure: Language/Locale/answers-<len>.txt
+ */
+export async function loadDictionary(
+  language: string,
+  wordLength: number
+): Promise<DictionaryEntry | null> {
+  const cacheKey = `${language}-${wordLength}`;
+  
+  // Check cache first
+  if (dictionaryCache.has(cacheKey)) {
+    return dictionaryCache.get(cacheKey)!;
+  }
+
+  const languageDir = getLanguageDir(language);
+  if (!languageDir) {
+    console.warn(`Unknown language code: ${language}`);
+    return null;
+  }
+
+  // Load answer words and dictionary words from new structure
+  const answersPath = `${DICT_BASE}${languageDir}/answers-${wordLength}.txt`;
+  const dictionaryPath = `${DICT_BASE}${languageDir}/dictionary-${wordLength}.txt`;
+
+  const [answerWords, allWords] = await Promise.all([
+    loadDictionaryFile(answersPath),
+    loadDictionaryFile(dictionaryPath),
+  ]);
+
+  if (answerWords.length === 0) {
+    console.warn(`No answer words found for ${language}-${wordLength}`);
+    return null;
+  }
+
+  // If dictionary file doesn't exist, use answer words as dictionary
+  const combinedWords = allWords.length > 0 
+    ? (() => {
+        const wordSet = new Set<string>();
+        answerWords.forEach(word => wordSet.add(word));
+        allWords.forEach(word => wordSet.add(word));
+        return Array.from(wordSet).sort();
+      })()
+    : [...answerWords].sort();
+
+  const sortedAnswerWords = [...answerWords].sort();
+
+  const dictionary: DictionaryEntry = {
+    language,
+    wordLength,
+    words: combinedWords, // All words for validation
+    answerWords: sortedAnswerWords, // Sorted answer words for daily word selection
+    answerWordsOriginal: answerWords, // Original file order (by frequency)
+  };
+
+  // Cache the dictionary
+  dictionaryCache.set(cacheKey, dictionary);
+
+  return dictionary;
+}
+
+/**
+ * Gets PolyWordlot language configurations from the site catalog.
+ */
+export async function getLanguageConfigs(): Promise<LanguageConfig[]> {
+  return loadLanguageCatalog();
+}
+
+/**
+ * Gets a language config by code (synchronous version that may return cached data)
+ * For immediate use, call getLanguageConfigs() first to ensure detection is complete
+ */
+export async function getLanguageConfig(code: string): Promise<LanguageConfig | undefined> {
+  const configs = await getLanguageConfigs();
+  return configs.find(lang => lang.code === code);
+}
+
+/**
+ * Loads keyboard layout for a language
+ * Supports both old format (2D array) and new format (object with layout and actions)
+ */
+export async function loadKeyboard(language: string): Promise<string[][] | null> {
+  // Use cache only when we have both layout and RTL (so RTL is always in sync with layout)
+  if (keyboardCache.has(language) && keyboardRtlCache.has(language)) {
+    return keyboardCache.get(language)!;
+  }
+
+  const languageDir = getLanguageDir(language);
+  if (!languageDir) {
+    return null;
+  }
+
+  const languagePath = `${WORD_DATA_BASE}${languageDir}/language.json`;
+
+  try {
+    const response = await fetch(languagePath);
+
+    if (response.status === 404 || !response.ok) {
+      return null;
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      return null;
+    }
+
+    const keyboardData = await response.json();
+
+    // Handle object format: { layout: [...], actions?, rtl?, menu? }
+    if (keyboardData && typeof keyboardData === 'object' && 'layout' in keyboardData) {
+      const config = keyboardData as KeyboardConfig;
+      if (Array.isArray(config.layout) && config.layout.every(row => Array.isArray(row))) {
+        keyboardCache.set(language, config.layout);
+        if (config.actions) {
+          keyboardActionsCache.set(language, config.actions);
+        }
+        keyboardRtlCache.set(language, config.rtl === true);
+        if (typeof config.menu === 'string' && config.menu.trim()) {
+          keyboardMenuCache.set(language, config.menu.trim());
+        }
+        if (config.normalization && typeof config.normalization === 'object') {
+          normalizationCache.set(language, config.normalization);
+        }
+        if (typeof config.winMessage === 'string' && config.winMessage.trim()) {
+          winMessageCache.set(language, config.winMessage.trim());
+        }
+        if (typeof config.helpTip === 'string' && config.helpTip.trim()) {
+          helpTipCache.set(language, config.helpTip.trim());
+        }
+        if (typeof config.loseMessage === 'string' && config.loseMessage.trim()) {
+          loseMessageCache.set(language, config.loseMessage.trim());
+        }
+        if (config.about && typeof config.about === 'object') {
+          aboutCache.set(language, config.about);
+        }
+        if (Array.isArray(config.plugins) && config.plugins.length > 0) {
+          const valid = config.plugins.filter(
+            (p): p is InputPluginConfig => p && typeof p === 'object' && typeof (p as InputPluginConfig).id === 'string'
+          );
+          inputPluginsCache.set(language, valid);
+        } else {
+          inputPluginsCache.set(language, []);
+        }
+        return config.layout;
+      }
+    }
+
+    // Handle legacy format: 2D array only (default LTR, no menu)
+    if (Array.isArray(keyboardData) && keyboardData.every(row => Array.isArray(row))) {
+      keyboardCache.set(language, keyboardData);
+      keyboardRtlCache.set(language, false);
+      inputPluginsCache.set(language, []);
+      return keyboardData;
+    }
+
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+
+/**
+ * Returns whether the keyboard for this language uses right-to-left letter entry.
+ * Loaded once at startup with the keyboard layout and cached; does not change during the game.
+ */
+export async function getKeyboardRtl(language: string): Promise<boolean> {
+  if (keyboardRtlCache.has(language)) {
+    return keyboardRtlCache.get(language)!;
+  }
+  await loadKeyboard(language);
+  return keyboardRtlCache.get(language) ?? false;
+}
+
+/**
+ * Loads keyboard action buttons configuration for a language
+ */
+export async function loadKeyboardActions(language: string): Promise<KeyboardActions | null> {
+  // Check cache first
+  if (keyboardActionsCache.has(language)) {
+    return keyboardActionsCache.get(language)!;
+  }
+
+  // Try to load keyboard (which will also cache actions if present)
+  await loadKeyboard(language);
+  
+  // Return cached actions or null
+  return keyboardActionsCache.get(language) || null;
+}
+
+/**
+ * Returns the normalization mappings for a language, loaded from language.json.
+ * Must be called after loadKeyboard() has been called for this language.
+ */
+export function getNormalization(language: string): Record<string, string> | null {
+  return normalizationCache.get(language) || null;
+}
+
+/**
+ * Returns the input plugins for a language, loaded from language.json.
+ * Must be called after loadKeyboard() has been called for this language.
+ */
+export function getInputPlugins(language: string): InputPluginConfig[] {
+  if (inputPluginsCache.has(language)) {
+    return inputPluginsCache.get(language)!;
+  }
+  return [];
+}
+
+/**
+ * Preloads all dictionaries (useful for initial load)
+ */
+export async function preloadAllDictionaries(): Promise<void> {
+  const loadPromises: Promise<void>[] = [];
+  
+  const configs = await getLanguageConfigs();
+  for (const langConfig of configs) {
+    for (const length of langConfig.supportedLengths) {
+      console.log(`Detected lengths for ${langConfig.code}:`, length);
+      loadPromises.push(
+        loadDictionary(langConfig.code, length).then(() => {})
+      );
+    }
+  }
+
+  await Promise.all(loadPromises);
+}

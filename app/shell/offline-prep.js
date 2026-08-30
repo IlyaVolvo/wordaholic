@@ -65,6 +65,7 @@ export async function prepareOffline(onProgress) {
     '/data/languages.json',
     '/map/world.svg',
     '/games/polywordlot/index.html',
+    '/games/polyhydra/index.html',
     '/games/transword/index.html',
     '/games/transword/game.js',
     '/games/transword/game.css',
@@ -73,7 +74,8 @@ export async function prepareOffline(onProgress) {
     '/games/transword/data/languages/index.json',
   ];
   const pwAssets = await assetUrlsFromIndex('/games/polywordlot/index.html');
-  await Promise.all([...shellUrls, ...pwAssets].map((u) => fetch(u).catch(() => null)));
+  const phAssets = await assetUrlsFromIndex('/games/polyhydra/index.html');
+  await Promise.all([...shellUrls, ...pwAssets, ...phAssets].map((u) => fetch(u).catch(() => null)));
 
   onProgress(55, 'Caching favorite language dictionaries…');
   const wordUrls = [];
@@ -81,11 +83,13 @@ export async function prepareOffline(onProgress) {
     if (lang.wordDir) {
       wordUrls.push(`/word-data/${lang.wordDir}/language.json`);
     }
-    if ((lang.games || []).includes('polywordlot') && lang.polyDir) {
-      const dir = lang.polyDir;
-      for (const len of lang.polywordlotLengths || []) {
-        wordUrls.push(`/games/polywordlot/dict/${dir}/answers-${len}.txt`);
-        wordUrls.push(`/games/polywordlot/dict/${dir}/dictionary-${len}.txt`);
+    if ((lang.games || []).includes('polywordlot') || (lang.games || []).includes('polyhydra')) {
+      if (lang.polyDir) {
+        const dir = lang.polyDir;
+        for (const len of lang.polywordlotLengths || []) {
+          wordUrls.push(`/games/polywordlot/dict/${dir}/answers-${len}.txt`);
+          wordUrls.push(`/games/polywordlot/dict/${dir}/dictionary-${len}.txt`);
+        }
       }
     }
     if ((lang.games || []).includes('transword')) {

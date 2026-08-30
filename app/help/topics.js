@@ -56,8 +56,8 @@ export const HELP_TOPICS = {
         body:
           'Wordaholic keeps completed games on this device — there is no account. The tray ' +
           'icons at the bottom are used to export/import the historyy.\n\n' +
-          'Export (arrow into the tray) saves a JSON file: finished PolyWordlot and ' +
-          'TransWord games, plus the languages you selected. Use it as a backup, or to copy ' +
+          'Export (arrow into the tray) saves a JSON file: finished PolyWordlot, ' +
+          'TransWord, and PolyHydra games, plus the languages you selected. Use it as a backup, or to copy ' +
           'progress to another browser or phone.\n\n' +
           'Import (arrow out of the tray) reads that file. Puzzles merge with what is ' +
           'already here. If the same daily exists on both, the worse result is kept. ' +
@@ -176,6 +176,79 @@ export const HELP_TOPICS = {
         body:
           'The 2×2 grid icon compares your results across languages and word lengths, so ' +
           'you can see which ones take more attempts on average.',
+      },
+    ],
+  },
+  polyhydra: {
+    title: 'PolyHydra',
+    tooltip: 'How to play PolyHydra',
+    intro: 'Play several PolyWordlot boards at once with one shared guess.',
+    steps: [
+      {
+        title: 'Many boards, one guess',
+        screenshot: '/help/polyhydra/welcome.svg',
+        body:
+          'PolyHydra is PolyWordlot on several boards at the same time. Each board has its ' +
+          'own secret word. You type one guess; it is scored on every board that is not ' +
+          'solved yet. Secrets can repeat. There is no Practice mode — only Daily.',
+      },
+      {
+        title: 'Letter colors on the boards',
+        screenshot: '/help/polyhydra/boards.svg',
+        body:
+          'Boards use the same colors as PolyWordlot:\n\n' +
+          'Green = correct letter, correct position\n' +
+          'Yellow = correct letter, wrong position\n' +
+          'Gray = letter not in that board’s word\n\n' +
+          'A solved board ignores later guesses. Unused rows stay empty.',
+      },
+      {
+        title: 'Scoreboard',
+        screenshot: '/help/polyhydra/scoreboard.svg',
+        body:
+          'The row of cells above the boards is a completion meter. It starts white and ' +
+          'fills yellow as you lock greens and learn unplaced letters. It never goes ' +
+          'backwards. A solved board turns green. Tap a cell to scroll that board into view.',
+      },
+      {
+        title: 'Keyboard',
+        screenshot: '/help/polyhydra/keyboard.svg',
+        body:
+          'Keys only show used vs unused. Used means that letter appeared in a submitted ' +
+          'guess on any board. Keys do not turn green, yellow, or gray.',
+      },
+      {
+        title: 'Unknown words stay red',
+        screenshot: '/help/polyhydra/invalid.svg',
+        body:
+          'If the row is not full, Return does nothing. If the word is not in the list, ' +
+          'the current row turns red on every unsolved board and stays red. Press Return ' +
+          'again to clear it. No attempt is used. Typing or backspace while it is red ' +
+          'returns to normal typing.',
+      },
+      {
+        title: 'How many guesses',
+        screenshot: '/help/polyhydra/attempts.svg',
+        body:
+          'You have board count + 5 shared guesses (for 16 boards that is 21). Win by ' +
+          'solving every board. If the pool runs out with any board still open, those ' +
+          'secrets are shown. Each combination of date, language, word length, and ' +
+          'board count is its own Daily.',
+      },
+      {
+        title: 'Calendar',
+        screenshot: '/help/polyhydra/calendar.svg',
+        body:
+          'Tap the date control to open the calendar for the current language, length, and ' +
+          'board count. Completed days, in-progress days, and days you have not played ' +
+          'are marked. Pick an earlier date to play or resume that day’s puzzle.',
+      },
+      {
+        title: 'Statistics',
+        screenshot: '/help/polyhydra/stats.svg',
+        body:
+          'The bar-chart icon opens statistics for the current language, word length, and ' +
+          'board count: wins by shared guess count, plus a loss bucket.',
       },
     ],
   },

@@ -29,6 +29,63 @@ function sameWord(a, b) {
   return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 }
 
+/** Keep in sync with packages/wordle-core hydraConfig (extra attempts are 5 for every 2..20). */
+function hydraMaxGuesses(boardCount) {
+  const n = Math.min(20, Math.max(2, Math.round(Number(boardCount)) || 0));
+  return n + 5;
+}
+
+function asGuessLists(value, boardCount) {
+  const n = Math.max(0, Number(boardCount) || 0);
+  if (!Array.isArray(value)) return Array.from({ length: n }, () => []);
+  return Array.from({ length: n }, (_, i) => asWords(value[i]));
+}
+
+function isHydraRow(row) {
+  if (!row || typeof row !== 'object') return false;
+  if (row.gameId === 'polyhydra') return true;
+  if (row.gameId === 'polywordlot' || row.gameId === 'transword') return false;
+  return Number(row.board_count) >= 2 && (Array.isArray(row.target_words) || Array.isArray(row.board_guesses));
+}
+
+function hydraFields(row) {
+  const board_count = Number(row.board_count);
+  const stated = Number(row.word_length ?? row.wordLength);
+  const target_words = Array.isArray(row.target_words)
+    ? row.target_words.map((w) => String(w || '').trim())
+    : [];
+  const board_guesses = asGuessLists(row.board_guesses, board_count);
+  const word_length =
+    Number.isFinite(stated) && stated > 0
+      ? stated
+      : target_words[0]?.length || board_guesses.find((g) => g[0])?.[0]?.length || 0;
+  return {
+    language: String(row.language || '').trim(),
+    word_length,
+    board_count,
+    target_words,
+    board_guesses,
+    game_date: asGameDate(row.game_date || row.gameDate),
+    updated_at: row.updated_at || row.updatedAt || '',
+    completed_at: row.completed_at || row.completedAt || '',
+  };
+}
+
+function hydraUsed(row) {
+  const hydra = hydraFields(row);
+  return Math.max(0, ...hydra.board_guesses.map((g) => g.length));
+}
+
+function hydraWon(row) {
+  const hydra = hydraFields(row);
+  if (!hydra.target_words.length || hydra.target_words.length !== hydra.board_count) return false;
+  return hydra.target_words.every((target, i) => {
+    const guesses = hydra.board_guesses[i] || [];
+    const last = guesses[guesses.length - 1];
+    return Boolean(last && sameWord(last, target));
+  });
+}
+
 function polyFields(row) {
   const guesses = asWords(row.guesses);
   const target = String(row.target_word || row.targetWord || '').trim();
@@ -54,6 +111,7 @@ export function isPracticeRecord(row) {
 
 function isTranswordRow(row) {
   if (row?.gameId === 'transword') return true;
+  if (row?.gameId === 'polyhydra' || isHydraRow(row)) return false;
   if (row?.gameId === 'polywordlot' || row?.guesses || row?.game_date || row?.word_length != null) {
     return false;
   }
@@ -65,6 +123,11 @@ export function isCompletedRecord(row) {
   if (isTranswordRow(row)) {
     const path = asWords(row.path);
     return Boolean(row.isComplete) || Boolean(row.end && path.includes(row.end));
+  }
+  if (isHydraRow(row)) {
+    if (hydraWon(row)) return true;
+    if (hydraUsed(row) >= hydraMaxGuesses(row.board_count)) return true;
+    return Number(row.is_complete) === 1 || row.isComplete === true;
   }
   const poly = polyFields(row);
   if (poly.guesses.length >= 6) return true;
@@ -92,6 +155,21 @@ function toTranswordExport(row) {
 
 export function toExportRecord(row) {
   if (isTranswordRow(row)) return toTranswordExport(row);
+  if (isHydraRow(row)) {
+    const hydra = hydraFields(row);
+    const out = {
+      language: hydra.language,
+      word_length: hydra.word_length,
+      board_count: hydra.board_count,
+      target_words: hydra.target_words,
+      game_date: hydra.game_date,
+      board_guesses: hydra.board_guesses,
+      won: hydraWon(hydra),
+    };
+    if (hydra.updated_at) out.updated_at = hydra.updated_at;
+    if (hydra.completed_at) out.completed_at = hydra.completed_at;
+    return out;
+  }
   const poly = polyFields(row);
   const out = {
     language: poly.language,
@@ -111,6 +189,11 @@ export function completedRecordId(gameId, row) {
     const gameDate = asGameDate(row?.gameDate);
     if (!row?.language || row.vocabLevel == null || row.difficulty == null || !gameDate) return '';
     return `${gameId}:${row.language}:${row.vocabLevel}:${row.difficulty}:${gameDate}`;
+  }
+  if (gameId === 'polyhydra' || isHydraRow(row)) {
+    const hydra = hydraFields(row);
+    if (!hydra.language || !hydra.word_length || !hydra.board_count || !hydra.game_date) return '';
+    return `${gameId}:game:${hydra.language}|${hydra.word_length}|${hydra.board_count}|${hydra.game_date}`;
   }
   const poly = polyFields(row);
   if (!poly.language || !poly.word_length || !poly.game_date) return '';
@@ -136,6 +219,29 @@ export function toStoredRecord(gameId, row, numericId = 0) {
       helpCount: Math.max(0, Number(row.helpCount) || 0),
       isComplete: true,
       updatedAt: row.updatedAt || new Date().toISOString(),
+    };
+  }
+  if (gameId === 'polyhydra' || isHydraRow(row)) {
+    const hydra = hydraFields(row);
+    const won = hydraWon(hydra);
+    const complete = won || hydraUsed(hydra) >= hydraMaxGuesses(hydra.board_count);
+    return {
+      id: completedRecordId(gameId, hydra),
+      gameId,
+      kind: 'game',
+      numericId,
+      language: hydra.language,
+      word_length: hydra.word_length,
+      board_count: hydra.board_count,
+      target_words: hydra.target_words,
+      game_date: hydra.game_date,
+      board_guesses: hydra.board_guesses,
+      current_guess: '',
+      invalid_pending: 0,
+      is_complete: complete ? 1 : 0,
+      is_won: won ? 1 : 0,
+      updated_at: hydra.updated_at || new Date().toISOString(),
+      completed_at: hydra.completed_at || hydra.updated_at || new Date().toISOString(),
     };
   }
   const poly = polyFields(row);
@@ -186,10 +292,21 @@ function pickTransword(local, incoming) {
   return local;
 }
 
+function pickHydra(local, incoming) {
+  const localWon = hydraWon(local);
+  const incomingWon = hydraWon(incoming);
+  if (localWon !== incomingWon) return incomingWon ? local : incoming;
+  const localN = hydraUsed(local);
+  const incomingN = hydraUsed(incoming);
+  if (incomingN !== localN) return incomingN > localN ? incoming : local;
+  return local;
+}
+
 export function pickRecordToKeep(local, incoming) {
   if (!local) return incoming;
   if (!isCompletedRecord(local)) return incoming;
   if (!isCompletedRecord(incoming)) return local;
   if (isTranswordRow(local) || isTranswordRow(incoming)) return pickTransword(local, incoming);
+  if (isHydraRow(local) || isHydraRow(incoming)) return pickHydra(local, incoming);
   return pickPolywordlot(local, incoming);
 }

@@ -49,6 +49,18 @@ registerGame({
   getStatistics() { return null; },
 });
 
+registerGame({
+  id: 'polyhydra',
+  name: 'PolyHydra',
+  storageSchema: 1,
+  languages: ['en', 'ru', 'fr', 'es', 'he', 'hy', 'de'],
+  async initialize() {},
+  start() {},
+  saveState() { return null; },
+  restoreState() {},
+  getStatistics() { return null; },
+});
+
 const $ = (sel) => document.querySelector(sel);
 
 /** @type {import('./shell/languages.js').LanguageInfo[]} */

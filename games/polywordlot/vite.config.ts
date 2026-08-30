@@ -76,6 +76,7 @@ export default defineConfig({
       '@wordaholic/storage': path.resolve(__dirname, '../../app/storage/idb.js'),
       '@wordaholic/help': path.resolve(__dirname, '../../app/help/dialog.js'),
       '@wordaholic/stats': path.resolve(__dirname, '../../app/stats/report.js'),
+      '@wordaholic/wordle-core': path.resolve(__dirname, '../../packages/wordle-core/src/index.ts'),
     },
   },
   define: {

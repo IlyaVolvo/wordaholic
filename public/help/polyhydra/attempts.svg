@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 56" width="240" height="56">
+  <rect width="240" height="56" rx="10" fill="#161923"/>
+  <text x="120" y="24" text-anchor="middle" font-size="13" font-weight="600" font-family="DM Sans, system-ui, sans-serif" fill="#e2e4ec">16 boards</text>
+  <text x="120" y="42" text-anchor="middle" font-size="12" font-family="DM Sans, system-ui, sans-serif" fill="#7a7e94">21 shared guesses</text>
+</svg>

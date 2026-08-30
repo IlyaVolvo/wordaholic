@@ -29,7 +29,7 @@
  */
 
 /** Stable ids even when the plugin registry has not been populated (game pages). */
-export const KNOWN_GAME_IDS = ['polywordlot', 'transword'];
+export const KNOWN_GAME_IDS = ['polywordlot', 'transword', 'polyhydra'];
 
 /** @type {Map<string, GamePlugin>} */
 const registry = new Map();

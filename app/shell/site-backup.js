@@ -157,7 +157,7 @@ export async function downloadSiteBackup(payload, opts = {}) {
 
 /**
  * Full site backup, or a file whose top-level key is a game id
- * (`polywordlot` / `transword`) with that game's `{ general, records }` tree.
+ * (`polywordlot` / `transword` / `polyhydra`) with that game's `{ general, records }` tree.
  * @param {object} payload
  */
 export async function importSiteBackup(payload) {
@@ -246,7 +246,7 @@ function parseBackup(payload) {
   }
 
   throw new Error(
-    'Unrecognized backup. Use a Wordaholic export, or a file that starts with a game name (polywordlot or transword).'
+    'Unrecognized backup. Use a Wordaholic export, or a file that starts with a game name (polywordlot, transword, or polyhydra).'
   );
 }
 

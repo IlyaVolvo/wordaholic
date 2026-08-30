@@ -36,6 +36,7 @@ const PRECACHE = [
   '/data/languages.json',
   '/map/world.svg',
   '/games/polywordlot/index.html',
+  '/games/polyhydra/index.html',
   '/games/transword/index.html',
   '/games/transword/game.js',
   '/games/transword/game.css',

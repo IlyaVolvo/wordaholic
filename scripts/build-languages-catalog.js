@@ -57,7 +57,7 @@ export function buildLanguagesCatalog() {
     if (fs.existsSync(langJsonPath)) {
       meta = { ...meta, ...JSON.parse(fs.readFileSync(langJsonPath, 'utf8')) };
     }
-    const games = lengths.length ? ['polywordlot'] : [];
+    const games = lengths.length ? ['polywordlot', 'polyhydra'] : [];
     const coords = MAP_COORDS[code] || { lat: 0, lon: 0 };
     byCode.set(code, {
       code,

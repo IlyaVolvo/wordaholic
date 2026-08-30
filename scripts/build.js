@@ -126,12 +126,19 @@ function main() {
   });
   copyDir(path.join(ROOT, 'games/polywordlot/dict'), path.join(DIST, 'games/polywordlot/dict'));
 
+  console.log('Building PolyHydra…');
+  execSync('npx vite build --config games/polyhydra/vite.config.ts', {
+    cwd: ROOT,
+    stdio: 'inherit',
+  });
+
   const catalog = buildLanguagesCatalog();
   ensureDir(path.join(DIST, 'data'));
   fs.writeFileSync(path.join(DIST, 'data/languages.json'), JSON.stringify(catalog, null, 2));
 
   const gameHashes = {
     polywordlot: hashTree(path.join(DIST, 'games', 'polywordlot')),
+    polyhydra: hashTree(path.join(DIST, 'games', 'polyhydra')),
     transword: hashTree(path.join(DIST, 'games', 'transword')),
   };
   const wordDataHashes = hashTree(path.join(DIST, 'word-data'));
@@ -167,6 +174,9 @@ function main() {
     games: {
       polywordlot: {
         hash: crypto.createHash('sha256').update(JSON.stringify(gameHashes.polywordlot)).digest('hex').slice(0, 16),
+      },
+      polyhydra: {
+        hash: crypto.createHash('sha256').update(JSON.stringify(gameHashes.polyhydra)).digest('hex').slice(0, 16),
       },
       transword: {
         hash: crypto.createHash('sha256').update(JSON.stringify(gameHashes.transword)).digest('hex').slice(0, 16),
