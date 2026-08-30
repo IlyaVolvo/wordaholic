@@ -5,6 +5,8 @@ import { listStoredGames, isHydraComplete, isHydraWon, type StoredHydra } from '
 
 const EXTRA_LOSS = 6;
 const EXTRA_SCORES = [0, 1, 2, 3, 4, 5, 6] as const;
+const RARE_SCORES = [0, 1, 2] as const;
+const BAR_SCORES = [3, 4, 5, 6] as const;
 
 interface StatisticsProps {
   language: string;
@@ -42,6 +44,15 @@ function extraScore(game: StoredHydra): number {
 
 function emptyCounts(): ExtraCounts {
   return Object.fromEntries(EXTRA_SCORES.map((s) => [s, 0]));
+}
+
+function rareMention(counts: ExtraCounts): string | null {
+  const parts = RARE_SCORES.filter((score) => (counts[score] || 0) > 0).map((score) => {
+    const n = counts[score];
+    return `+${score}: ${n} ${n === 1 ? 'time' : 'times'}`;
+  });
+  if (!parts.length) return null;
+  return `Rare Achievements: ${parts.join(', ')}`;
 }
 
 export const Statistics: React.FC<StatisticsProps> = ({
@@ -128,14 +139,41 @@ export const Statistics: React.FC<StatisticsProps> = ({
               Played: {played} · Wins: {wins} · Win rate: {played ? Math.round((wins / played) * 100) : 0}%
             </p>
             <p className="hydra-stats-legend-caption">
-              Extra guesses beyond board count: +0 is a win in N guesses or fewer; +6 is a loss.
+              Extra guesses beyond board count: +3 to +5 are wins; +6 is a loss. Wins in N, N+1,
+              or N+2 guesses are listed above the bar as Rare Achievements.
             </p>
             <div className="hydra-stats-legend" aria-label="Extra-guess colors">
-              {EXTRA_SCORES.map((score) => (
+              {BAR_SCORES.map((score) => (
                 <span key={score} className={`hydra-stats-swatch extra-${score}`}>
                   +{score}
                 </span>
               ))}
+            </div>
+            <div className="hydra-stats-example" aria-hidden="true">
+              <div className="hydra-stats-example-caption">Example without Rare Achievements</div>
+              <section className="hydra-stats-group">
+                <h3>12 boards</h3>
+                <div className="hydra-stats-row">
+                  <div className="hydra-stats-row-main">
+                    <div className="hydra-stats-row-label">5 letters</div>
+                    <div className="hydra-stats-bar">
+                      <div className="hydra-stats-seg extra-3" style={{ flexGrow: 5, flexBasis: 0 }}>
+                        5
+                      </div>
+                      <div className="hydra-stats-seg extra-4" style={{ flexGrow: 8, flexBasis: 0 }}>
+                        8
+                      </div>
+                      <div className="hydra-stats-seg extra-5" style={{ flexGrow: 4, flexBasis: 0 }}>
+                        4
+                      </div>
+                      <div className="hydra-stats-seg extra-6" style={{ flexGrow: 3, flexBasis: 0 }}>
+                        3
+                      </div>
+                    </div>
+                    <div className="hydra-stats-total">20</div>
+                  </div>
+                </div>
+              </section>
             </div>
             {groups.length === 0 ? (
               <p>No finished games for this language yet.</p>
@@ -143,35 +181,47 @@ export const Statistics: React.FC<StatisticsProps> = ({
               groups.map((group) => (
                 <section key={group.boardCount} className="hydra-stats-group">
                   <h3>{group.boardCount} boards</h3>
-                  {group.sizes.map((row) => (
-                    <div key={row.wordLength} className="hydra-stats-row">
-                      <div className="hydra-stats-row-label">{row.wordLength} letters</div>
-                      <div
-                        className="hydra-stats-bar"
-                        role="img"
-                        aria-label={EXTRA_SCORES.filter((s) => row.counts[s] > 0)
-                          .map((s) => `+${s}: ${row.counts[s]} (${Math.round((row.counts[s] / row.total) * 100)}%)`)
-                          .join(', ')}
-                      >
-                        {EXTRA_SCORES.map((score) => {
-                          const count = row.counts[score] || 0;
-                          if (count <= 0) return null;
-                          const pct = (count / row.total) * 100;
-                          return (
-                            <div
-                              key={score}
-                              className={`hydra-stats-seg extra-${score}`}
-                              style={{ flexGrow: count, flexBasis: 0 }}
-                              title={`+${score}: ${count} (${pct.toFixed(1)}%)`}
-                            >
-                              {count}
-                            </div>
-                          );
-                        })}
+                  {group.sizes.map((row) => {
+                    const rare = rareMention(row.counts);
+                    return (
+                      <div key={row.wordLength} className="hydra-stats-row">
+                        {rare ? <div className="hydra-stats-rare">{rare}</div> : null}
+                        <div className="hydra-stats-row-main">
+                          <div className="hydra-stats-row-label">{row.wordLength} letters</div>
+                          <div
+                            className="hydra-stats-bar"
+                            role="img"
+                            aria-label={[
+                              rare,
+                              ...BAR_SCORES.filter((s) => row.counts[s] > 0).map(
+                                (s) =>
+                                  `+${s}: ${row.counts[s]} (${Math.round((row.counts[s] / row.total) * 100)}%)`
+                              ),
+                            ]
+                              .filter(Boolean)
+                              .join(', ')}
+                          >
+                            {BAR_SCORES.map((score) => {
+                              const count = row.counts[score] || 0;
+                              if (count <= 0) return null;
+                              const pct = (count / row.total) * 100;
+                              return (
+                                <div
+                                  key={score}
+                                  className={`hydra-stats-seg extra-${score}`}
+                                  style={{ flexGrow: count, flexBasis: 0 }}
+                                  title={`+${score}: ${count} (${pct.toFixed(1)}%)`}
+                                >
+                                  {count}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="hydra-stats-total">{row.total}</div>
+                        </div>
                       </div>
-                      <div className="hydra-stats-total">{row.total}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </section>
               ))
             )}

@@ -73,6 +73,10 @@ function remainingTargets(targets: string[], boardGuesses: string[][], language:
   });
 }
 
+function openBoardIndices(solved: boolean[]): number[] {
+  return solved.map((done, i) => (done ? -1 : i)).filter((i) => i >= 0);
+}
+
 export const Game: React.FC<GameProps> = ({
   view = 'game',
   onViewChange,
@@ -103,6 +107,8 @@ export const Game: React.FC<GameProps> = ({
   const [importTick, setImportTick] = useState(0);
   const [visibleCount, setVisibleCount] = useState(1);
   const [windowStart, setWindowStart] = useState(0);
+  const [exiting, setExiting] = useState<number[]>([]);
+  const prevSolvedRef = useRef<boolean[] | null>(null);
   const boardsViewportRef = useRef<HTMLDivElement | null>(null);
   const swipeRef = useRef<{ x: number; y: number; active: boolean } | null>(null);
 
@@ -297,14 +303,39 @@ export const Game: React.FC<GameProps> = ({
   }, [targets, boardGuesses, language]);
 
   const boardsSolved = boardViews.filter((board) => board.solved).length;
+  const solvedFlags = useMemo(() => boardViews.map((board) => board.solved), [boardViews]);
+  const openIndices = useMemo(() => openBoardIndices(solvedFlags), [solvedFlags]);
+  const displayIndices = useMemo(() => {
+    const lingering = exiting.filter((i) => solvedFlags[i]);
+    return [...new Set([...openIndices, ...lingering])].sort((a, b) => a - b);
+  }, [openIndices, exiting, solvedFlags]);
 
-  const maxWindowStart = Math.max(0, boardViews.length - visibleCount);
+  const maxWindowStart = Math.max(0, displayIndices.length - visibleCount);
   const viewStart = Math.min(windowStart, maxWindowStart);
   const visibleIndices = useMemo(
-    () =>
-      Array.from({ length: Math.min(visibleCount, boardViews.length) }, (_, k) => viewStart + k),
-    [boardViews.length, visibleCount, viewStart]
+    () => displayIndices.slice(viewStart, viewStart + visibleCount),
+    [displayIndices, viewStart, visibleCount]
   );
+
+  useEffect(() => {
+    setExiting([]);
+    prevSolvedRef.current = null;
+  }, [language, wordLength, boardCount, selectedPlayDate, importTick]);
+
+  useEffect(() => {
+    if (loading) {
+      prevSolvedRef.current = null;
+      return;
+    }
+    const prev = prevSolvedRef.current;
+    prevSolvedRef.current = solvedFlags;
+    if (!prev || prev.length !== solvedFlags.length) return;
+    const born: number[] = [];
+    for (let i = 0; i < solvedFlags.length; i++) {
+      if (solvedFlags[i] && !prev[i]) born.push(i);
+    }
+    if (born.length) setExiting((ids) => [...new Set([...ids, ...born])]);
+  }, [solvedFlags, loading]);
 
   const letterStates = useMemo(() => usedLetterMap(boardGuesses, language), [boardGuesses, language]);
 
@@ -314,6 +345,7 @@ export const Game: React.FC<GameProps> = ({
         solved: board.solved,
         score: boardKnowledgeScore(board.guesses, wordLength, board.target),
         answer: board.target,
+        solvedAt: board.solved ? board.words.length : undefined,
       })),
     [boardViews, wordLength]
   );
@@ -551,26 +583,38 @@ export const Game: React.FC<GameProps> = ({
     const measure = () => {
       const inner = Math.max(0, el.clientWidth - PAGE_PAD_X);
       const fit = Math.max(1, Math.floor((inner + BOARD_GAP) / (boardNaturalWidth + BOARD_GAP)));
-      setVisibleCount(Math.min(fit, Math.max(1, boardCount)));
+      setVisibleCount(Math.min(fit, Math.max(1, displayIndices.length || 1)));
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [loading, boardNaturalWidth, PAGE_PAD_X, BOARD_GAP, boardCount]);
+  }, [
+    loading,
+    boardNaturalWidth,
+    PAGE_PAD_X,
+    BOARD_GAP,
+    displayIndices.length,
+  ]);
 
   useEffect(() => {
-    setWindowStart((s) => Math.min(s, Math.max(0, boardCount - visibleCount)));
-  }, [boardCount, visibleCount]);
+    setWindowStart((s) => Math.min(s, Math.max(0, displayIndices.length - visibleCount)));
+  }, [displayIndices.length, visibleCount]);
 
   const shiftWindow = useCallback((delta: number) => {
     setWindowStart((s) => Math.max(0, Math.min(maxWindowStart, s + delta)));
   }, [maxWindowStart]);
 
   const scrollToBoard = (index: number) => {
+    if (!displayIndices.length) return;
+    let pos = displayIndices.indexOf(index);
+    if (pos < 0) {
+      const next = displayIndices.find((i) => i > index);
+      pos = next != null ? displayIndices.indexOf(next) : displayIndices.length - 1;
+    }
     setWindowStart(() => {
-      if (index < viewStart) return index;
-      if (index >= viewStart + visibleCount) return Math.max(0, index - visibleCount + 1);
+      if (pos < viewStart) return pos;
+      if (pos >= viewStart + visibleCount) return Math.max(0, pos - visibleCount + 1);
       return viewStart;
     });
   };
@@ -633,8 +677,7 @@ export const Game: React.FC<GameProps> = ({
         <Scoreboard
           cells={scoreboardCells}
           onSelect={scrollToBoard}
-          windowStart={viewStart}
-          visibleCount={visibleCount}
+          inView={visibleIndices}
           revealed={isComplete}
         />
       </div>
@@ -668,28 +711,34 @@ export const Game: React.FC<GameProps> = ({
             swipeRef.current = null;
           }}
         >
-          <div className="hydra-board-labels">
-            {visibleIndices.map((i) => {
-              const board = boardViews[i];
-              const showAnswer = isComplete && board?.target;
-              return (
-                <div
-                  key={i}
-                  className={`hydra-board-label${
-                    showAnswer ? (board.solved ? ' guessed' : ' missed') : ''
-                  }`}
-                >
-                  {showAnswer ? board.target.toUpperCase() : i + 1}
-                </div>
-              );
-            })}
-          </div>
           <div className="hydra-board-entries">
             {visibleIndices.map((i) => {
               const board = boardViews[i];
               if (!board) return null;
+              const leaving = exiting.includes(i);
               return (
-                <div key={i} className="hydra-board-wrap">
+                <div
+                  key={i}
+                  className={`hydra-board-wrap${leaving ? ' is-exiting' : ''}`}
+                  onAnimationEnd={(e) => {
+                    if (e.target !== e.currentTarget) return;
+                    if (
+                      e.animationName !== 'hydra-solved-depart' &&
+                      e.animationName !== 'hydra-solved-depart-reduce'
+                    ) {
+                      return;
+                    }
+                    setExiting((ids) => ids.filter((id) => id !== i));
+                  }}
+                >
+                  <div
+                    className={`hydra-board-label${
+                      board.solved ? ' guessed' : isComplete ? ' missed' : ''
+                    }`}
+                  >
+                    {board.solved || isComplete ? board.target.toUpperCase() : i + 1}
+                    {board.solved ? ` ${board.words.length}` : ''}
+                  </div>
                   <GameBoard
                     guesses={board.guesses}
                     currentGuess={board.solved ? '' : currentGuess}

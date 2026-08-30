@@ -4,7 +4,7 @@
     "body": "This type of message will appear when you upgrade to a new version and it has something that you could be interested to know"
   },
   {
-    "commit": "HEAD",
+    "commit": "8d1958e",
     "body": "New game: PolyHydra.\n\nPlay several PolyWordlot boards at once with one shared guess. Each board has its own secret. One typed word is scored on every board that is not solved yet. Win by solving all of them before the shared guesses run out."
   }
 ]

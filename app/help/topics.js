@@ -200,7 +200,9 @@ export const HELP_TOPICS = {
           'Green = correct letter, correct position\n' +
           'Yellow = correct letter, wrong position\n' +
           'Gray = letter not in that board’s word\n\n' +
-          'A solved board ignores later guesses. Unused rows stay empty.',
+          'A solved board flashes green three times, then its grid disappears. Its number on ' +
+          'the scoreboard becomes the word and the attempt it was guessed on. Other boards keep ' +
+          'their numbers. Unused rows on open boards stay empty.',
       },
       {
         title: 'Scoreboard',
@@ -248,9 +250,10 @@ export const HELP_TOPICS = {
         screenshot: '/help/polyhydra/stats.svg',
         body:
           'The bar-chart icon opens statistics for the current language. Each board count with ' +
-          'finished games gets a stacked bar per word length. Color is extra guesses beyond ' +
-          'the board count (+0 through +5 are wins, +6 is a loss). Segment length is the ' +
-          'share of games with that score; the number on the right is the total.',
+          'finished games gets a stacked bar per word length. The bar is extra guesses beyond ' +
+          'the board count: +3 dark green, +4 green, +5 yellow, +6 a loss in red. Wins in N, ' +
+          'N+1, or N+2 guesses are rare and listed above the bar as Rare Achievements. The ' +
+          'number on the right is the total.',
       },
     ],
   },
