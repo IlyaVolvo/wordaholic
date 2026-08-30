@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { LanguageConfig } from '../types';
 import { LanguageDropdown } from './LanguageDropdown';
-import { hydraMaxGuesses, listStoredGames, type StoredHydra } from '../storage/platform';
-import { isHydraComplete, isHydraWon } from '../storage/platform';
-import { BOARD_COUNT_MAX, BOARD_COUNT_MIN, clampBoardCount } from '@wordaholic/wordle-core';
+import { listStoredGames, isHydraComplete, isHydraWon, type StoredHydra } from '../storage/platform';
+
+const EXTRA_LOSS = 6;
+const EXTRA_SCORES = [0, 1, 2, 3, 4, 5, 6] as const;
 
 interface StatisticsProps {
   language: string;
@@ -16,60 +17,84 @@ interface StatisticsProps {
   onBoardCountChange: (boardCount: number) => void;
 }
 
+type ExtraCounts = Record<number, number>;
+
+type SizeRow = {
+  wordLength: number;
+  counts: ExtraCounts;
+  total: number;
+};
+
+type BoardGroup = {
+  boardCount: number;
+  sizes: SizeRow[];
+};
+
+function usedGuesses(game: StoredHydra): number {
+  return Math.max(0, ...game.board_guesses.map((g) => g.length));
+}
+
+/** Extra guesses beyond board count: 0…5 win, 6 loss. Wins in fewer than N map to 0. */
+function extraScore(game: StoredHydra): number {
+  if (!isHydraWon(game)) return EXTRA_LOSS;
+  return Math.min(5, Math.max(0, usedGuesses(game) - game.board_count));
+}
+
+function emptyCounts(): ExtraCounts {
+  return Object.fromEntries(EXTRA_SCORES.map((s) => [s, 0]));
+}
+
 export const Statistics: React.FC<StatisticsProps> = ({
   language,
-  wordLength,
-  boardCount,
   availableLanguages,
   onViewChange,
   onLanguageChange,
-  onWordLengthChange,
-  onBoardCountChange,
 }) => {
   const [games, setGames] = useState<StoredHydra[]>([]);
   const [loading, setLoading] = useState(true);
-  const max = hydraMaxGuesses(boardCount);
-  const lossBucket = max + 1;
-  const boardOptions = Array.from(
-    { length: BOARD_COUNT_MAX - BOARD_COUNT_MIN + 1 },
-    (_, i) => i + BOARD_COUNT_MIN
-  );
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       const all = await listStoredGames();
-      setGames(
-        all.filter(
-          (g) =>
-            g.language === language &&
-            g.word_length === wordLength &&
-            g.board_count === boardCount &&
-            isHydraComplete(g)
-        )
-      );
+      setGames(all.filter((g) => g.language === language && isHydraComplete(g)));
       setLoading(false);
     };
     void load();
-  }, [language, wordLength, boardCount]);
+  }, [language]);
 
-  const distribution = useMemo(() => {
-    const dist: Record<number, number> = {};
-    for (let i = 1; i <= lossBucket; i++) dist[i] = 0;
+  const groups = useMemo(() => {
+    const byKey = new Map<string, ExtraCounts>();
     for (const game of games) {
-      const used = Math.max(0, ...game.board_guesses.map((g) => g.length));
-      const bucket = isHydraWon(game) ? used : lossBucket;
-      dist[bucket] = (dist[bucket] || 0) + 1;
+      const key = `${game.board_count}|${game.word_length}`;
+      const counts = byKey.get(key) || emptyCounts();
+      const score = extraScore(game);
+      counts[score] = (counts[score] || 0) + 1;
+      byKey.set(key, counts);
     }
-    return dist;
-  }, [games, lossBucket]);
+    const byBoard = new Map<number, SizeRow[]>();
+    for (const [key, counts] of byKey) {
+      const [boardCount, wordLength] = key.split('|').map(Number);
+      const total = EXTRA_SCORES.reduce((sum, s) => sum + (counts[s] || 0), 0);
+      if (total <= 0) continue;
+      const rows = byBoard.get(boardCount) || [];
+      rows.push({ wordLength, counts, total });
+      byBoard.set(boardCount, rows);
+    }
+    const result: BoardGroup[] = [...byBoard.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([boardCount, sizes]) => ({
+        boardCount,
+        sizes: sizes.sort((a, b) => a.wordLength - b.wordLength),
+      }));
+    return result;
+  }, [games]);
 
   const wins = games.filter((g) => isHydraWon(g)).length;
   const played = games.length;
-  const currentLang = availableLanguages.find((l) => l.code === language);
 
   return (
-    <div className="game-container">
+    <div className="game-container hydra-stats">
       <div className="header-section">
         <div className="game-header-bar">
           <div className="game-header-side game-header-left">
@@ -85,43 +110,71 @@ export const Statistics: React.FC<StatisticsProps> = ({
           </div>
         </div>
       </div>
-      <div className="statistics-view" style={{ padding: '12px 16px', overflow: 'auto' }}>
+      <div className="hydra-stats-body">
         <h2>Statistics</h2>
-        <div className="toolbar-picks" style={{ margin: '12px 0' }}>
+        <div className="toolbar-picks hydra-stats-filters">
           <LanguageDropdown
             availableLanguages={availableLanguages}
             value={language}
             onChange={onLanguageChange}
             showNameInTrigger
           />
-          <select value={wordLength} onChange={(e) => onWordLengthChange(Number(e.target.value))} aria-label="Word length">
-            {(currentLang?.supportedLengths || [wordLength]).map((len) => (
-              <option key={len} value={len}>{len}</option>
-            ))}
-          </select>
-          <select
-            value={boardCount}
-            onChange={(e) => onBoardCountChange(clampBoardCount(Number(e.target.value)))}
-            aria-label="Boards"
-          >
-            {boardOptions.map((n) => (
-              <option key={n} value={n}>{n} boards</option>
-            ))}
-          </select>
         </div>
         {loading ? (
           <p>Loading…</p>
         ) : (
           <>
-            <p>Played: {played} · Wins: {wins} · Win rate: {played ? Math.round((wins / played) * 100) : 0}%</p>
-            <p>Attempts (win 1–{max}, loss {lossBucket})</p>
-            <ul>
-              {Object.entries(distribution).map(([bucket, count]) => (
-                <li key={bucket}>
-                  {bucket === String(lossBucket) ? 'Loss' : bucket}: {count}
-                </li>
+            <p className="hydra-stats-summary">
+              Played: {played} · Wins: {wins} · Win rate: {played ? Math.round((wins / played) * 100) : 0}%
+            </p>
+            <p className="hydra-stats-legend-caption">
+              Extra guesses beyond board count: +0 is a win in N guesses or fewer; +6 is a loss.
+            </p>
+            <div className="hydra-stats-legend" aria-label="Extra-guess colors">
+              {EXTRA_SCORES.map((score) => (
+                <span key={score} className={`hydra-stats-swatch extra-${score}`}>
+                  +{score}
+                </span>
               ))}
-            </ul>
+            </div>
+            {groups.length === 0 ? (
+              <p>No finished games for this language yet.</p>
+            ) : (
+              groups.map((group) => (
+                <section key={group.boardCount} className="hydra-stats-group">
+                  <h3>{group.boardCount} boards</h3>
+                  {group.sizes.map((row) => (
+                    <div key={row.wordLength} className="hydra-stats-row">
+                      <div className="hydra-stats-row-label">{row.wordLength} letters</div>
+                      <div
+                        className="hydra-stats-bar"
+                        role="img"
+                        aria-label={EXTRA_SCORES.filter((s) => row.counts[s] > 0)
+                          .map((s) => `+${s}: ${row.counts[s]} (${Math.round((row.counts[s] / row.total) * 100)}%)`)
+                          .join(', ')}
+                      >
+                        {EXTRA_SCORES.map((score) => {
+                          const count = row.counts[score] || 0;
+                          if (count <= 0) return null;
+                          const pct = (count / row.total) * 100;
+                          return (
+                            <div
+                              key={score}
+                              className={`hydra-stats-seg extra-${score}`}
+                              style={{ flexGrow: count, flexBasis: 0 }}
+                              title={`+${score}: ${count} (${pct.toFixed(1)}%)`}
+                            >
+                              {count}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="hydra-stats-total">{row.total}</div>
+                    </div>
+                  ))}
+                </section>
+              ))
+            )}
           </>
         )}
       </div>

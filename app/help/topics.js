@@ -247,8 +247,10 @@ export const HELP_TOPICS = {
         title: 'Statistics',
         screenshot: '/help/polyhydra/stats.svg',
         body:
-          'The bar-chart icon opens statistics for the current language, word length, and ' +
-          'board count: wins by shared guess count, plus a loss bucket.',
+          'The bar-chart icon opens statistics for the current language. Each board count with ' +
+          'finished games gets a stacked bar per word length. Color is extra guesses beyond ' +
+          'the board count (+0 through +5 are wins, +6 is a loss). Segment length is the ' +
+          'share of games with that score; the number on the right is the total.',
       },
     ],
   },
