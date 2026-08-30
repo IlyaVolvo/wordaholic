@@ -359,6 +359,12 @@ export const Game: React.FC<GameProps> = ({
 
   const letterStates = useMemo(() => usedLetterMap(boardGuesses, language), [boardGuesses, language]);
 
+  const currentGuessWord = keyboardRtl ? [...currentGuess].reverse().join('') : currentGuess;
+  const invalidRow = useMemo(() => {
+    if (!dictionary || currentGuessWord.length !== wordLength) return false;
+    return !isValidWord(currentGuessWord, dictionary);
+  }, [dictionary, currentGuessWord, wordLength]);
+
   const scoreboardCells: ScoreboardCell[] = useMemo(
     () =>
       boardViews.map((board) => {
@@ -521,20 +527,7 @@ export const Game: React.FC<GameProps> = ({
     if (guess.length !== wordLength) return;
 
     if (!isValidWord(guess, dictionary)) {
-      if (invalidPending) {
-        commitState(boardGuesses, '', false, false, false);
-        return;
-      }
-      setInvalidPending(true);
-      void persist({
-        targets,
-        boardGuesses,
-        currentGuess,
-        invalidPending: true,
-        isComplete,
-        isWon,
-        date: selectedPlayDate,
-      });
+      commitState(boardGuesses, '', false, false, false);
       return;
     }
 
@@ -567,15 +560,11 @@ export const Game: React.FC<GameProps> = ({
     keyboardRtl,
     currentGuess,
     wordLength,
-    invalidPending,
     boardGuesses,
     targets,
     language,
     boardCount,
     commitState,
-    persist,
-    isWon,
-    selectedPlayDate,
   ]);
 
   useEffect(() => {
@@ -782,7 +771,7 @@ export const Game: React.FC<GameProps> = ({
                     targetWord={isComplete && !board.solved ? board.target : undefined}
                     isComplete={isComplete || board.solved}
                     isWon={board.solved}
-                    invalidRow={invalidPending && !board.solved}
+                    invalidRow={invalidRow && !board.solved}
                     rtl={keyboardRtl}
                     frozen={board.solved}
                   />

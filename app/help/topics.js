@@ -226,8 +226,8 @@ export const HELP_TOPICS = {
         screenshot: '/help/polyhydra/invalid.svg',
         body:
           'If the row is not full, Return does nothing. If the word is not in the list, ' +
-          'the current row turns red on every unsolved board and stays red. Press Return ' +
-          'again to clear it. No attempt is used. Typing or backspace while it is red ' +
+          'the current row turns red on every unsolved board as soon as the last letter is ' +
+          'typed. Press Return to clear it. No attempt is used. Backspace while it is red ' +
           'returns to normal typing.',
       },
       {
