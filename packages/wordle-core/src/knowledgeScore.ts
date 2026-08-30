@@ -37,17 +37,11 @@ function knownCountByLetter(guesses: Guess[]): Map<string, number> {
   return known;
 }
 
-/**
- * Scoreboard knowledge for one board.
- * Each instance of a letter in the word is counted once, no matter how many
- * guesses showed it. A green instance is 1.0 and is not also counted as 0.7.
- * Extra known instances of the same letter (duplicates in the word) are 0.7 each.
- */
-export function boardKnowledgeScore(
+function knowledgeParts(
   guesses: Guess[],
   wordLength: number,
   targetWord?: string
-): number {
+): { greens: number; yellows: number } {
   const locked = lockedGreens(guesses, wordLength);
   const knownByLetter = knownCountByLetter(guesses);
 
@@ -82,7 +76,31 @@ export function boardKnowledgeScore(
     unplaced += Math.max(0, known - greens);
   }
 
-  return greenCount * 1 + unplaced * 0.7;
+  return { greens: greenCount, yellows: unplaced };
+}
+
+/** Locked greens and known-unplaced (yellow) letters on one board. */
+export function boardKnowledgeTally(
+  guesses: Guess[],
+  wordLength: number,
+  targetWord?: string
+): { greens: number; yellows: number } {
+  return knowledgeParts(guesses, wordLength, targetWord);
+}
+
+/**
+ * Scoreboard knowledge for one board.
+ * Each instance of a letter in the word is counted once, no matter how many
+ * guesses showed it. A green instance is 1.0 and is not also counted as 0.7.
+ * Extra known instances of the same letter (duplicates in the word) are 0.7 each.
+ */
+export function boardKnowledgeScore(
+  guesses: Guess[],
+  wordLength: number,
+  targetWord?: string
+): number {
+  const { greens, yellows } = knowledgeParts(guesses, wordLength, targetWord);
+  return greens * 1 + yellows * 0.7;
 }
 
 export function scoreboardYellowFactor(score: number, cap: number): number {

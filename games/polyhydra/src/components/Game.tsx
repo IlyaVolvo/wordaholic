@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Keyboard,
   applyInputPlugins,
-  boardKnowledgeScore,
+  boardKnowledgeTally,
   clampBoardCount,
   evaluateGuess,
   formatDate,
@@ -334,19 +334,43 @@ export const Game: React.FC<GameProps> = ({
     for (let i = 0; i < solvedFlags.length; i++) {
       if (solvedFlags[i] && !prev[i]) born.push(i);
     }
-    if (born.length) setExiting((ids) => [...new Set([...ids, ...born])]);
-  }, [solvedFlags, loading]);
+    if (born.length) {
+      const nextEx = [...new Set([...exiting, ...born])];
+      setExiting(nextEx);
+      const nextDisplay = [...new Set([...openIndices, ...nextEx])].sort((a, b) => a - b);
+      const start = Math.min(windowStart, Math.max(0, nextDisplay.length - visibleCount));
+      const vis = nextDisplay.slice(start, start + visibleCount);
+      if (!born.some((i) => vis.includes(i))) {
+        const pos = nextDisplay.indexOf(born[0]);
+        const maxStart = Math.max(0, nextDisplay.length - visibleCount);
+        setWindowStart(Math.max(0, Math.min(pos, maxStart)));
+      }
+    }
+  }, [solvedFlags, loading, openIndices, exiting, windowStart, visibleCount]);
+
+  useEffect(() => {
+    if (exiting.length === 0) return;
+    const snapshot = exiting;
+    const t = window.setTimeout(() => {
+      setExiting((ids) => ids.filter((id) => !snapshot.includes(id)));
+    }, 1800);
+    return () => window.clearTimeout(t);
+  }, [exiting]);
 
   const letterStates = useMemo(() => usedLetterMap(boardGuesses, language), [boardGuesses, language]);
 
   const scoreboardCells: ScoreboardCell[] = useMemo(
     () =>
-      boardViews.map((board) => ({
-        solved: board.solved,
-        score: boardKnowledgeScore(board.guesses, wordLength, board.target),
-        answer: board.target,
-        solvedAt: board.solved ? board.words.length : undefined,
-      })),
+      boardViews.map((board) => {
+        const tally = boardKnowledgeTally(board.guesses, wordLength, board.target);
+        return {
+          solved: board.solved,
+          greens: tally.greens,
+          yellows: tally.yellows,
+          answer: board.target,
+          solvedAt: board.solved ? board.words.length : undefined,
+        };
+      }),
     [boardViews, wordLength]
   );
 

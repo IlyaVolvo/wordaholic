@@ -3320,11 +3320,9 @@ a.header-brand-home:focus-visible {
 }
 
 .hydra-scoreboard {
-  display: grid;
-  grid-template-columns: repeat(var(--hydra-n, 16), minmax(0, 1fr));
-  grid-template-rows: auto auto;
-  column-gap: 3px;
-  row-gap: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
   padding: 4px 10px 8px;
   overflow: hidden;
   width: 100%;
@@ -3332,82 +3330,92 @@ a.header-brand-home:focus-visible {
   container-type: inline-size;
 }
 
-.hydra-scoreboard-num,
-.hydra-scoreboard-mark {
+.hydra-scoreboard-cell {
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+  min-height: 24px;
+  height: auto;
+  border: none;
+  border-radius: 3px;
+  padding: 2px 3px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 1px;
+  container-type: inline-size;
+  overflow: hidden;
+  font-size: clamp(6px, calc(100cqi / var(--hydra-fit-chars, 6)), 12px);
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12);
+}
+
+.hydra-scoreboard-cell.has-word {
+  flex: 1 1 calc(var(--hydra-fit-chars, 7) * 8px + 12px);
+  min-width: calc(var(--hydra-fit-chars, 7) * 8px + 12px);
+}
+
+.hydra-scoreboard-cell.in-view {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.38);
+}
+
+.hydra-scoreboard-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hydra-scoreboard-id {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2em;
+  padding: 0.1em 0.18em;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  box-sizing: border-box;
+  line-height: 1;
+}
+
+.hydra-scoreboard-nm {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.hydra-scoreboard-word {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.2em;
   min-width: 0;
   width: 100%;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  background: transparent;
+  font-size: 0.92em;
+  white-space: nowrap;
 }
 
-.hydra-scoreboard-num {
-  grid-row: 1;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: clamp(8px, calc(80cqw / var(--hydra-n, 16) / 1.8), 12px);
-  font-weight: 700;
-  line-height: 1;
-  color: #1a2330;
-  opacity: 0.45;
-}
-
-.hydra-scoreboard-num.in-view {
-  opacity: 1;
-}
-
-.hydra-scoreboard-mark {
-  grid-row: 2;
-  height: 22px;
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: clamp(8px, calc(80cqw / var(--hydra-n, 16) / 1.8), 12px);
-  font-weight: 700;
-  line-height: 1;
-}
-
-.hydra-scoreboard-mark.in-view {
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.28);
-}
-
-.hydra-scoreboard-num.guessed {
-  color: var(--correct);
-  opacity: 1;
-}
-
-.hydra-scoreboard-num.missed {
-  color: #c62828;
-  opacity: 1;
-}
-
-.hydra-scoreboard-num.has-word,
-.hydra-scoreboard.revealed .hydra-scoreboard-num {
-  container-type: inline-size;
-  height: 22px;
-  min-height: 22px;
+.hydra-scoreboard-answer {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   letter-spacing: -0.05em;
   text-transform: uppercase;
-  overflow: hidden;
-  padding: 0;
-}
-
-.hydra-scoreboard-fit {
-  display: block;
-  max-width: 100%;
-  white-space: nowrap;
-  line-height: 1;
-  font-size: clamp(5px, calc(100cqi / var(--hydra-fit-chars, 7)), 12px);
+  text-align: left;
 }
 
 .hydra-scoreboard-attempt {
-  margin-left: 0.15em;
+  flex: 0 0 auto;
   font-variant-numeric: tabular-nums;
-  text-transform: none;
 }
 
 .game-play-area.hydra-boards {

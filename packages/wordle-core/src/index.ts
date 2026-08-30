@@ -34,7 +34,7 @@ export {
 } from './languageLoader';
 export type { KeyboardActions, InputPluginConfig } from './languageLoader';
 export { Keyboard } from './components/Keyboard';
-export { boardKnowledgeScore, scoreboardYellowFactor } from './knowledgeScore';
+export { boardKnowledgeScore, boardKnowledgeTally, scoreboardYellowFactor } from './knowledgeScore';
 export { getHydraDailyWords, hydraDailySeed } from './hydraWords';
 export {
   BOARD_COUNT_MIN,

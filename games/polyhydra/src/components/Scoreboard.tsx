@@ -1,9 +1,9 @@
 import React from 'react';
-import { SCOREBOARD_YELLOW_CAP, scoreboardYellowFactor } from '@wordaholic/wordle-core';
 
 export type ScoreboardCell = {
   solved: boolean;
-  score: number;
+  greens: number;
+  yellows: number;
   answer?: string;
   solvedAt?: number;
 };
@@ -13,6 +13,22 @@ interface ScoreboardProps {
   onSelect: (index: number) => void;
   inView?: number[];
   revealed?: boolean;
+}
+
+const INTENSITY_CAP = 5;
+
+function mixKnowledgeStyle(greens: number, yellows: number): React.CSSProperties {
+  const g = Math.min(INTENSITY_CAP, Math.max(0, greens)) / INTENSITY_CAP;
+  const y = Math.min(INTENSITY_CAP, Math.max(0, yellows)) / INTENSITY_CAP;
+  const sum = g + y;
+  if (sum <= 0) {
+    return { background: '#ffffff', color: '#111' };
+  }
+  const yellowShare = Math.round((y / sum) * 100);
+  const intensity = Math.round(Math.min(1, sum) * 100);
+  const background = `color-mix(in oklch, color-mix(in oklch, var(--present) ${yellowShare}%, var(--correct)) ${intensity}%, #ffffff)`;
+  const darkText = intensity < 48 || yellowShare > 55;
+  return { background, color: darkText ? '#111' : '#fff' };
 }
 
 export const Scoreboard: React.FC<ScoreboardProps> = ({
@@ -31,62 +47,41 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
     >
       {cells.map((cell, i) => {
         const showWord = Boolean((cell.solved || revealed) && cell.answer);
-        const word = showWord ? cell.answer!.toUpperCase() : String(i + 1);
         const attempt = cell.solved && cell.solvedAt != null ? cell.solvedAt : null;
-        const fitChars =
-          word.length + (attempt != null ? String(attempt).length + 1 : 0);
-        return (
-          <button
-            key={`n-${i}`}
-            type="button"
-            className={`hydra-scoreboard-num${visible.has(i) ? ' in-view' : ''}${
-              showWord ? (cell.solved ? ' guessed has-word' : ' missed has-word') : ''
-            }`}
-            style={showWord ? ({ ['--hydra-fit-chars' as string]: fitChars } as React.CSSProperties) : undefined}
-            aria-label={`Board ${i + 1}${
-              showWord
-                ? `, ${cell.answer}${attempt != null ? `, guess ${attempt}` : ''}`
-                : ''
-            }`}
-            onClick={() => onSelect(i)}
-          >
-            {showWord ? (
-              <span className="hydra-scoreboard-fit">
-                {word}
-                {attempt != null ? (
-                  <span className="hydra-scoreboard-attempt">{attempt}</span>
-                ) : null}
-              </span>
-            ) : (
-              word
-            )}
-          </button>
-        );
-      })}
-      {cells.map((cell, i) => {
-        const factor = scoreboardYellowFactor(cell.score, SCOREBOARD_YELLOW_CAP);
-        const pct = Math.round(factor * 100);
+        const nm = `${cell.greens}/${cell.yellows}`;
+        const topChars = String(i + 1).length + 1 + nm.length;
+        const wordChars = showWord
+          ? cell.answer!.length + (attempt != null ? 2 : 0)
+          : 0;
+        const fitChars = Math.max(topChars, wordChars);
         const style = cell.solved
           ? { background: 'var(--correct)', color: '#fff' }
           : revealed
             ? { background: '#c62828', color: '#fff' }
-            : {
-                background:
-                  pct >= 99
-                    ? 'var(--present)'
-                    : `color-mix(in oklch, var(--present) ${pct}%, #ffffff)`,
-                color: '#111',
-              };
+            : mixKnowledgeStyle(cell.greens, cell.yellows);
         return (
           <button
-            key={`d-${i}`}
+            key={i}
             type="button"
-            className={`hydra-scoreboard-mark${cell.solved ? ' solved' : ''}${revealed && !cell.solved ? ' missed' : ''}${visible.has(i) ? ' in-view' : ''}`}
-            style={style}
-            aria-label={`Board ${i + 1} status${cell.solved ? ', solved' : revealed ? ', missed' : ''}`}
+            className={`hydra-scoreboard-cell${visible.has(i) ? ' in-view' : ''}${
+              cell.solved ? ' guessed' : ''
+            }${revealed && !cell.solved ? ' missed' : ''}${showWord ? ' has-word' : ''}`}
+            style={{ ...style, ['--hydra-fit-chars' as string]: fitChars } as React.CSSProperties}
+            aria-label={`Board ${i + 1}, ${cell.greens} green, ${cell.yellows} yellow${
+              showWord ? `, ${cell.answer}${attempt != null ? `, guess ${attempt}` : ''}` : ''
+            }`}
             onClick={() => onSelect(i)}
           >
-            {i + 1}
+            <span className="hydra-scoreboard-top">
+              <span className="hydra-scoreboard-id">{i + 1}</span>
+              <span className="hydra-scoreboard-nm">{nm}</span>
+            </span>
+            {showWord ? (
+              <span className="hydra-scoreboard-word">
+                <span className="hydra-scoreboard-answer">{cell.answer!.toUpperCase()}</span>
+                {attempt != null ? <span className="hydra-scoreboard-attempt">{attempt}</span> : null}
+              </span>
+            ) : null}
           </button>
         );
       })}
