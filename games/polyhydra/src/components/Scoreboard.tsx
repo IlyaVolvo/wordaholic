@@ -33,6 +33,8 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
         const showWord = Boolean((cell.solved || revealed) && cell.answer);
         const word = showWord ? cell.answer!.toUpperCase() : String(i + 1);
         const attempt = cell.solved && cell.solvedAt != null ? cell.solvedAt : null;
+        const fitChars =
+          word.length + (attempt != null ? String(attempt).length + 1 : 0);
         return (
           <button
             key={`n-${i}`}
@@ -40,6 +42,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
             className={`hydra-scoreboard-num${visible.has(i) ? ' in-view' : ''}${
               showWord ? (cell.solved ? ' guessed has-word' : ' missed has-word') : ''
             }`}
+            style={showWord ? ({ ['--hydra-fit-chars' as string]: fitChars } as React.CSSProperties) : undefined}
             aria-label={`Board ${i + 1}${
               showWord
                 ? `, ${cell.answer}${attempt != null ? `, guess ${attempt}` : ''}`
@@ -47,10 +50,16 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
             }`}
             onClick={() => onSelect(i)}
           >
-            {word}
-            {attempt != null ? (
-              <span className="hydra-scoreboard-attempt">{attempt}</span>
-            ) : null}
+            {showWord ? (
+              <span className="hydra-scoreboard-fit">
+                {word}
+                {attempt != null ? (
+                  <span className="hydra-scoreboard-attempt">{attempt}</span>
+                ) : null}
+              </span>
+            ) : (
+              word
+            )}
           </button>
         );
       })}

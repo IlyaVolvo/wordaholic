@@ -3288,6 +3288,20 @@ a.header-brand-home:focus-visible {
   color: #ff4d4f;
 }
 
+@media (max-width: 600px) {
+  .hydra-container .game-header-bar {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.4rem;
+  }
+
+  .hydra-attempts {
+    margin-left: auto;
+    flex-shrink: 0;
+    font-size: 0.95rem;
+  }
+}
+
 .hydra-container > .game-play-area.hydra-boards {
   flex: 1 1 0%;
   min-height: 0;
@@ -3330,7 +3344,10 @@ a.header-brand-home:focus-visible {
 
 .hydra-scoreboard-num {
   grid-row: 1;
-  height: 14px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: clamp(8px, calc(80cqw / var(--hydra-n, 16) / 1.8), 12px);
   font-weight: 700;
   line-height: 1;
@@ -3370,19 +3387,25 @@ a.header-brand-home:focus-visible {
 
 .hydra-scoreboard-num.has-word,
 .hydra-scoreboard.revealed .hydra-scoreboard-num {
-  height: auto;
-  min-height: 14px;
-  font-size: clamp(5px, calc(92cqw / var(--hydra-n, 16) / 7), 11px);
-  letter-spacing: -0.04em;
+  container-type: inline-size;
+  height: 22px;
+  min-height: 22px;
+  letter-spacing: -0.05em;
   text-transform: uppercase;
   overflow: hidden;
-  text-overflow: clip;
+  padding: 0;
+}
+
+.hydra-scoreboard-fit {
+  display: block;
+  max-width: 100%;
   white-space: nowrap;
-  padding: 0 1px;
+  line-height: 1;
+  font-size: clamp(5px, calc(100cqi / var(--hydra-fit-chars, 7)), 12px);
 }
 
 .hydra-scoreboard-attempt {
-  margin-left: 0.2em;
+  margin-left: 0.15em;
   font-variant-numeric: tabular-nums;
   text-transform: none;
 }
@@ -3416,6 +3439,14 @@ a.header-brand-home:focus-visible {
 .hydra-nav-arrow:disabled {
   opacity: 0.25;
   cursor: default;
+}
+
+@media (max-width: 480px) {
+  .hydra-nav-arrow {
+    flex: 0 0 28px;
+    width: 28px;
+    font-size: 1.6rem;
+  }
 }
 
 .hydra-boards-viewport {
@@ -3518,12 +3549,14 @@ a.header-brand-home:focus-visible {
   flex-shrink: 0;
   width: 100%;
   text-align: center;
-  font-size: 0.95rem;
+  font-size: min(0.95rem, calc(var(--hydra-board-w, 332px) / 9));
   font-weight: 700;
   line-height: 1;
   color: #fff;
   padding: 7px 8px 6px;
   background: #1a3d66;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .hydra-board-label.guessed,
@@ -3545,7 +3578,7 @@ a.header-brand-home:focus-visible {
 .hydra-boards .game-board {
   grid-column: auto;
   grid-row: auto;
-  --board-scale: 1;
+  --board-scale: var(--hydra-board-scale, 1);
 }
 
 .hydra-boards .game-result {

@@ -108,6 +108,7 @@ export const Game: React.FC<GameProps> = ({
   const [visibleCount, setVisibleCount] = useState(1);
   const [windowStart, setWindowStart] = useState(0);
   const [exiting, setExiting] = useState<number[]>([]);
+  const [boardScale, setBoardScale] = useState(1);
   const prevSolvedRef = useRef<boolean[] | null>(null);
   const boardsViewportRef = useRef<HTMLDivElement | null>(null);
   const swipeRef = useRef<{ x: number; y: number; active: boolean } | null>(null);
@@ -117,7 +118,6 @@ export const Game: React.FC<GameProps> = ({
   const CELL_NATURAL = 60;
   const CELL_GAP = 8;
   const BOARD_GAP = CELL_GAP * 4 - 2;
-  const PAGE_PAD_X = 24;
   const boardNaturalWidth = wordLength * CELL_NATURAL + (wordLength - 1) * CELL_GAP;
 
   const persist = useCallback(
@@ -581,7 +581,16 @@ export const Game: React.FC<GameProps> = ({
     const el = boardsViewportRef.current;
     if (!el) return;
     const measure = () => {
-      const inner = Math.max(0, el.clientWidth - PAGE_PAD_X);
+      const styles = getComputedStyle(el);
+      const pad = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+      const inner = Math.max(0, el.clientWidth - pad);
+      if (inner <= 0) return;
+      if (inner < boardNaturalWidth) {
+        setBoardScale(inner / boardNaturalWidth);
+        setVisibleCount(1);
+        return;
+      }
+      setBoardScale(1);
       const fit = Math.max(1, Math.floor((inner + BOARD_GAP) / (boardNaturalWidth + BOARD_GAP)));
       setVisibleCount(Math.min(fit, Math.max(1, displayIndices.length || 1)));
     };
@@ -592,7 +601,6 @@ export const Game: React.FC<GameProps> = ({
   }, [
     loading,
     boardNaturalWidth,
-    PAGE_PAD_X,
     BOARD_GAP,
     displayIndices.length,
   ]);
@@ -694,7 +702,10 @@ export const Game: React.FC<GameProps> = ({
         <div
           className="hydra-boards-viewport"
           ref={boardsViewportRef}
-          style={{ ['--hydra-board-w' as string]: `${boardNaturalWidth}px` }}
+          style={{
+            ['--hydra-board-w' as string]: `${boardNaturalWidth * boardScale}px`,
+            ['--hydra-board-scale' as string]: String(boardScale),
+          }}
           onPointerDown={(e) => {
             swipeRef.current = { x: e.clientX, y: e.clientY, active: true };
           }}
