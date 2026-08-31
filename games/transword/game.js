@@ -970,9 +970,9 @@ async function submitWord(word, opts = {}) {
   if (!fullGraph.has(normalizedWord)) return flashError(input, hint, 'Not in dictionary');
   const op = fullGraph.classifyOp(prev, normalizedWord);
   if (!op) return flashError(input, hint, 'Not a valid single-step transform');
-  const isDailyStart = playMode === 'daily' && chain.length === 1;
+  const isGameStart = chain.length === 1;
   chain.push(normalizedWord);
-  if (isDailyStart) {
+  if (isGameStart) {
     const combo = currentCombo();
     reportStats({
       games: { transword: { [`${combo.language},${combo.vocabLevel},${combo.difficulty}`]: 1 } },

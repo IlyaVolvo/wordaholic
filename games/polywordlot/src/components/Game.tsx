@@ -993,7 +993,7 @@ export const Game: React.FC<GameProps> = ({
     // On normalized win, persist/display the canonical target form as the final guess.
     const committedGuess = isWon ? targetWord : guess;
     const evaluations = evaluateGuess(committedGuess, targetWord, language);
-    const isDailyStart = !gameState.isRandomMode && gameState.guesses.length === 0;
+    const isGameStart = gameState.guesses.length === 0;
     const newGuesses = [...gameState.guesses, { word: committedGuess, evaluations }];
     const isComplete = isWon || newGuesses.length >= MAX_GUESSES;
 
@@ -1009,7 +1009,7 @@ export const Game: React.FC<GameProps> = ({
     saveGameToApi(updatedState);
     updateLetterStates(updatedState);
     onRecordPlayed?.();
-    if (isDailyStart) {
+    if (isGameStart) {
       reportStats({ games: { polywordlot: { [`${language},${wordLength}`]: 1 } } });
     }
   }, [gameState, dictionary, wordLength, targetWord, language, keyboardRtl, saveGameToApi, updateLetterStates, onRecordPlayed]);
