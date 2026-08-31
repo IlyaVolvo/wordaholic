@@ -126,127 +126,129 @@ export const Statistics: React.FC<StatisticsProps> = ({
         </div>
       </div>
       <div className="hydra-stats-body">
-        <div className="hydra-stats-title-row">
-          <h2>Statistics</h2>
-          {!loading ? (
-            <div className="hydra-stats-legend" aria-label="Win, loss, and extra-guess colors">
-              <span className="hydra-stats-swatch hydra-stats-seg-win">Win</span>
-              <span className="hydra-stats-swatch hydra-stats-seg-lost">Lost</span>
-              <span className="hydra-stats-tip-cell hydra-stats-legend-tip">
-                <button type="button" className="hydra-stats-tip-trigger hydra-stats-legend-nums" aria-describedby="hydra-stats-numbers-tip">
-                  {BAR_SCORES.map((score) => (
-                    <span key={score} className={`hydra-stats-swatch extra-${score}`}>
-                      +{score}
-                    </span>
-                  ))}
-                </button>
-                <span id="hydra-stats-numbers-tip" className="hydra-stats-tip" role="tooltip">
-                  {NUMBERS_TIP}
+        <div className="hydra-stats-head">
+          <div className="hydra-stats-title-row">
+            <h2>Statistics</h2>
+            {!loading ? (
+              <div className="hydra-stats-legend" aria-label="Win, loss, and extra-guess colors">
+                <span className="hydra-stats-swatch hydra-stats-seg-win">Win</span>
+                <span className="hydra-stats-swatch hydra-stats-seg-lost">Lost</span>
+                <span className="hydra-stats-tip-cell hydra-stats-legend-tip">
+                  <button type="button" className="hydra-stats-tip-trigger hydra-stats-legend-nums" aria-describedby="hydra-stats-numbers-tip">
+                    {BAR_SCORES.map((score) => (
+                      <span key={score} className={`hydra-stats-swatch extra-${score}`}>
+                        +{score}
+                      </span>
+                    ))}
+                  </button>
+                  <span id="hydra-stats-numbers-tip" className="hydra-stats-tip" role="tooltip">
+                    {NUMBERS_TIP}
+                  </span>
                 </span>
-              </span>
-            </div>
-          ) : null}
-        </div>
-        <div className="toolbar-picks hydra-stats-filters">
-          <LanguageDropdown
-            availableLanguages={availableLanguages}
-            value={language}
-            onChange={onLanguageChange}
-            showNameInTrigger
-          />
-        </div>
-        {loading ? (
-          <p>Loading…</p>
-        ) : (
-          <>
-            {played > 0 ? (
-              <div className="hydra-stats-row hydra-stats-row-all">
-                <div className="hydra-stats-row-label">All games</div>
-                <div
-                  className="hydra-stats-bar"
-                  role="img"
-                  aria-label={`${played ? Math.round((wins / played) * 100) : 0}% won, ${
-                    played ? 100 - Math.round((wins / played) * 100) : 0
-                  }% lost`}
-                >
-                  {wins > 0 ? (
-                    <div
-                      className="hydra-stats-seg hydra-stats-seg-win"
-                      style={{ flexGrow: wins, flexBasis: 0 }}
-                    >
-                      {Math.round((wins / played) * 100)}%
-                    </div>
-                  ) : null}
-                  {played - wins > 0 ? (
-                    <div
-                      className="hydra-stats-seg hydra-stats-seg-lost"
-                      style={{ flexGrow: played - wins, flexBasis: 0 }}
-                    >
-                      {100 - Math.round((wins / played) * 100)}%
-                    </div>
-                  ) : null}
-                </div>
-                <span className="hydra-stats-total">{played}</span>
               </div>
             ) : null}
-            {groups.length === 0 ? (
-              <p>No finished games for this language yet.</p>
-            ) : (
-              <>
-                <div className="hydra-stats-cols hydra-stats-cols-head">
-                  <span />
-                  <span />
-                  <span className="hydra-stats-total-head">Total</span>
-                </div>
-                <hr className="hydra-stats-rule" />
-                {groups.map((group) => (
-                  <section key={group.boardCount} className="hydra-stats-group">
-                    <h3>{group.boardCount} boards</h3>
-                    {group.sizes.map((row) => {
-                      const rare = rareMention(row.counts);
-                      return (
-                        <div key={row.wordLength} className="hydra-stats-row">
-                          {rare ? <div className="hydra-stats-rare">{rare}</div> : null}
-                          <div className="hydra-stats-row-label">{row.wordLength} letters</div>
-                          <div
-                            className="hydra-stats-bar"
-                            role="img"
-                            aria-label={[
-                              rare,
-                              ...BAR_SCORES.filter((s) => row.counts[s] > 0).map(
-                                (s) =>
-                                  `+${s}: ${row.counts[s]} (${Math.round((row.counts[s] / row.total) * 100)}%)`
-                              ),
-                            ]
-                              .filter(Boolean)
-                              .join(', ')}
-                          >
-                            {BAR_SCORES.map((score) => {
-                              const count = row.counts[score] || 0;
-                              if (count <= 0) return null;
-                              const pct = (count / row.total) * 100;
-                              return (
-                                <div
-                                  key={score}
-                                  className={`hydra-stats-seg extra-${score}`}
-                                  style={{ flexGrow: count, flexBasis: 0 }}
-                                  title={`+${score}: ${count} (${pct.toFixed(1)}%)`}
-                                >
-                                  {count}
-                                </div>
-                              );
-                            })}
-                          </div>
-                          <div className="hydra-stats-total">{row.total}</div>
-                        </div>
-                      );
-                    })}
-                  </section>
-                ))}
-              </>
-            )}
-          </>
-        )}
+          </div>
+          <div className="toolbar-picks hydra-stats-filters">
+            <LanguageDropdown
+              availableLanguages={availableLanguages}
+              value={language}
+              onChange={onLanguageChange}
+              showNameInTrigger
+            />
+          </div>
+          {!loading && played > 0 ? (
+            <div className="hydra-stats-row hydra-stats-row-all">
+              <div className="hydra-stats-row-label">All games</div>
+              <div
+                className="hydra-stats-bar"
+                role="img"
+                aria-label={`${played ? Math.round((wins / played) * 100) : 0}% won, ${
+                  played ? 100 - Math.round((wins / played) * 100) : 0
+                }% lost`}
+              >
+                {wins > 0 ? (
+                  <div
+                    className="hydra-stats-seg hydra-stats-seg-win"
+                    style={{ flexGrow: wins, flexBasis: 0 }}
+                  >
+                    {Math.round((wins / played) * 100)}%
+                  </div>
+                ) : null}
+                {played - wins > 0 ? (
+                  <div
+                    className="hydra-stats-seg hydra-stats-seg-lost"
+                    style={{ flexGrow: played - wins, flexBasis: 0 }}
+                  >
+                    {100 - Math.round((wins / played) * 100)}%
+                  </div>
+                ) : null}
+              </div>
+              <span className="hydra-stats-total">{played}</span>
+            </div>
+          ) : null}
+          {!loading && groups.length > 0 ? (
+            <>
+              <div className="hydra-stats-cols hydra-stats-cols-head">
+                <span />
+                <span />
+                <span className="hydra-stats-total-head">Total</span>
+              </div>
+              <hr className="hydra-stats-rule" />
+            </>
+          ) : null}
+        </div>
+        <div className="hydra-stats-scroll">
+          {loading ? (
+            <p>Loading…</p>
+          ) : groups.length === 0 ? (
+            <p>No finished games for this language yet.</p>
+          ) : (
+            groups.map((group) => (
+              <section key={group.boardCount} className="hydra-stats-group">
+                <h3>{group.boardCount} boards</h3>
+                {group.sizes.map((row) => {
+                  const rare = rareMention(row.counts);
+                  return (
+                    <div key={row.wordLength} className="hydra-stats-row">
+                      {rare ? <div className="hydra-stats-rare">{rare}</div> : null}
+                      <div className="hydra-stats-row-label">{row.wordLength} letters</div>
+                      <div
+                        className="hydra-stats-bar"
+                        role="img"
+                        aria-label={[
+                          rare,
+                          ...BAR_SCORES.filter((s) => row.counts[s] > 0).map(
+                            (s) =>
+                              `+${s}: ${row.counts[s]} (${Math.round((row.counts[s] / row.total) * 100)}%)`
+                          ),
+                        ]
+                          .filter(Boolean)
+                          .join(', ')}
+                      >
+                        {BAR_SCORES.map((score) => {
+                          const count = row.counts[score] || 0;
+                          if (count <= 0) return null;
+                          const pct = (count / row.total) * 100;
+                          return (
+                            <div
+                              key={score}
+                              className={`hydra-stats-seg extra-${score}`}
+                              style={{ flexGrow: count, flexBasis: 0 }}
+                              title={`+${score}: ${count} (${pct.toFixed(1)}%)`}
+                            >
+                              {count}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="hydra-stats-total">{row.total}</div>
+                    </div>
+                  );
+                })}
+              </section>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

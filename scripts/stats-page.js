@@ -197,13 +197,31 @@ ${COLUMNS.map((col) => dataCell(col, totalDisplay(col, totals, rows.length), '')
   <title>Wordaholic stats</title>
   <style>
     :root { color-scheme: light dark; }
-    body { font: 14px/1.4 system-ui, sans-serif; margin: 1rem; }
+    html, body { height: 100%; }
+    body {
+      font: 14px/1.4 system-ui, sans-serif;
+      margin: 0;
+      padding: 1rem;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .stats-chrome { flex: 0 0 auto; }
+    .stats-table-wrap { flex: 1; min-height: 0; overflow: auto; }
     h1 { font-size: 1.15rem; margin: 0 0 0.75rem; }
     form { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: end; margin-bottom: 1rem; }
     label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 12px; }
-    table { border-collapse: collapse; width: 100%; }
+    table { border-collapse: separate; border-spacing: 0; width: 100%; }
     th, td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent); vertical-align: top; }
     th { font-size: 12px; }
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: Canvas;
+      box-shadow: inset 0 -1px 0 color-mix(in srgb, currentColor 18%, transparent);
+    }
     td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
     th button.sort {
       background: none; border: 0; padding: 0; font: inherit; color: inherit;
@@ -240,15 +258,18 @@ ${COLUMNS.map((col) => dataCell(col, totalDisplay(col, totals, rows.length), '')
   </style>
 </head>
 <body>
-  <h1>Stats</h1>
-  <form method="get" action="/stats">
-    <label>From (UTC)<input type="date" name="from" value="${esc(from)}"/></label>
-    <label>To (UTC)<input type="date" name="to" value="${esc(to)}"/></label>
-    <button type="submit">Apply</button>
-    <a href="/stats">All time</a>
-  </form>
-  <p class="note">Hours are UTC. Location is country · city, region (and ISP). Languages is how many distinct language codes appear in games from that IP. Hover or tap an IP for permutation keys, or a language count for those codes. Click a column header to sort (numeric columns start high-to-low). GET /api/stats is the raw 24h JSON dump.</p>
-  ${notice}
+  <div class="stats-chrome">
+    <h1>Stats</h1>
+    <form method="get" action="/stats">
+      <label>From (UTC)<input type="date" name="from" value="${esc(from)}"/></label>
+      <label>To (UTC)<input type="date" name="to" value="${esc(to)}"/></label>
+      <button type="submit">Apply</button>
+      <a href="/stats">All time</a>
+    </form>
+    <p class="note">Hours are UTC. Location is country · city, region (and ISP). Languages is how many distinct language codes appear in games from that IP. Hover or tap an IP for permutation keys, or a language count for those codes. Click a column header to sort (numeric columns start high-to-low). GET /api/stats is the raw 24h JSON dump.</p>
+    ${notice}
+  </div>
+  <div class="stats-table-wrap">
   <table id="stats-table">
     <thead>
       <tr>
@@ -260,6 +281,7 @@ ${bodyRows || `<tr data-empty="1"><td colspan="${COLUMNS.length}">No rows in thi
     </tbody>
     ${totalRow ? `<tfoot>\n${totalRow}\n    </tfoot>` : ''}
   </table>
+  </div>
   <script>${SORT_SCRIPT}</script>
 </body>
 </html>
