@@ -121,10 +121,11 @@ async function handleStatsPage(req, res) {
   const range = parseDateRange(url.searchParams.get('from') || '', url.searchParams.get('to') || '');
   const rows = combineBodies(inputs, range);
   await lookupMissingGeos(rows);
-  const html = renderStatsHtml({
+      const html = renderStatsHtml({
     rows,
     from: url.searchParams.get('from') || '',
     to: url.searchParams.get('to') || '',
+    params: url.searchParams,
   });
   res.writeHead(200, {
     'Content-Type': 'text/html; charset=utf-8',

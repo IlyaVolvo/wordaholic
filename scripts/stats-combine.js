@@ -138,7 +138,7 @@ export function formatLocation(geo) {
 /**
  * @param {string} code
  */
-function formatCountry(code) {
+export function formatCountry(code) {
   if (!code) return '';
   try {
     return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code;

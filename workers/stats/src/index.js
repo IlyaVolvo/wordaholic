@@ -234,6 +234,7 @@ export class StatsStore {
         rows,
         from: url.searchParams.get('from') || '',
         to: url.searchParams.get('to') || '',
+        params: url.searchParams,
         backfillRemaining: fill.remaining,
       });
       return new Response(method === 'HEAD' ? null : html, { status: 200, headers: HTML_HEADERS });
