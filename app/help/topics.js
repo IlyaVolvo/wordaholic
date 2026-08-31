@@ -251,11 +251,12 @@ export const HELP_TOPICS = {
         title: 'Statistics',
         screenshot: '/help/polyhydra/stats.svg',
         body:
-          'The bar-chart icon opens statistics for the current language. Each board count with ' +
-          'finished games gets a stacked bar per word length. The bar is extra guesses beyond ' +
-          'the board count: +3 dark green, +4 green, +5 yellow, +6 a loss in red. Wins in N, ' +
-          'N+1, or N+2 guesses are rare and listed above the bar as Rare Achievements. The ' +
-          'number on the right is the total.',
+          'The bar-chart icon opens statistics for the current language. All games together ' +
+          'use a green/red win and loss bar. Each board count and word length keeps the extra-' +
+          'guess colors: +3 dark green, +4 green, +5 yellow, +6 a loss in red. The number on ' +
+          'the right is the total. Hover or tap +3 to +6 in the header for how extra guesses ' +
+          'and Rare Achievements work. Wins in N, N+1, or N+2 guesses are listed above that ' +
+          'bar as Rare Achievements, lined up with it.',
       },
     ],
   },

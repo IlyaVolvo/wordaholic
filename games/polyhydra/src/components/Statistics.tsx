@@ -8,6 +8,10 @@ const EXTRA_SCORES = [0, 1, 2, 3, 4, 5, 6] as const;
 const RARE_SCORES = [0, 1, 2] as const;
 const BAR_SCORES = [3, 4, 5, 6] as const;
 
+/** Shown as a tooltip on the extra-guess legend. Edit this copy as needed. */
+const NUMBERS_TIP =
+  'A game could not have fewer steps than the number of boards.\nExtra guesses beyond the board count are: +0 to +5 are wins; +6 is a loss. Wins of +0, +1, and +2 are extremely rare and will appear as special achievements; the rest is represented proportionally according to the bar';
+
 interface StatisticsProps {
   language: string;
   wordLength: number;
@@ -86,7 +90,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
     const byBoard = new Map<number, SizeRow[]>();
     for (const [key, counts] of byKey) {
       const [boardCount, wordLength] = key.split('|').map(Number);
-      const total = EXTRA_SCORES.reduce((sum, s) => sum + (counts[s] || 0), 0);
+      const total = EXTRA_SCORES.reduce((sum, s) => sum + (counts[s] || 0), 0 as number);
       if (total <= 0) continue;
       const rows = byBoard.get(boardCount) || [];
       rows.push({ wordLength, counts, total });
@@ -122,7 +126,27 @@ export const Statistics: React.FC<StatisticsProps> = ({
         </div>
       </div>
       <div className="hydra-stats-body">
-        <h2>Statistics</h2>
+        <div className="hydra-stats-title-row">
+          <h2>Statistics</h2>
+          {!loading ? (
+            <div className="hydra-stats-legend" aria-label="Win, loss, and extra-guess colors">
+              <span className="hydra-stats-swatch hydra-stats-seg-win">Win</span>
+              <span className="hydra-stats-swatch hydra-stats-seg-lost">Lost</span>
+              <span className="hydra-stats-tip-cell hydra-stats-legend-tip">
+                <button type="button" className="hydra-stats-tip-trigger hydra-stats-legend-nums" aria-describedby="hydra-stats-numbers-tip">
+                  {BAR_SCORES.map((score) => (
+                    <span key={score} className={`hydra-stats-swatch extra-${score}`}>
+                      +{score}
+                    </span>
+                  ))}
+                </button>
+                <span id="hydra-stats-numbers-tip" className="hydra-stats-tip" role="tooltip">
+                  {NUMBERS_TIP}
+                </span>
+              </span>
+            </div>
+          ) : null}
+        </div>
         <div className="toolbar-picks hydra-stats-filters">
           <LanguageDropdown
             availableLanguages={availableLanguages}
@@ -135,58 +159,54 @@ export const Statistics: React.FC<StatisticsProps> = ({
           <p>Loading…</p>
         ) : (
           <>
-            <p className="hydra-stats-summary">
-              Played: {played} · Wins: {wins} · Win rate: {played ? Math.round((wins / played) * 100) : 0}%
-            </p>
-            <p className="hydra-stats-legend-caption">
-              Extra guesses beyond board count: +3 to +5 are wins; +6 is a loss. Wins in N, N+1,
-              or N+2 guesses are listed above the bar as Rare Achievements.
-            </p>
-            <div className="hydra-stats-legend" aria-label="Extra-guess colors">
-              {BAR_SCORES.map((score) => (
-                <span key={score} className={`hydra-stats-swatch extra-${score}`}>
-                  +{score}
-                </span>
-              ))}
-            </div>
-            <div className="hydra-stats-example" aria-hidden="true">
-              <div className="hydra-stats-example-caption">Example without Rare Achievements</div>
-              <section className="hydra-stats-group">
-                <h3>12 boards</h3>
-                <div className="hydra-stats-row">
-                  <div className="hydra-stats-row-main">
-                    <div className="hydra-stats-row-label">5 letters</div>
-                    <div className="hydra-stats-bar">
-                      <div className="hydra-stats-seg extra-3" style={{ flexGrow: 5, flexBasis: 0 }}>
-                        5
-                      </div>
-                      <div className="hydra-stats-seg extra-4" style={{ flexGrow: 8, flexBasis: 0 }}>
-                        8
-                      </div>
-                      <div className="hydra-stats-seg extra-5" style={{ flexGrow: 4, flexBasis: 0 }}>
-                        4
-                      </div>
-                      <div className="hydra-stats-seg extra-6" style={{ flexGrow: 3, flexBasis: 0 }}>
-                        3
-                      </div>
+            {played > 0 ? (
+              <div className="hydra-stats-row hydra-stats-row-all">
+                <div className="hydra-stats-row-label">All games</div>
+                <div
+                  className="hydra-stats-bar"
+                  role="img"
+                  aria-label={`${played ? Math.round((wins / played) * 100) : 0}% won, ${
+                    played ? 100 - Math.round((wins / played) * 100) : 0
+                  }% lost`}
+                >
+                  {wins > 0 ? (
+                    <div
+                      className="hydra-stats-seg hydra-stats-seg-win"
+                      style={{ flexGrow: wins, flexBasis: 0 }}
+                    >
+                      {Math.round((wins / played) * 100)}%
                     </div>
-                    <div className="hydra-stats-total">20</div>
-                  </div>
+                  ) : null}
+                  {played - wins > 0 ? (
+                    <div
+                      className="hydra-stats-seg hydra-stats-seg-lost"
+                      style={{ flexGrow: played - wins, flexBasis: 0 }}
+                    >
+                      {100 - Math.round((wins / played) * 100)}%
+                    </div>
+                  ) : null}
                 </div>
-              </section>
-            </div>
+                <span className="hydra-stats-total">{played}</span>
+              </div>
+            ) : null}
             {groups.length === 0 ? (
               <p>No finished games for this language yet.</p>
             ) : (
-              groups.map((group) => (
-                <section key={group.boardCount} className="hydra-stats-group">
-                  <h3>{group.boardCount} boards</h3>
-                  {group.sizes.map((row) => {
-                    const rare = rareMention(row.counts);
-                    return (
-                      <div key={row.wordLength} className="hydra-stats-row">
-                        {rare ? <div className="hydra-stats-rare">{rare}</div> : null}
-                        <div className="hydra-stats-row-main">
+              <>
+                <div className="hydra-stats-cols hydra-stats-cols-head">
+                  <span />
+                  <span />
+                  <span className="hydra-stats-total-head">Total</span>
+                </div>
+                <hr className="hydra-stats-rule" />
+                {groups.map((group) => (
+                  <section key={group.boardCount} className="hydra-stats-group">
+                    <h3>{group.boardCount} boards</h3>
+                    {group.sizes.map((row) => {
+                      const rare = rareMention(row.counts);
+                      return (
+                        <div key={row.wordLength} className="hydra-stats-row">
+                          {rare ? <div className="hydra-stats-rare">{rare}</div> : null}
                           <div className="hydra-stats-row-label">{row.wordLength} letters</div>
                           <div
                             className="hydra-stats-bar"
@@ -219,11 +239,11 @@ export const Statistics: React.FC<StatisticsProps> = ({
                           </div>
                           <div className="hydra-stats-total">{row.total}</div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </section>
-              ))
+                      );
+                    })}
+                  </section>
+                ))}
+              </>
             )}
           </>
         )}

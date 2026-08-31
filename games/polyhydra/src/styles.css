@@ -3639,9 +3639,19 @@ a.header-brand-home:focus-visible {
   padding: 12px 16px 24px;
 }
 
-.hydra-stats-body h2 {
+.hydra-stats-title-row {
+  position: relative;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
   margin: 0 0 12px;
-  font-size: 1.35rem;
+}
+
+.hydra-stats-body h2 {
+  margin: 0;
+  flex: 0 0 auto;
+  font-size: 1.2rem;
   color: #1a2330;
 }
 
@@ -3649,35 +3659,21 @@ a.header-brand-home:focus-visible {
   margin: 0 0 12px;
 }
 
-.hydra-stats-summary {
-  margin: 0 0 10px;
-  color: #1a2330;
-}
-
-.hydra-stats-legend-caption {
-  margin: 0 0 8px;
-  font-size: 0.85rem;
-  color: #3a4458;
-}
-
 .hydra-stats-legend {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0 0 18px;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin: 0;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
-.hydra-stats-example {
-  margin: 0 0 22px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(26, 35, 48, 0.18);
-}
-
-.hydra-stats-example-caption {
-  margin: 0 0 8px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #3a4458;
+.hydra-stats-title-row .hydra-stats-swatch {
+  min-width: 1.55rem;
+  padding: 2px 5px;
+  font-size: 0.7rem;
 }
 
 .hydra-stats-swatch {
@@ -3690,6 +3686,30 @@ a.header-brand-home:focus-visible {
   font-size: 0.8rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.hydra-stats-cols {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) 2.75rem;
+  column-gap: 10px;
+  align-items: center;
+}
+
+.hydra-stats-cols-head {
+  margin: 0 0 2px;
+}
+
+.hydra-stats-total-head {
+  justify-self: end;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1a2330;
+}
+
+.hydra-stats-rule {
+  border: 0;
+  border-top: 1px solid #1a2330;
+  margin: 0 0 14px;
 }
 
 .hydra-stats-group {
@@ -3709,15 +3729,30 @@ a.header-brand-home:focus-visible {
   border-radius: 4px;
 }
 
+.hydra-stats-row-all {
+  margin: 0 0 14px;
+}
+
 .hydra-stats-row {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) 2.75rem;
+  grid-template-areas:
+    ". rare ."
+    "label bar total";
+  column-gap: 10px;
+  row-gap: 4px;
+  align-items: center;
   margin: 0 0 10px;
 }
 
+.hydra-stats-row:not(:has(.hydra-stats-rare)) {
+  grid-template-areas: "label bar total";
+}
+
 .hydra-stats-rare {
+  grid-area: rare;
+  justify-self: start;
+  max-width: 100%;
   font-size: 0.85rem;
   font-weight: 700;
   line-height: 1.25;
@@ -3727,14 +3762,8 @@ a.header-brand-home:focus-visible {
   border-radius: 4px;
 }
 
-.hydra-stats-row-main {
-  display: flex;
-  align-items: stretch;
-  gap: 10px;
-}
-
 .hydra-stats-row-label {
-  flex: 0 0 5.5rem;
+  grid-area: label;
   display: flex;
   align-items: center;
   font-size: 0.85rem;
@@ -3743,7 +3772,7 @@ a.header-brand-home:focus-visible {
 }
 
 .hydra-stats-bar {
-  flex: 1;
+  grid-area: bar;
   min-width: 0;
   display: flex;
   height: 28px;
@@ -3765,13 +3794,21 @@ a.header-brand-home:focus-visible {
 }
 
 .hydra-stats-total {
-  flex: 0 0 2.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
+  grid-area: total;
+  justify-self: end;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: #1a2330;
+}
+
+.hydra-stats-seg-win {
+  background: #2d7a36;
+  color: #fff;
+}
+
+.hydra-stats-seg-lost {
+  background: #c62828;
+  color: #fff;
 }
 
 .extra-3 {
@@ -3792,5 +3829,68 @@ a.header-brand-home:focus-visible {
 .extra-6 {
   background: #c62828;
   color: #fff;
+}
+
+.hydra-stats-tip-cell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.hydra-stats-legend-tip {
+  position: static;
+  justify-content: flex-start;
+}
+
+.hydra-stats-legend-nums {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: help;
+  text-decoration: none;
+}
+
+.hydra-stats-title-row .hydra-stats-tip {
+  left: 0;
+  right: 0;
+  width: auto;
+  max-width: none;
+  box-sizing: border-box;
+  bottom: auto;
+  top: calc(100% + 0.3rem);
+}
+
+.hydra-stats-tip {
+  display: none;
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.3rem);
+  z-index: 6;
+  max-width: min(22rem, calc(100vw - 32px));
+  width: max-content;
+  padding: 0.55rem 0.7rem;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(12, 14, 20, 0.4);
+  white-space: pre-line;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+  pointer-events: none;
+}
+
+.hydra-stats-tip-cell:hover .hydra-stats-tip,
+.hydra-stats-tip-cell:focus-within .hydra-stats-tip {
+  display: block;
 }
 
