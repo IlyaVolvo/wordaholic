@@ -38,10 +38,11 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
   revealed = false,
 }) => {
   const visible = new Set(inView);
+  const labeled = cells.some((cell) => (cell.solved || revealed) && cell.answer);
 
   return (
     <div
-      className={`hydra-scoreboard${revealed ? ' revealed' : ''}`}
+      className={`hydra-scoreboard${revealed ? ' revealed' : ''}${labeled ? ' is-labeled' : ''}`}
       style={{ ['--hydra-n' as string]: cells.length }}
       aria-label="Board progress"
     >
@@ -50,16 +51,17 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
         const attempt = cell.solved && cell.solvedAt != null ? cell.solvedAt : null;
         const showNm = !showWord;
         const nm = showNm ? `${cell.greens}/${cell.yellows}` : '';
-        const topChars = String(i + 1).length + (showNm ? 1 + nm.length : 0);
-        const wordChars = showWord
-          ? cell.answer!.length + (attempt != null ? 2 : 0)
-          : 0;
-        const fitChars = Math.max(topChars, wordChars);
-        const style = cell.solved
-          ? { background: 'var(--correct)', color: '#fff' }
-          : revealed
-            ? { background: '#c62828', color: '#fff' }
-            : mixKnowledgeStyle(cell.greens, cell.yellows);
+        const rightChars = showNm ? nm.length : attempt != null ? String(attempt).length : 0;
+        const fitChars = String(i + 1).length + (rightChars ? 1 + rightChars : 0);
+        const style = {
+          ...(cell.solved
+            ? { background: 'var(--correct)', color: '#fff' }
+            : revealed
+              ? { background: '#c62828', color: '#fff' }
+              : mixKnowledgeStyle(cell.greens, cell.yellows)),
+          ['--hydra-fit-chars' as string]: fitChars,
+          ...(showWord ? { ['--hydra-word-len' as string]: cell.answer!.length } : {}),
+        } as React.CSSProperties;
         return (
           <button
             key={i}
@@ -67,22 +69,20 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
             className={`hydra-scoreboard-cell${visible.has(i) ? ' in-view' : ''}${
               cell.solved ? ' guessed' : ''
             }${revealed && !cell.solved ? ' missed' : ''}${showWord ? ' has-word' : ''}`}
-            style={{ ...style, ['--hydra-fit-chars' as string]: fitChars } as React.CSSProperties}
+            style={style}
             aria-label={`Board ${i + 1}${
               showNm ? `, ${cell.greens} green, ${cell.yellows} yellow` : ''
             }${showWord ? `, ${cell.answer}${attempt != null ? `, guess ${attempt}` : ''}` : ''}`}
             onClick={() => onSelect(i)}
           >
+            {showWord ? (
+              <span className="hydra-scoreboard-answer">{cell.answer!.toUpperCase()}</span>
+            ) : null}
             <span className="hydra-scoreboard-top">
               <span className="hydra-scoreboard-id">{i + 1}</span>
               {showNm ? <span className="hydra-scoreboard-nm">{nm}</span> : null}
+              {attempt != null ? <span className="hydra-scoreboard-attempt">{attempt}</span> : null}
             </span>
-            {showWord ? (
-              <span className="hydra-scoreboard-word">
-                <span className="hydra-scoreboard-answer">{cell.answer!.toUpperCase()}</span>
-                {attempt != null ? <span className="hydra-scoreboard-attempt">{attempt}</span> : null}
-              </span>
-            ) : null}
           </button>
         );
       })}
