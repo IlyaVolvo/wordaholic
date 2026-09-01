@@ -12,6 +12,7 @@ const STATS_HELP =
   'Numeric filters keep rows with a count greater than the value (default 0; use -1 to include zeros).\n' +
   'Homehits only keeps networks with home hits and no games, including polywordlot, transword, and polyhydra. Those count filters are disabled while it is checked. Unchecked, it has no effect. Country, place, and ISP still apply.\n' +
   'Place and ISP match any part of the name; multiple words all have to match. Filters apply as you change them.\n' +
+  'Export CSV downloads the rows currently visible under those filters (not the totals row).\n' +
   'GET /api/stats is the raw 24h JSON dump.';
 
 /** @typedef {{ key: string, label: string, type: 'text' | 'num' }} StatsColumn */
@@ -549,6 +550,68 @@ const FILTER_SCRIPT = `(function () {
   apply();
 })();`;
 
+const CSV_SCRIPT = `(function () {
+  var form = document.getElementById('stats-filters');
+  var table = document.getElementById('stats-table');
+  var btn = document.querySelector('[data-export-csv]');
+  if (!form || !table || !table.tBodies[0] || !btn) return;
+  var tbody = table.tBodies[0];
+  var headers = ${JSON.stringify(COLUMNS.map((c) => c.label))};
+  var keys = ${JSON.stringify(COLUMNS.map((c) => c.key))};
+  var gameIds = ${JSON.stringify(STATS_GAMES.map((g) => g.id))};
+
+  function csvEscape(value) {
+    var s = String(value == null ? '' : value);
+    if (/[",\\n\\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  function numAttr(row, name) {
+    var n = Number(row.getAttribute(name) || '0');
+    return isFinite(n) ? n : 0;
+  }
+  function cellValue(row, key) {
+    if (key === 'ip') {
+      var btn = row.cells[0] && row.cells[0].querySelector('.tip-trigger');
+      return btn ? btn.textContent : (row.cells[0] ? row.cells[0].textContent : '');
+    }
+    if (key === 'location') return row.cells[1] ? row.cells[1].textContent : '';
+    if (key === 'addrs') return numAttr(row, 'data-addrs');
+    if (key === 'languages') return numAttr(row, 'data-languages');
+    if (key === 'games') return numAttr(row, 'data-games');
+    if (key === 'homeHits') return numAttr(row, 'data-homehits');
+    if (gameIds.indexOf(key) !== -1) return numAttr(row, 'data-game-' + key);
+    return '';
+  }
+  function filename() {
+    var fromEl = form.querySelector('[name=from]');
+    var toEl = form.querySelector('[name=to]');
+    var from = fromEl && fromEl.value ? fromEl.value : 'all';
+    var to = toEl && toEl.value ? toEl.value : 'all';
+    return 'wordaholic-stats-' + from + '-to-' + to + '.csv';
+  }
+  btn.addEventListener('click', function () {
+    var lines = [headers.map(csvEscape).join(',')];
+    var rows = tbody.rows;
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (row.getAttribute('data-empty') === '1') continue;
+      if (row.hidden) continue;
+      var cols = [];
+      for (var k = 0; k < keys.length; k++) cols.push(csvEscape(cellValue(row, keys[k])));
+      lines.push(cols.join(','));
+    }
+    var blob = new Blob([lines.join('\\n') + '\\n'], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+})();`;
+
 /**
  * @param {ReturnType<typeof parseStatsFilters>} filters
  * @param {string} key
@@ -734,6 +797,7 @@ ${countryOptions
       <div class="stats-head">
         <h1>${tipCell('Stats', STATS_HELP, 'stats-help')}</h1>
         <div class="stats-actions">
+          <button type="button" data-export-csv>Export CSV</button>
           <button type="button" data-clear-filters>Clear filters</button>
         </div>
       </div>
@@ -763,6 +827,7 @@ ${emptyRow}
   </div>
   <script>${SORT_SCRIPT}</script>
   <script>${FILTER_SCRIPT}</script>
+  <script>${CSV_SCRIPT}</script>
 </body>
 </html>
 `;
