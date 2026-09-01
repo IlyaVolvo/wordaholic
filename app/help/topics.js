@@ -216,8 +216,8 @@ export const HELP_TOPICS = {
           'cell size, puts the guess attempt on the right, and places the word above the cell, ' +
           'scaled so it is no wider than the cell. One board is on screen at a time. The default ' +
           'summary shows greens on the first row, yellows in the positions they were found on ' +
-          'the remaining rows of a square the size of the word (a green letter is not shown again unless a second copy is known), ' +
-          'then a gap with a down arrow and the entry row. The down arrow, a swipe down, or the ' +
+          'the remaining rows of a square the size of the word (a green letter is not shown again unless a second copy is known, and the same letter is never shown twice on one row), ' +
+          'then a gap with a down arrow, the previous guess, and the entry row. The down arrow, a swipe down, or the ' +
           'down key opens the full grid; the up arrow by the board number, a swipe up, or the ' +
           'up key returns to summary. Tap a cell, swipe left or right, or use the side arrows to bring ' +
           'another board into view.',

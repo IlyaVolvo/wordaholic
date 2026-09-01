@@ -1,4 +1,4 @@
-import type { Guess } from './types';
+import type { Guess, LetterEvaluation } from './types';
 
 function letterKey(letter: string): string {
   return letter.toLowerCase();
@@ -146,4 +146,44 @@ export function boardSummaryKnowledge(
     }
   }
   return { greens, yellowsByColumn };
+}
+
+function rowHasLetter(
+  row: Array<LetterEvaluation | null>,
+  key: string
+): boolean {
+  return row.some((cell) => cell && letterKey(cell.letter) === key);
+}
+
+/**
+ * Summary known grid: greens on row 0 in position. Yellows stay in the
+ * columns where they were present, on the first later row that does not
+ * already show that letter.
+ */
+export function layoutSummaryKnown(
+  guesses: Guess[],
+  wordLength: number
+): Array<Array<LetterEvaluation | null>> {
+  const { greens, yellowsByColumn } = boardSummaryKnowledge(guesses, wordLength);
+  const knownRowCount = Math.max(1, wordLength);
+  const rows: Array<Array<LetterEvaluation | null>> = Array.from(
+    { length: knownRowCount },
+    () => Array(wordLength).fill(null)
+  );
+  for (let col = 0; col < wordLength; col++) {
+    const letter = greens[col];
+    if (letter) rows[0][col] = { letter, state: 'correct' };
+  }
+  for (let col = 0; col < wordLength; col++) {
+    for (const letter of yellowsByColumn[col] || []) {
+      const key = letterKey(letter);
+      for (let row = 1; row < knownRowCount; row++) {
+        if (rows[row][col]) continue;
+        if (rowHasLetter(rows[row], key)) continue;
+        rows[row][col] = { letter, state: 'present' };
+        break;
+      }
+    }
+  }
+  return rows;
 }

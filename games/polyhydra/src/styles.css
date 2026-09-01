@@ -3634,6 +3634,10 @@ a.header-brand-home:focus-visible {
   margin-bottom: 0;
 }
 
+.hydra-summary-previous {
+  margin-bottom: var(--cell-gap);
+}
+
 .hydra-board-label.guessed,
 .hydra-board-label.missed {
   color: #fff;

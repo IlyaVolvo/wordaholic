@@ -1,9 +1,5 @@
 import React from 'react';
-import {
-  boardSummaryKnowledge,
-  summaryKnownRows,
-  summaryYellowRows,
-} from '@wordaholic/wordle-core';
+import { layoutSummaryKnown, summaryKnownRows } from '@wordaholic/wordle-core';
 import type { Guess, LetterEvaluation } from '../types';
 
 interface SummaryBoardProps {
@@ -14,6 +10,21 @@ interface SummaryBoardProps {
   rtl?: boolean;
   frozen?: boolean;
   onExpand: () => void;
+}
+
+function displayGuessCells(
+  guess: Guess | undefined,
+  wordLength: number,
+  rtl: boolean
+): Array<LetterEvaluation | null> {
+  const cells: Array<LetterEvaluation | null> = Array(wordLength).fill(null);
+  if (!guess) return cells;
+  const evals = guess.evaluations || [];
+  for (let col = 0; col < wordLength; col++) {
+    const idx = rtl ? wordLength - 1 - col : col;
+    cells[col] = evals[idx] || null;
+  }
+  return cells;
 }
 
 function cellClass(
@@ -34,9 +45,8 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
   frozen = false,
   onExpand,
 }) => {
-  const { greens, yellowsByColumn } = boardSummaryKnowledge(guesses, wordLength);
   const knownRowCount = summaryKnownRows(wordLength);
-  const yellowRowCount = summaryYellowRows(wordLength);
+  const knownRows = layoutSummaryKnown(guesses, wordLength);
   const showEntry = !frozen;
   const activeCol = showEntry
     ? rtl
@@ -47,18 +57,8 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
 
   const logical = (col: number) => (rtl ? wordLength - 1 - col : col);
 
-  const knownRows: Array<Array<LetterEvaluation | null>> = Array.from(
-    { length: knownRowCount },
-    () => Array(wordLength).fill(null)
-  );
-  for (let col = 0; col < wordLength; col++) {
-    const letter = greens[col];
-    if (letter) knownRows[0][col] = { letter, state: 'correct' };
-    const yellows = yellowsByColumn[col] || [];
-    for (let y = 0; y < yellows.length && y < yellowRowCount; y++) {
-      knownRows[1 + y][col] = { letter: yellows[y], state: 'present' };
-    }
-  }
+  const lastGuess = guesses[guesses.length - 1];
+  const previousCells = displayGuessCells(lastGuess, wordLength, rtl);
 
   const entryCells: Array<LetterEvaluation | null> = Array(wordLength).fill(null);
   if (showEntry && currentGuess.length > 0) {
@@ -106,6 +106,24 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
       >
         ↓
       </button>
+      <div
+        className="game-board hydra-summary-previous"
+        aria-label="Previous guess"
+        style={
+          {
+            '--board-cols': wordLength,
+            '--board-rows': 1,
+          } as React.CSSProperties
+        }
+      >
+        <div className="row">
+          {previousCells.map((state, col) => (
+            <div key={col} className={cellClass(state, false, false)}>
+              {state?.letter.toUpperCase() || ''}
+            </div>
+          ))}
+        </div>
+      </div>
       {showEntry ? (
         <div
           className="game-board hydra-summary-entry"

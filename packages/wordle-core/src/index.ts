@@ -38,6 +38,7 @@ export {
   boardKnowledgeScore,
   boardKnowledgeTally,
   boardSummaryKnowledge,
+  layoutSummaryKnown,
   scoreboardYellowFactor,
 } from './knowledgeScore';
 export { getHydraDailyWords, hydraDailySeed } from './hydraWords';
