@@ -113,6 +113,27 @@ function windowStartForBoards(
   return Math.max(0, Math.min(pos, maxStart));
 }
 
+/** Win: earliest solved board (fewest guesses; lowest index on tie). Loss: first unsolved. */
+function finaleBoardIndex(solved: boolean[], boardGuesses: string[][], won: boolean): number {
+  if (won) {
+    let best = -1;
+    let bestAt = Infinity;
+    for (let i = 0; i < solved.length; i++) {
+      if (!solved[i]) continue;
+      const at = boardGuesses[i]?.length ?? Infinity;
+      if (at < bestAt || (at === bestAt && (best < 0 || i < best))) {
+        bestAt = at;
+        best = i;
+      }
+    }
+    return best >= 0 ? best : 0;
+  }
+  for (let i = 0; i < solved.length; i++) {
+    if (!solved[i]) return i;
+  }
+  return 0;
+}
+
 export const Game: React.FC<GameProps> = ({
   view = 'game',
   onViewChange,
@@ -147,6 +168,7 @@ export const Game: React.FC<GameProps> = ({
   const [boardScale, setBoardScale] = useState(1);
   const [boardMode, setBoardMode] = useState<'summary' | 'full'>('summary');
   const prevSolvedRef = useRef<boolean[] | null>(null);
+  const finaleAppliedRef = useRef(false);
   const boardsViewportRef = useRef<HTMLDivElement | null>(null);
   const swipeRef = useRef<{ x: number; y: number; active: boolean } | null>(null);
 
@@ -360,7 +382,19 @@ export const Game: React.FC<GameProps> = ({
     setExiting([]);
     setBoardMode('summary');
     prevSolvedRef.current = null;
+    finaleAppliedRef.current = false;
   }, [language, wordLength, boardCount, selectedPlayDate, importTick]);
+
+  // After win/lose: Full mode focused on first win, or first lost board.
+  useEffect(() => {
+    if (loading || !isComplete || exiting.length > 0) return;
+    if (finaleAppliedRef.current) return;
+    finaleAppliedRef.current = true;
+    const focus = finaleBoardIndex(solvedFlags, boardGuesses, isWon);
+    setBoardMode('full');
+    const pos = displayIndices.indexOf(focus);
+    if (pos >= 0) setWindowStart(pos);
+  }, [loading, isComplete, exiting.length, solvedFlags, boardGuesses, isWon, displayIndices]);
 
   useEffect(() => {
     if (loading) {
