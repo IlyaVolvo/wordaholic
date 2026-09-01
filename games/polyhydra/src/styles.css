@@ -3485,7 +3485,7 @@ a.header-brand-home:focus-visible {
   flex-direction: column;
   padding: 8px 8px 0;
   box-sizing: border-box;
-  touch-action: pan-y;
+  touch-action: none;
 }
 
 .hydra-board-entries {
@@ -3575,15 +3575,63 @@ a.header-brand-home:focus-visible {
   z-index: 2;
   flex-shrink: 0;
   width: 100%;
-  text-align: center;
+  display: grid;
+  grid-template-columns: 2.2rem 1fr 2.2rem;
+  align-items: center;
   font-size: min(0.95rem, calc(var(--hydra-board-w, 332px) / 9));
   font-weight: 700;
   line-height: 1;
   color: #fff;
-  padding: 7px 8px 6px;
+  padding: 7px 4px 6px;
   background: #1a3d66;
   overflow: hidden;
   white-space: nowrap;
+}
+
+.hydra-board-label-text {
+  text-align: center;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hydra-board-mode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 1.4rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.hydra-board-mode--spacer {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.hydra-board-mode--down {
+  color: #1a2330;
+  margin: 4px 0 10px;
+  width: 2.4rem;
+  height: 2.4rem;
+  font-size: 1.4rem;
+}
+
+.hydra-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.hydra-summary-known {
+  margin-bottom: 0;
 }
 
 .hydra-board-label.guessed,

@@ -108,3 +108,42 @@ export function scoreboardYellowFactor(score: number, cap: number): number {
   const linear = Math.min(1, score / cap);
   return Math.pow(linear, 0.28);
 }
+
+/**
+ * Locked greens by position. Yellows only for unplaced instances: a letter
+ * already fully accounted for as green is not shown again unless a second
+ * (or further) copy is known. Extra copies appear in columns where they
+ * were evaluated present.
+ */
+export function boardSummaryKnowledge(
+  guesses: Guess[],
+  wordLength: number
+): { greens: Array<string | null>; yellowsByColumn: string[][] } {
+  const greens = lockedGreens(guesses, wordLength);
+  const knownByLetter = knownCountByLetter(guesses);
+  const greenByLetter = new Map<string, number>();
+  for (const letter of greens) {
+    if (!letter) continue;
+    const key = letterKey(letter);
+    greenByLetter.set(key, (greenByLetter.get(key) || 0) + 1);
+  }
+
+  const yellowsByColumn: string[][] = Array.from({ length: wordLength }, () => []);
+  const seenAt = Array.from({ length: wordLength }, () => new Set<string>());
+  for (const guess of guesses) {
+    const evals = guess.evaluations || [];
+    for (let i = 0; i < wordLength; i++) {
+      const ev = evals[i];
+      if (!ev || ev.state !== 'present') continue;
+      const key = letterKey(ev.letter);
+      if (greens[i] && letterKey(greens[i] as string) === key) continue;
+      const greenCount = greenByLetter.get(key) || 0;
+      const known = Math.max(knownByLetter.get(key) || 0, greenCount);
+      if (known - greenCount <= 0) continue;
+      if (seenAt[i].has(key)) continue;
+      seenAt[i].add(key);
+      yellowsByColumn[i].push(ev.letter);
+    }
+  }
+  return { greens, yellowsByColumn };
+}

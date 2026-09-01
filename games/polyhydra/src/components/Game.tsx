@@ -23,6 +23,7 @@ import { reportStats } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import type { DictionaryEntry, Guess, LanguageConfig, LetterState } from '../types';
 import { GameBoard } from './GameBoard';
+import { SummaryBoard } from './SummaryBoard';
 import { Scoreboard, type ScoreboardCell } from './Scoreboard';
 import { Settings } from './Settings';
 import { Calendar } from './Calendar';
@@ -144,6 +145,7 @@ export const Game: React.FC<GameProps> = ({
   const [windowStart, setWindowStart] = useState(0);
   const [exiting, setExiting] = useState<number[]>([]);
   const [boardScale, setBoardScale] = useState(1);
+  const [boardMode, setBoardMode] = useState<'summary' | 'full'>('summary');
   const prevSolvedRef = useRef<boolean[] | null>(null);
   const boardsViewportRef = useRef<HTMLDivElement | null>(null);
   const swipeRef = useRef<{ x: number; y: number; active: boolean } | null>(null);
@@ -356,6 +358,7 @@ export const Game: React.FC<GameProps> = ({
 
   useEffect(() => {
     setExiting([]);
+    setBoardMode('summary');
     prevSolvedRef.current = null;
   }, [language, wordLength, boardCount, selectedPlayDate, importTick]);
 
@@ -610,14 +613,25 @@ export const Game: React.FC<GameProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (view !== 'game' || showCalendar || loading) return;
-      if (e.key === 'ArrowLeft') {
+      const target = e.target as HTMLElement | null;
+      const inField =
+        !!target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'SELECT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable);
+      if (
+        !inField &&
+        (e.key === 'ArrowLeft' ||
+          e.key === 'ArrowRight' ||
+          e.key === 'ArrowUp' ||
+          e.key === 'ArrowDown')
+      ) {
         e.preventDefault();
-        setWindowStart((s) => Math.max(0, s - 1));
-        return;
-      }
-      if (e.key === 'ArrowRight') {
-        e.preventDefault();
-        setWindowStart((s) => Math.min(maxWindowStart, s + 1));
+        if (e.key === 'ArrowLeft') setWindowStart((s) => Math.max(0, s - 1));
+        else if (e.key === 'ArrowRight') setWindowStart((s) => Math.min(maxWindowStart, s + 1));
+        else if (e.key === 'ArrowDown') setBoardMode('full');
+        else setBoardMode('summary');
         return;
       }
       if (e.key === 'Enter') handleEnter();
@@ -753,7 +767,13 @@ export const Game: React.FC<GameProps> = ({
             if (!start?.active) return;
             const dx = e.clientX - start.x;
             const dy = e.clientY - start.y;
-            if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+            const adx = Math.abs(dx);
+            const ady = Math.abs(dy);
+            if (adx < 40 && ady < 40) return;
+            if (ady >= adx) {
+              setBoardMode(dy < 0 ? 'summary' : 'full');
+              return;
+            }
             shiftWindow(dx < 0 ? 1 : -1);
           }}
           onPointerCancel={() => {
@@ -785,21 +805,48 @@ export const Game: React.FC<GameProps> = ({
                       board.solved ? ' guessed' : isComplete ? ' missed' : ''
                     }`}
                   >
-                    {board.solved || isComplete ? board.target.toUpperCase() : i + 1}
-                    {board.solved ? ` ${board.words.length}` : ''}
+                    {boardMode === 'full' ? (
+                      <button
+                        type="button"
+                        className="hydra-board-mode hydra-board-mode--up"
+                        aria-label="Show summary"
+                        onClick={() => setBoardMode('summary')}
+                      >
+                        ↑
+                      </button>
+                    ) : (
+                      <span className="hydra-board-mode hydra-board-mode--spacer" aria-hidden="true" />
+                    )}
+                    <span className="hydra-board-label-text">
+                      {board.solved || isComplete ? board.target.toUpperCase() : i + 1}
+                      {board.solved ? ` ${board.words.length}` : ''}
+                    </span>
+                    <span className="hydra-board-mode hydra-board-mode--spacer" aria-hidden="true" />
                   </div>
-                  <GameBoard
-                    guesses={board.guesses}
-                    currentGuess={board.solved ? '' : currentGuess}
-                    wordLength={wordLength}
-                    maxGuesses={maxGuesses}
-                    targetWord={isComplete && !board.solved ? board.target : undefined}
-                    isComplete={isComplete || board.solved}
-                    isWon={board.solved}
-                    invalidRow={invalidRow && !board.solved}
-                    rtl={keyboardRtl}
-                    frozen={board.solved}
-                  />
+                  {boardMode === 'summary' ? (
+                    <SummaryBoard
+                      guesses={board.guesses}
+                      currentGuess={board.solved ? '' : currentGuess}
+                      wordLength={wordLength}
+                      invalidRow={invalidRow && !board.solved}
+                      rtl={keyboardRtl}
+                      frozen={board.solved || isComplete}
+                      onExpand={() => setBoardMode('full')}
+                    />
+                  ) : (
+                    <GameBoard
+                      guesses={board.guesses}
+                      currentGuess={board.solved ? '' : currentGuess}
+                      wordLength={wordLength}
+                      maxGuesses={maxGuesses}
+                      targetWord={isComplete && !board.solved ? board.target : undefined}
+                      isComplete={isComplete || board.solved}
+                      isWon={board.solved}
+                      invalidRow={invalidRow && !board.solved}
+                      rtl={keyboardRtl}
+                      frozen={board.solved}
+                    />
+                  )}
                 </div>
               );
             })}
