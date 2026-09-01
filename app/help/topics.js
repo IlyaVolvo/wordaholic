@@ -87,6 +87,19 @@ export const HELP_TOPICS = {
           'learn which languages people actually speak in each country. Consider it a world ' +
           'atlas that occasionally dares you to play a word game.',
       },
+      {
+        title: 'Acknowledgements',
+        screenshot: null,
+        body:
+          'PolyWordlot is inspired by Wordle.\n' +
+          'PolyHydra is inspired by Sedecordle.\n\n' +
+          'Word sets were curated by:\n\n' +
+          '• French — Tanya Levshina\n' +
+          '• Spanish — Olga Lichten\n' +
+          '• Hebrew — Alex Kaplinsky\n' +
+          '• Armenian — Aram Hayrapetian\n' +
+          '• English / Russian — Ilya Volvovski',
+      },
     ],
   },
   polywordlot: {
