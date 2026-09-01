@@ -51,6 +51,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
         const attempt = cell.solved && cell.solvedAt != null ? cell.solvedAt : null;
         const showNm = !showWord;
         const nm = showNm ? `${cell.greens}/${cell.yellows}` : '';
+        const locked = cell.solved && !revealed;
         const rightChars = showNm ? nm.length : attempt != null ? String(attempt).length : 0;
         const fitChars = String(i + 1).length + (rightChars ? 1 + rightChars : 0);
         const style = {
@@ -72,8 +73,14 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
             style={style}
             aria-label={`Board ${i + 1}${
               showNm ? `, ${cell.greens} green, ${cell.yellows} yellow` : ''
-            }${showWord ? `, ${cell.answer}${attempt != null ? `, guess ${attempt}` : ''}` : ''}`}
-            onClick={() => onSelect(i)}
+            }${showWord ? `, ${cell.answer}${attempt != null ? `, guess ${attempt}` : ''}` : ''}${
+              locked ? ', solved' : ''
+            }`}
+            disabled={locked}
+            onClick={() => {
+              if (locked) return;
+              onSelect(i);
+            }}
           >
             {showWord ? (
               <span className="hydra-scoreboard-answer">{cell.answer!.toUpperCase()}</span>

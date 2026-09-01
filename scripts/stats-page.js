@@ -637,6 +637,7 @@ ${countryOptions
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Wordaholic stats</title>
+  <link rel="icon" href="/brand/wordaholic-stats.svg" type="image/svg+xml"/>
   <style>
     :root { color-scheme: light dark; }
     html, body { height: 100%; }

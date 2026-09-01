@@ -1380,10 +1380,20 @@ a.header-brand-home:focus-visible {
 }
 
 .header-icon-tooltip--left {
-  right: auto;
-  left: 0;
+  top: 50%;
+  right: 100%;
+  left: auto;
+  margin-top: 0;
+  margin-right: 8px;
   min-width: auto;
+  max-width: none;
+  padding: 6px 10px;
   white-space: nowrap;
+  transform: translate(-4px, -50%);
+}
+
+.header-icon-with-tooltip:hover .header-icon-tooltip--left {
+  transform: translate(0, -50%);
 }
 
 .header-icon-tooltip--center {
@@ -3262,7 +3272,7 @@ a.header-brand-home:focus-visible {
 
 .hydra-container .header-section {
   flex-shrink: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .hydra-container .game-header-bar {
@@ -3360,7 +3370,14 @@ a.header-brand-home:focus-visible {
 }
 
 .hydra-scoreboard-cell.in-view {
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.38);
+  z-index: 1;
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+.hydra-scoreboard-cell:disabled {
+  cursor: default;
+  opacity: 1;
 }
 
 .hydra-scoreboard-top {

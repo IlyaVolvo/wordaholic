@@ -202,9 +202,9 @@ export const HELP_TOPICS = {
           'Gray = letter not in that board’s word\n\n' +
           'A solved board flashes green three times, then its grid disappears. The scoreboard ' +
           'keeps that cell the same size, puts the attempt on the right, and places the word ' +
-          'above the cell. Other boards keep their numbers. Unused rows on open boards stay empty. ' +
+          'above the cell. Unused rows on open boards stay empty. ' +
           'When the game ends, every board returns in its final state so you can page through ' +
-          'them with the arrows or by tapping a scoreboard cell.',
+          'them with the arrows, a swipe, or by tapping a scoreboard cell.',
       },
       {
         title: 'Scoreboard',
@@ -214,7 +214,8 @@ export const HELP_TOPICS = {
           'the right: locked greens / known yellows. The cell color mixes those two counts ' +
           '(0 is none, 5 is strongest). A solved board turns green, hides n/m, keeps the same ' +
           'cell size, puts the guess attempt on the right, and places the word above the cell, ' +
-          'scaled so it is no wider than the cell. Tap a cell to scroll that board into view.',
+          'scaled so it is no wider than the cell. One board is on screen at a time. Tap a cell, ' +
+          'swipe, or use the arrows to bring another board into view.',
       },
       {
         title: 'Keyboard',
@@ -255,8 +256,8 @@ export const HELP_TOPICS = {
         body:
           'The bar-chart icon opens statistics for the current language. All games together ' +
           'use a green/red win and loss bar. Each board count and word length keeps the extra-' +
-          'guess colors: +3 dark green, +4 green, +5 yellow, +6 a loss in red. The number on ' +
-          'the right is the total. Hover or tap +3 to +6 in the header for how extra guesses ' +
+          'guess colors: +3 dark green, +4 green, +5 yellow, loss in red. The number on ' +
+          'the right is the total. Hover or tap +3 to +5 and loss in the header for how extra guesses ' +
           'and Rare Achievements work. Wins in N, N+1, or N+2 guesses are listed above that ' +
           'bar as Rare Achievements, lined up with it.',
       },

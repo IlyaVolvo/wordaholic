@@ -8,6 +8,10 @@ const EXTRA_SCORES = [0, 1, 2, 3, 4, 5, 6] as const;
 const RARE_SCORES = [0, 1, 2] as const;
 const BAR_SCORES = [3, 4, 5, 6] as const;
 
+function extraLabel(score: number): string {
+  return score === EXTRA_LOSS ? 'loss' : `+${score}`;
+}
+
 /** Shown as a tooltip on the extra-guess legend. Edit this copy as needed. */
 const NUMBERS_TIP =
   'A game could not have fewer steps than the number of boards.\nExtra guesses beyond the board count are: +0 to +5 are wins; +6 is a loss. Wins of +0, +1, and +2 are extremely rare and will appear as special achievements; the rest is represented proportionally according to the bar';
@@ -137,7 +141,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
                   <button type="button" className="hydra-stats-tip-trigger hydra-stats-legend-nums" aria-describedby="hydra-stats-numbers-tip">
                     {BAR_SCORES.map((score) => (
                       <span key={score} className={`hydra-stats-swatch extra-${score}`}>
-                        +{score}
+                        {extraLabel(score)}
                       </span>
                     ))}
                   </button>
@@ -219,7 +223,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
                           rare,
                           ...BAR_SCORES.filter((s) => row.counts[s] > 0).map(
                             (s) =>
-                              `+${s}: ${row.counts[s]} (${Math.round((row.counts[s] / row.total) * 100)}%)`
+                              `${extraLabel(s)}: ${row.counts[s]} (${Math.round((row.counts[s] / row.total) * 100)}%)`
                           ),
                         ]
                           .filter(Boolean)
@@ -234,7 +238,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
                               key={score}
                               className={`hydra-stats-seg extra-${score}`}
                               style={{ flexGrow: count, flexBasis: 0 }}
-                              title={`+${score}: ${count} (${pct.toFixed(1)}%)`}
+                              title={`${extraLabel(score)}: ${count} (${pct.toFixed(1)}%)`}
                             >
                               {count}
                             </div>

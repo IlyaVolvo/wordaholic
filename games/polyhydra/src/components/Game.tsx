@@ -140,7 +140,7 @@ export const Game: React.FC<GameProps> = ({
   const [calendarGames, setCalendarGames] = useState<StoredHydra[]>([]);
   const [selectedPlayDate, setSelectedPlayDate] = useState(() => formatDate());
   const [importTick, setImportTick] = useState(0);
-  const [visibleCount, setVisibleCount] = useState(1);
+  const visibleCount = 1;
   const [windowStart, setWindowStart] = useState(0);
   const [exiting, setExiting] = useState<number[]>([]);
   const [boardScale, setBoardScale] = useState(1);
@@ -152,7 +152,6 @@ export const Game: React.FC<GameProps> = ({
   const attemptsUsed = Math.max(0, ...boardGuesses.map((g) => g.length));
   const CELL_NATURAL = 60;
   const CELL_GAP = 8;
-  const BOARD_GAP = CELL_GAP * 4 - 2;
   const boardNaturalWidth = wordLength * CELL_NATURAL + (wordLength - 1) * CELL_GAP;
 
   const persist = useCallback(
@@ -639,25 +638,13 @@ export const Game: React.FC<GameProps> = ({
       const pad = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
       const inner = Math.max(0, el.clientWidth - pad);
       if (inner <= 0) return;
-      if (inner < boardNaturalWidth) {
-        setBoardScale(inner / boardNaturalWidth);
-        setVisibleCount(1);
-        return;
-      }
-      setBoardScale(1);
-      const fit = Math.max(1, Math.floor((inner + BOARD_GAP) / (boardNaturalWidth + BOARD_GAP)));
-      setVisibleCount(Math.min(fit, Math.max(1, displayIndices.length || 1)));
+      setBoardScale(inner < boardNaturalWidth ? inner / boardNaturalWidth : 1);
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [
-    loading,
-    boardNaturalWidth,
-    BOARD_GAP,
-    displayIndices.length,
-  ]);
+  }, [loading, boardNaturalWidth]);
 
   useEffect(() => {
     setWindowStart((s) => Math.min(s, Math.max(0, displayIndices.length - visibleCount)));
@@ -674,11 +661,7 @@ export const Game: React.FC<GameProps> = ({
       const next = displayIndices.find((i) => i > index);
       pos = next != null ? displayIndices.indexOf(next) : displayIndices.length - 1;
     }
-    setWindowStart(() => {
-      if (pos < viewStart) return pos;
-      if (pos >= viewStart + visibleCount) return Math.max(0, pos - visibleCount + 1);
-      return viewStart;
-    });
+    setWindowStart(pos);
   };
 
   if (loading) return <div className="loading">Loading...</div>;
@@ -719,7 +702,7 @@ export const Game: React.FC<GameProps> = ({
           <div className="game-header-side game-header-right">
             {onViewChange && (
               <span className="header-icon-with-tooltip">
-                <span className="header-icon-tooltip">Statistics</span>
+                <span className="header-icon-tooltip header-icon-tooltip--left">Statistics</span>
                 <button
                   type="button"
                   className="header-icon-button"
@@ -762,6 +745,7 @@ export const Game: React.FC<GameProps> = ({
           }}
           onPointerDown={(e) => {
             swipeRef.current = { x: e.clientX, y: e.clientY, active: true };
+            e.currentTarget.setPointerCapture(e.pointerId);
           }}
           onPointerUp={(e) => {
             const start = swipeRef.current;
