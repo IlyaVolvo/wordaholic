@@ -77,6 +77,41 @@ function openBoardIndices(solved: boolean[]): number[] {
   return solved.map((done, i) => (done ? -1 : i)).filter((i) => i >= 0);
 }
 
+function boardSolvedAt(words: string[] | undefined, target: string, language: string): boolean {
+  const last = words?.[words.length - 1];
+  return Boolean(last && isWinningGuessForLanguage(last, target, language));
+}
+
+function newlySolvedIndices(
+  prevGuesses: string[][],
+  nextGuesses: string[][],
+  targets: string[],
+  language: string
+): number[] {
+  const born: number[] = [];
+  for (let i = 0; i < nextGuesses.length; i++) {
+    if (boardSolvedAt(nextGuesses[i], targets[i], language) && !boardSolvedAt(prevGuesses[i], targets[i], language)) {
+      born.push(i);
+    }
+  }
+  return born;
+}
+
+function windowStartForBoards(
+  display: number[],
+  visibleCount: number,
+  windowStart: number,
+  mustShow: number[]
+): number {
+  const maxStart = Math.max(0, display.length - visibleCount);
+  const start = Math.min(windowStart, maxStart);
+  const vis = display.slice(start, start + visibleCount);
+  if (mustShow.some((i) => vis.includes(i))) return start;
+  const pos = display.indexOf(mustShow[0]);
+  if (pos < 0) return start;
+  return Math.max(0, Math.min(pos, maxStart));
+}
+
 export const Game: React.FC<GameProps> = ({
   view = 'game',
   onViewChange,
@@ -338,13 +373,8 @@ export const Game: React.FC<GameProps> = ({
       const nextEx = [...new Set([...exiting, ...born])];
       setExiting(nextEx);
       const nextDisplay = [...new Set([...openIndices, ...nextEx])].sort((a, b) => a - b);
-      const start = Math.min(windowStart, Math.max(0, nextDisplay.length - visibleCount));
-      const vis = nextDisplay.slice(start, start + visibleCount);
-      if (!born.some((i) => vis.includes(i))) {
-        const pos = nextDisplay.indexOf(born[0]);
-        const maxStart = Math.max(0, nextDisplay.length - visibleCount);
-        setWindowStart(Math.max(0, Math.min(pos, maxStart)));
-      }
+      const nextStart = windowStartForBoards(nextDisplay, visibleCount, windowStart, born);
+      if (nextStart !== windowStart) setWindowStart(nextStart);
     }
   }, [solvedFlags, loading, openIndices, exiting, windowStart, visibleCount]);
 
@@ -533,16 +563,20 @@ export const Game: React.FC<GameProps> = ({
 
     const isDailyStart = boardGuesses.every((g) => g.length === 0);
     const nextGuesses = boardGuesses.map((words, i) => {
-      const last = words[words.length - 1];
-      const solved = Boolean(last && isWinningGuessForLanguage(last, targets[i], language));
-      if (solved) return words;
+      if (boardSolvedAt(words, targets[i], language)) return words;
       const committed = isWinningGuessForLanguage(guess, targets[i], language) ? targets[i] : guess;
       return [...words, committed];
     });
-    const won = nextGuesses.every((words, i) => {
-      const last = words[words.length - 1];
-      return Boolean(last && isWinningGuessForLanguage(last, targets[i], language));
-    });
+    const born = newlySolvedIndices(boardGuesses, nextGuesses, targets, language);
+    if (born.length) {
+      const nextEx = [...new Set([...exiting, ...born])];
+      setExiting(nextEx);
+      const nextOpen = openIndices.filter((i) => !born.includes(i));
+      const nextDisplay = [...new Set([...nextOpen, ...nextEx])].sort((a, b) => a - b);
+      const nextStart = windowStartForBoards(nextDisplay, visibleCount, windowStart, born);
+      if (nextStart !== windowStart) setWindowStart(nextStart);
+    }
+    const won = nextGuesses.every((words, i) => boardSolvedAt(words, targets[i], language));
     const used = Math.max(0, ...nextGuesses.map((g) => g.length));
     const complete = won || used >= hydraMaxGuesses(boardCount);
     commitState(nextGuesses, '', false, complete, won);
@@ -565,6 +599,10 @@ export const Game: React.FC<GameProps> = ({
     language,
     boardCount,
     commitState,
+    exiting,
+    openIndices,
+    windowStart,
+    visibleCount,
   ]);
 
   useEffect(() => {
