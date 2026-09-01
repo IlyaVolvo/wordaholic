@@ -202,7 +202,9 @@ export const HELP_TOPICS = {
           'Gray = letter not in that board’s word\n\n' +
           'A solved board flashes green three times, then its grid disappears. The scoreboard ' +
           'keeps that cell the same size, puts the attempt on the right, and places the word ' +
-          'above the cell. Other boards keep their numbers. Unused rows on open boards stay empty.',
+          'above the cell. Other boards keep their numbers. Unused rows on open boards stay empty. ' +
+          'When the game ends, every board returns in its final state so you can page through ' +
+          'them with the arrows or by tapping a scoreboard cell.',
       },
       {
         title: 'Scoreboard',

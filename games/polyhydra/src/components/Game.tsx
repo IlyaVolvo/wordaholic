@@ -341,9 +341,12 @@ export const Game: React.FC<GameProps> = ({
   const solvedFlags = useMemo(() => boardViews.map((board) => board.solved), [boardViews]);
   const openIndices = useMemo(() => openBoardIndices(solvedFlags), [solvedFlags]);
   const displayIndices = useMemo(() => {
+    if (isComplete && exiting.length === 0) {
+      return targets.map((_, i) => i);
+    }
     const lingering = exiting.filter((i) => solvedFlags[i]);
     return [...new Set([...openIndices, ...lingering])].sort((a, b) => a - b);
-  }, [openIndices, exiting, solvedFlags]);
+  }, [isComplete, exiting, targets, openIndices, solvedFlags]);
 
   const maxWindowStart = Math.max(0, displayIndices.length - visibleCount);
   const viewStart = Math.min(windowStart, maxWindowStart);
@@ -830,7 +833,7 @@ export const Game: React.FC<GameProps> = ({
         {isComplete && (
           <div className="game-result">
             <div className={`result-message ${isWon ? 'success' : 'failure'}`}>
-              {isWon ? winMessage : 'Lost'}
+              {isWon ? winMessage : 'Sorry, you lost now. Come back'}
             </div>
           </div>
         )}
