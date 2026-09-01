@@ -704,14 +704,22 @@ export const Game: React.FC<GameProps> = ({
             </button>
           </div>
           <div
-            className={`hydra-attempts${isComplete && !isWon ? ' is-lost' : ''}`}
+            className={`hydra-attempts${
+              isComplete ? (isWon ? ' is-won' : ' is-lost') : ''
+            }${isComplete ? ' is-message' : ''}`}
             aria-label={
-              isComplete && !isWon
-                ? 'Lost'
+              isComplete
+                ? isWon
+                  ? winMessage
+                  : loseMessage
                 : `${boardsSolved} solved, ${attemptsUsed} of ${maxGuesses} attempts`
             }
           >
-            {isComplete && !isWon ? 'Lost' : `${boardsSolved} - ${attemptsUsed}/${maxGuesses}`}
+            {isComplete
+              ? isWon
+                ? winMessage
+                : loseMessage
+              : `${boardsSolved} - ${attemptsUsed}/${maxGuesses}`}
           </div>
           <div className="game-header-side game-header-right">
             {onViewChange && (
@@ -861,13 +869,6 @@ export const Game: React.FC<GameProps> = ({
         >
           ›
         </button>
-        {isComplete && (
-          <div className="game-result">
-            <div className={`result-message ${isWon ? 'success' : 'failure'}`}>
-              {isWon ? winMessage : 'Sorry, you lost now. Come back'}
-            </div>
-          </div>
-        )}
       </div>
       <div className="hydra-dock">
         <Settings

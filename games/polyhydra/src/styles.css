@@ -3290,12 +3290,28 @@ a.header-brand-home:focus-visible {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
   color: var(--text);
-  line-height: 1;
+  line-height: 1.15;
   user-select: none;
+  text-align: center;
+  max-width: min(28rem, 52vw);
+  justify-self: center;
+}
+
+.hydra-attempts.is-message {
+  font-variant-numeric: normal;
+  letter-spacing: 0.01em;
+  font-size: clamp(1.05rem, 3.2vw, 1.45rem);
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  max-width: min(40rem, 70vw);
+}
+
+.hydra-attempts.is-won {
+  color: var(--accent);
 }
 
 .hydra-attempts.is-lost {
-  color: #ff4d4f;
+  color: #dc3545;
 }
 
 @media (max-width: 600px) {
@@ -3307,8 +3323,15 @@ a.header-brand-home:focus-visible {
 
   .hydra-attempts {
     margin-left: auto;
-    flex-shrink: 0;
+    margin-right: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
     font-size: 0.95rem;
+  }
+
+  .hydra-attempts.is-message {
+    font-size: 1.05rem;
   }
 }
 
