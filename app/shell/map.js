@@ -467,7 +467,7 @@ export async function renderWorldMap(container, opts = {}) {
     if (playable.length) {
       hint = mapTooltipPinned
         ? 'Click a language to select or deselect'
-        : 'Click the country to keep this open';
+        : 'Click the country to select/deselect language';
     }
 
     if (!sameCountry || opts.pin) {
