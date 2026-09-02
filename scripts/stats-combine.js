@@ -490,3 +490,185 @@ export function combineTotals(rows) {
   const codes = [...languageCodes].sort();
   return { ...acc, languages: codes.length, languageCodes: codes };
 }
+
+export const TREND_INTERVALS = ['hours', 'days', 'weeks', 'months'];
+
+/**
+ * @param {unknown} value
+ * @returns {'hours' | 'days' | 'weeks' | 'months'}
+ */
+export function parseTrendInterval(value) {
+  const v = String(value || '').trim().toLowerCase();
+  if (v === 'hours' || v === 'days' || v === 'weeks' || v === 'months') return v;
+  return 'days';
+}
+
+/**
+ * @param {unknown} value
+ * @returns {'totals' | 'trends'}
+ */
+export function parseStatsTab(value) {
+  return String(value || '').trim().toLowerCase() === 'trends' ? 'trends' : 'totals';
+}
+
+/**
+ * @param {string} hourIso
+ */
+function truncateHourIso(hourIso) {
+  const d = new Date(hourIso);
+  if (Number.isNaN(d.getTime())) return '';
+  d.setUTCMinutes(0, 0, 0);
+  d.setUTCMilliseconds(0);
+  return d.toISOString();
+}
+
+/**
+ * ISO week key Monday-based, e.g. 2026-W09.
+ * @param {Date} date
+ */
+function isoWeekKey(date) {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const year = d.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(year, 0, 1));
+  const week = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${year}-W${String(week).padStart(2, '0')}`;
+}
+
+/**
+ * @param {string} hourIso
+ * @param {'hours' | 'days' | 'weeks' | 'months'} interval
+ */
+export function trendBucketKey(hourIso, interval) {
+  const hour = truncateHourIso(hourIso);
+  if (!hour) return '';
+  if (interval === 'hours') return hour;
+  if (interval === 'days') return hour.slice(0, 10);
+  if (interval === 'months') return hour.slice(0, 7);
+  return isoWeekKey(new Date(hour));
+}
+
+/**
+ * @param {string} key
+ * @param {'hours' | 'days' | 'weeks' | 'months'} interval
+ */
+export function trendBucketLabel(key, interval) {
+  if (!key) return '';
+  if (interval === 'hours') {
+    return key.replace('T', ' ').replace(/:00\.000Z$/, 'Z').replace(/\.000Z$/, 'Z');
+  }
+  return key;
+}
+
+/**
+ * @param {Map<string, StatsRecord>} byIp
+ */
+function metricsFromHourIpMap(byIp) {
+  const collapsed = collapseHour(byIp);
+  let merged = emptyRecord();
+  for (const { rec } of collapsed.values()) {
+    merged = sumRecord(merged, rec);
+  }
+  /** @type {Record<string, number>} */
+  const byGame = Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0]));
+  let games = 0;
+  for (const id of STATS_GAME_IDS) {
+    let n = 0;
+    for (const v of Object.values(merged.games[id] || {})) n += Number(v) || 0;
+    byGame[id] = n;
+    games += n;
+  }
+  return { games, byGame };
+}
+
+/**
+ * @param {string} startHourIso
+ * @param {string} endHourIso
+ * @param {'hours' | 'days' | 'weeks' | 'months'} interval
+ */
+function enumerateTrendBucketKeys(startHourIso, endHourIso, interval) {
+  const start = truncateHourIso(startHourIso);
+  const end = truncateHourIso(endHourIso);
+  /** @type {string[]} */
+  const keys = [];
+  if (!start || !end || start > end) return keys;
+  const seen = new Set();
+  let t = new Date(start).getTime();
+  const endMs = new Date(end).getTime();
+  const HOUR_MS = 60 * 60 * 1000;
+  while (t <= endMs) {
+    const hour = new Date(t).toISOString();
+    const key = trendBucketKey(hour, interval);
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      keys.push(key);
+    }
+    t += HOUR_MS;
+  }
+  return keys;
+}
+
+/**
+ * Time-bucketed activity totals (event counts) for Trends.
+ *
+ * @param {{ source: string, body: unknown }[]} inputs
+ * @param {{ from?: string | null, toExclusive?: string | null }} [range]
+ * @param {'hours' | 'days' | 'weeks' | 'months'} [interval]
+ * @returns {{ key: string, label: string, games: number, byGame: Record<string, number> }[]}
+ */
+export function combineTrends(inputs, range = {}, interval = 'days') {
+  const grain = parseTrendInterval(interval);
+  /** @type {Map<string, Map<string, StatsRecord>>} */
+  const byHour = new Map();
+  for (const { source, body } of inputs) {
+    for (const { hour, ip, rec } of extractRows(body, source, range)) {
+      let byIp = byHour.get(hour);
+      if (!byIp) {
+        byIp = new Map();
+        byHour.set(hour, byIp);
+      }
+      const prev = byIp.get(ip);
+      byIp.set(ip, prev ? maxRecord(prev, rec) : rec);
+    }
+  }
+
+  const hours = [...byHour.keys()].sort();
+  let startH = hours[0] || '';
+  let endH = hours[hours.length - 1] || '';
+  if (range.from) startH = truncateHourIso(range.from) || startH;
+  if (range.toExclusive) {
+    const end = new Date(range.toExclusive);
+    end.setUTCHours(end.getUTCHours() - 1);
+    endH = truncateHourIso(end.toISOString()) || endH;
+  }
+  if (!startH || !endH) return [];
+
+  /** @type {Map<string, { games: number, byGame: Record<string, number> }>} */
+  const acc = new Map();
+  for (const hour of hours) {
+    const m = metricsFromHourIpMap(byHour.get(hour) || new Map());
+    const key = trendBucketKey(hour, grain);
+    if (!key) continue;
+    const prev = acc.get(key);
+    if (!prev) {
+      acc.set(key, { games: m.games, byGame: { ...m.byGame } });
+    } else {
+      prev.games += m.games;
+      for (const id of STATS_GAME_IDS) {
+        prev.byGame[id] = (prev.byGame[id] || 0) + (m.byGame[id] || 0);
+      }
+    }
+  }
+
+  const emptyByGame = Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0]));
+  return enumerateTrendBucketKeys(startH, endH, grain).map((key) => {
+    const m = acc.get(key) || { games: 0, byGame: { ...emptyByGame } };
+    return {
+      key,
+      label: trendBucketLabel(key, grain),
+      games: m.games,
+      byGame: m.byGame,
+    };
+  });
+}

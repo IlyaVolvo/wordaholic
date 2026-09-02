@@ -1,5 +1,5 @@
-import { combineTotals, formatCountry } from './stats-combine.js';
-import { STATS_GAMES } from './stats-games.js';
+import { combineTotals, formatCountry, parseStatsTab, parseTrendInterval, TREND_INTERVALS } from './stats-combine.js';
+import { STATS_GAMES, STATS_GAME_IDS } from './stats-games.js';
 import languageCatalog from '../word-data/languages.json' with { type: 'json' };
 
 const LANGUAGE_MENU = new Map(languageCatalog.map((row) => [row.code, row.menu]));
@@ -13,6 +13,7 @@ const STATS_HELP =
   'Homehits only keeps networks with home hits and no games, including polywordlot, transword, and polyhydra. Those count filters are disabled while it is checked. Unchecked, it has no effect. Country, place, and ISP still apply.\n' +
   'Place and ISP match any part of the name; multiple words all have to match. Filters apply as you change them.\n' +
   'Export CSV downloads the rows currently visible under those filters (not the totals row).\n' +
+  'Trends shows activity by hour, day, week, or month for the From/To window (empty = all available).\n' +
   'GET /api/stats is the raw 24h JSON dump.';
 
 /** @typedef {{ key: string, label: string, type: 'text' | 'num' }} StatsColumn */
@@ -32,6 +33,21 @@ const GT_KEYS = ['languages', 'games', ...STATS_GAMES.map((g) => g.id)];
 const HOME_GT_OFF = ['games', ...STATS_GAMES.map((g) => g.id)];
 const GT_MAX = 9999;
 const GT_MIN = -1;
+
+/** @type {StatsColumn[]} */
+const TREND_COLUMNS = [
+  { key: 'bucket', label: 'interval', type: 'text' },
+  { key: 'games', label: 'games', type: 'num' },
+  ...STATS_GAMES.map((g) => ({ key: g.id, label: g.id, type: /** @type {'num'} */ ('num') })),
+];
+
+/**
+ * @param {number} n
+ */
+function trendCell(n) {
+  const v = Number(n) || 0;
+  return v > 0 ? esc(String(v)) : '';
+}
 
 /**
  * @param {string} value
@@ -474,6 +490,7 @@ const FILTER_SCRIPT = `(function () {
   }
   function syncUrl() {
     var params = new URLSearchParams();
+    params.set('tab', 'totals');
     var from = fromEl ? fromEl.value : '';
     var to = toEl ? toEl.value : '';
     if (from) params.set('from', from);
@@ -625,6 +642,7 @@ function gtInputValue(filters, key) {
 /**
  * @param {{
  *   rows: import('./stats-combine.js').StatsRow[],
+ *   trends?: { key: string, label: string, games: number, byGame: Record<string, number> }[],
  *   from?: string,
  *   to?: string,
  *   params?: URLSearchParams | { get?: Function, has?: Function },
@@ -633,7 +651,10 @@ function gtInputValue(filters, key) {
  */
 export function renderStatsHtml(opts) {
   const allRows = opts.rows || [];
+  const trendRows = opts.trends || [];
   const filters = parseStatsFilters(opts.params);
+  const tab = parseStatsTab(opts.params?.get?.('tab'));
+  const interval = parseTrendInterval(opts.params?.get?.('interval'));
   const filtered = applyStatsFilters(allRows, filters);
   const totals = combineTotals(filtered);
   const from = opts.from || '';
@@ -644,64 +665,33 @@ export function renderStatsHtml(opts) {
     countryOptions.unshift([filters.country, formatCountry(filters.country) || filters.country]);
   }
   const homeHitsOnly = filters.homeHitsOnly;
+  const isTrends = tab === 'trends';
 
-  const bodyRows = allRows
-    .map((r, i) => {
-      const match = rowMatchesFilters(r, filters);
-      const cells = COLUMNS.map((col) => dataCell(col, columnDisplay(col, r, i), columnSortValue(col, r))).join(
-        '\n'
-      );
-      return `<tr ${rowDataAttrs(r)}${match ? '' : ' hidden'}>\n${cells}\n</tr>`;
-    })
-    .join('\n');
+  const qsBase = (extra = {}) => {
+    const p = new URLSearchParams();
+    if (from) p.set('from', from);
+    if (to) p.set('to', to);
+    for (const [k, v] of Object.entries(extra)) {
+      if (v) p.set(k, String(v));
+    }
+    const s = p.toString();
+    return s ? `?${s}` : '';
+  };
 
-  const emptyHidden = filtered.length ? ' hidden' : '';
-  const emptyRow = `<tr data-empty="1"${emptyHidden}><td colspan="${COLUMNS.length}">No rows in this range.</td></tr>`;
-
-  const totalRow = allRows.length
-    ? `<tr class="total">
-${COLUMNS.map((col) =>
-  dataCell(col, totalDisplay(col, totals, filtered.length), '', ` data-col="${esc(col.key)}"`)
-).join('\n')}
-</tr>`
-    : '';
-
-  const headerRow = COLUMNS.map((col, i) => {
-    const cls = col.type === 'num' ? ' class="n"' : '';
-    const aria = i === 0 ? ' aria-sort="ascending"' : '';
-    return `        <th${cls} data-type="${col.type}"${aria}><button type="button" class="sort">${esc(col.label)}</button></th>`;
-  }).join('\n');
+  const tabs = `<nav class="stats-tabs" aria-label="Stats views">
+      <a href="/stats${qsBase({ tab: 'totals' })}"${isTrends ? '' : ' aria-current="page"'}>Totals</a>
+      <a href="/stats${qsBase({ tab: 'trends', interval })}"${isTrends ? ' aria-current="page"' : ''}>Trends</a>
+    </nav>`;
 
   const notice = remaining
     ? `<p class="note">Still loading ${remaining} archived hour${remaining === 1 ? '' : 's'} from storage. Refresh shortly.</p>`
     : '';
 
-  const countrySelect = `<select name="country">
-        <option value="">All</option>
-${countryOptions
-  .map(
-    ([code, label]) =>
-      `        <option value="${esc(code)}"${code === filters.country ? ' selected' : ''}>${esc(label)}</option>`
-  )
-  .join('\n')}
-      </select>`;
+  const sharedDates = `<label>From (UTC)<input type="date" name="from" value="${esc(from)}"/></label>
+      <label>To (UTC)<input type="date" name="to" value="${esc(to)}"/></label>
+      <input type="hidden" name="tab" value="${esc(tab)}"/>`;
 
-  const gtFields = GT_KEYS.map((key) => {
-    const disabled = homeHitsOnly && HOME_GT_OFF.includes(key) ? ' disabled' : '';
-    const shown = gtInputValue(filters, key);
-    return `<label>${esc(key)}<span class="gt-field"><span aria-hidden="true">&gt;</span><input type="number" name="gt_${esc(
-      key
-    )}" value="${esc(shown)}" placeholder="0" min="${GT_MIN}" max="${GT_MAX}" step="1"${disabled}/></span></label>`;
-  }).join('\n      ');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Wordaholic stats</title>
-  <link rel="icon" href="/brand/wordaholic-stats.svg" type="image/svg+xml"/>
-  <style>
+  const styles = `
     :root { color-scheme: light dark; }
     html, body { height: 100%; }
     body {
@@ -726,9 +716,51 @@ ${countryOptions
       margin: 0 0 0.35rem;
     }
     .stats-actions { display: flex; align-items: center; gap: 0.65rem; margin-left: auto; }
+    .stats-tabs {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex: 1 0 100%;
+      margin: 0 0 0.5rem;
+    }
+    .stats-tabs a {
+      color: inherit;
+      text-decoration: none;
+      font-weight: 600;
+      padding: 0.15rem 0;
+      border-bottom: 2px solid transparent;
+    }
+    .stats-tabs a[aria-current="page"] {
+      border-bottom-color: currentColor;
+    }
     form { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: end; margin-bottom: 0.65rem; }
     label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 12px; }
     label.check { flex-direction: row; align-items: center; gap: 0.35rem; padding-bottom: 0.15rem; }
+    .stats-filter-end {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding-bottom: 0.15rem;
+    }
+    .stats-chrome button[data-export-csv],
+    .stats-chrome button[data-clear-filters] {
+      font: inherit;
+      font-weight: 500;
+      color: inherit;
+      cursor: pointer;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid color-mix(in srgb, currentColor 40%, transparent);
+      border-radius: 0.3rem;
+      background: color-mix(in srgb, currentColor 14%, Canvas);
+    }
+    .stats-chrome button[data-export-csv]:hover,
+    .stats-chrome button[data-clear-filters]:hover {
+      background: color-mix(in srgb, currentColor 22%, Canvas);
+    }
+    .stats-chrome button[data-export-csv]:active,
+    .stats-chrome button[data-clear-filters]:active {
+      background: color-mix(in srgb, currentColor 28%, Canvas);
+    }
     input[type="text"], input[type="date"], select { font: inherit; min-width: 7rem; }
     input[type="number"] {
       font: inherit;
@@ -789,7 +821,106 @@ ${countryOptions
     }
     td.n .tip { left: auto; right: 0; }
     .tip-cell:hover .tip, .tip-cell:focus-within .tip { display: block; }
-  </style>
+  `;
+
+  if (isTrends) {
+    const intervalSelect = `<label>Interval<select name="interval">
+${TREND_INTERVALS.map(
+  (id) => `        <option value="${esc(id)}"${id === interval ? ' selected' : ''}>${esc(id)}</option>`
+).join('\n')}
+      </select></label>`;
+
+    const headerRow = TREND_COLUMNS.map((col, i) => {
+      const cls = col.type === 'num' ? ' class="n"' : '';
+      const aria = i === 0 ? ' aria-sort="ascending"' : '';
+      return `        <th${cls} data-type="${col.type}"${aria}><button type="button" class="sort">${esc(col.label)}</button></th>`;
+    }).join('\n');
+
+    const bodyRows = trendRows
+      .map((r) => {
+        const cells = [
+          dataCell(TREND_COLUMNS[0], esc(r.label), r.key),
+          dataCell(TREND_COLUMNS[1], trendCell(r.games), r.games),
+          ...STATS_GAME_IDS.map((id, i) =>
+            dataCell(TREND_COLUMNS[i + 2], trendCell(r.byGame?.[id] || 0), r.byGame?.[id] || 0)
+          ),
+        ].join('\n');
+        return `<tr>\n${cells}\n</tr>`;
+      })
+      .join('\n');
+
+    const emptyRow = trendRows.length
+      ? ''
+      : `<tr data-empty="1"><td colspan="${TREND_COLUMNS.length}">No hours in this range.</td></tr>`;
+
+    const TRENDS_CSV = `(function () {
+  var table = document.getElementById('stats-table');
+  var btn = document.querySelector('[data-export-csv]');
+  var form = document.getElementById('stats-filters');
+  if (!table || !table.tBodies[0] || !btn) return;
+  var headers = ${JSON.stringify(TREND_COLUMNS.map((c) => c.label))};
+  function csvEscape(value) {
+    var s = String(value == null ? '' : value);
+    if (/[",\\n\\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  btn.addEventListener('click', function () {
+    var lines = [headers.map(csvEscape).join(',')];
+    var rows = table.tBodies[0].rows;
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (row.getAttribute('data-empty') === '1') continue;
+      var cells = [];
+      for (var c = 0; c < headers.length; c++) {
+        cells.push(csvEscape((row.cells[c] && row.cells[c].innerText || '').trim()));
+      }
+      lines.push(cells.join(','));
+    }
+    var fromEl = form && form.querySelector('[name=from]');
+    var toEl = form && form.querySelector('[name=to]');
+    var from = fromEl && fromEl.value ? fromEl.value : 'all';
+    var to = toEl && toEl.value ? toEl.value : 'all';
+    var blob = new Blob([lines.join('\\n') + '\\n'], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'wordaholic-trends-' + from + '-to-' + to + '.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+})();`;
+
+    const TRENDS_NAV = `(function () {
+  var form = document.getElementById('stats-filters');
+  if (!form) return;
+  function go() {
+    var params = new URLSearchParams();
+    params.set('tab', 'trends');
+    var fromEl = form.querySelector('[name=from]');
+    var toEl = form.querySelector('[name=to]');
+    var intervalEl = form.querySelector('[name=interval]');
+    if (fromEl && fromEl.value) params.set('from', fromEl.value);
+    if (toEl && toEl.value) params.set('to', toEl.value);
+    if (intervalEl && intervalEl.value) params.set('interval', intervalEl.value);
+    location.href = '/stats?' + params.toString();
+  }
+  form.addEventListener('change', function (e) {
+    var name = e.target && e.target.name;
+    if (name === 'from' || name === 'to' || name === 'interval') go();
+  });
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    go();
+  });
+})();`;
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Wordaholic stats — Trends</title>
+  <link rel="icon" href="/brand/wordaholic-stats.svg" type="image/svg+xml"/>
+  <style>${styles}</style>
 </head>
 <body>
   <div class="stats-chrome">
@@ -798,16 +929,108 @@ ${countryOptions
         <h1>${tipCell('Stats', STATS_HELP, 'stats-help')}</h1>
         <div class="stats-actions">
           <button type="button" data-export-csv>Export CSV</button>
-          <button type="button" data-clear-filters>Clear filters</button>
         </div>
       </div>
-      <label>From (UTC)<input type="date" name="from" value="${esc(from)}"/></label>
-      <label>To (UTC)<input type="date" name="to" value="${esc(to)}"/></label>
+      ${tabs}
+      ${sharedDates}
+      ${intervalSelect}
+    </form>
+    ${notice}
+  </div>
+  <div class="stats-table-wrap">
+  <table id="stats-table">
+    <thead>
+      <tr>
+${headerRow}
+      </tr>
+    </thead>
+    <tbody>
+${bodyRows}
+${emptyRow}
+    </tbody>
+  </table>
+  </div>
+  <script>${SORT_SCRIPT}</script>
+  <script>${TRENDS_NAV}</script>
+  <script>${TRENDS_CSV}</script>
+</body>
+</html>
+`;
+  }
+
+  const bodyRows = allRows
+    .map((r, i) => {
+      const match = rowMatchesFilters(r, filters);
+      const cells = COLUMNS.map((col) => dataCell(col, columnDisplay(col, r, i), columnSortValue(col, r))).join(
+        '\n'
+      );
+      return `<tr ${rowDataAttrs(r)}${match ? '' : ' hidden'}>\n${cells}\n</tr>`;
+    })
+    .join('\n');
+
+  const emptyHidden = filtered.length ? ' hidden' : '';
+  const emptyRow = `<tr data-empty="1"${emptyHidden}><td colspan="${COLUMNS.length}">No rows in this range.</td></tr>`;
+
+  const totalRow = allRows.length
+    ? `<tr class="total">
+${COLUMNS.map((col) =>
+  dataCell(col, totalDisplay(col, totals, filtered.length), '', ` data-col="${esc(col.key)}"`)
+).join('\n')}
+</tr>`
+    : '';
+
+  const headerRow = COLUMNS.map((col, i) => {
+    const cls = col.type === 'num' ? ' class="n"' : '';
+    const aria = i === 0 ? ' aria-sort="ascending"' : '';
+    return `        <th${cls} data-type="${col.type}"${aria}><button type="button" class="sort">${esc(col.label)}</button></th>`;
+  }).join('\n');
+
+  const countrySelect = `<select name="country">
+        <option value="">All</option>
+${countryOptions
+  .map(
+    ([code, label]) =>
+      `        <option value="${esc(code)}"${code === filters.country ? ' selected' : ''}>${esc(label)}</option>`
+  )
+  .join('\n')}
+      </select>`;
+
+  const gtFields = GT_KEYS.map((key) => {
+    const disabled = homeHitsOnly && HOME_GT_OFF.includes(key) ? ' disabled' : '';
+    const shown = gtInputValue(filters, key);
+    return `<label>${esc(key)}<span class="gt-field"><span aria-hidden="true">&gt;</span><input type="number" name="gt_${esc(
+      key
+    )}" value="${esc(shown)}" placeholder="0" min="${GT_MIN}" max="${GT_MAX}" step="1"${disabled}/></span></label>`;
+  }).join('\n      ');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Wordaholic stats — Totals</title>
+  <link rel="icon" href="/brand/wordaholic-stats.svg" type="image/svg+xml"/>
+  <style>${styles}</style>
+</head>
+<body>
+  <div class="stats-chrome">
+    <form id="stats-filters" method="get" action="/stats">
+      <div class="stats-head">
+        <h1>${tipCell('Stats', STATS_HELP, 'stats-help')}</h1>
+        <div class="stats-actions">
+          <button type="button" data-export-csv>Export CSV</button>
+        </div>
+      </div>
+      ${tabs}
+      ${sharedDates}
       <label>Country${countrySelect}</label>
       <label>Place<input type="text" name="place" value="${esc(filters.place)}" autocomplete="off"/></label>
       <label>ISP<input type="text" name="isp" value="${esc(filters.isp)}" autocomplete="off"/></label>
       ${gtFields}
-      <label class="check"><input type="checkbox" name="homeHitsOnly" value="1"${homeHitsOnly ? ' checked' : ''}/> Homehits only</label>
+      <span class="stats-filter-end">
+        <label class="check"><input type="checkbox" name="homeHitsOnly" value="1"${homeHitsOnly ? ' checked' : ''}/> Homehits only</label>
+        <button type="button" data-clear-filters>Clear filters</button>
+      </span>
     </form>
     ${notice}
   </div>

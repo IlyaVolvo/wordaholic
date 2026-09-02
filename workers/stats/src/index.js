@@ -2,7 +2,7 @@ import { BODY_MAX_BYTES, parseStatsDelta } from '../../../scripts/stats-delta.js
 import { archiveClosedHours } from '../../../scripts/stats-archive.js';
 import { gcsConfigured, getGcsObject, listGcsKeys } from '../../../scripts/gcs-xml-put.js';
 import { createStatsStore, PRUNE_INTERVAL_MS } from '../../../scripts/stats-store.js';
-import { combineBodies, normalizeGeo, parseDateRange } from '../../../scripts/stats-combine.js';
+import { combineBodies, combineTrends, normalizeGeo, parseDateRange, parseTrendInterval } from '../../../scripts/stats-combine.js';
 import { isStatsApiPath, isStatsPagePath } from '../../../scripts/stats-path.js';
 import { renderStatsHtml } from '../../../scripts/stats-page.js';
 import { HOUR_PULL_BATCH, HOUR_STORAGE_GET_BATCH, hourFromObjectKey } from '../../../scripts/stats-hour-cache.js';
@@ -227,11 +227,13 @@ export class StatsStore {
         inputs.push({ source: `hour:${hour}`, body });
       }
       const rows = combineBodies(inputs, range);
+      const trends = combineTrends(inputs, range, parseTrendInterval(url.searchParams.get('interval')));
       const found = await lookupMissingGeos(rows);
       for (const [ip, geo] of found) this.store.rememberGeo(ip, geo);
       if (found.size) await this.persist();
       const html = renderStatsHtml({
         rows,
+        trends,
         from: url.searchParams.get('from') || '',
         to: url.searchParams.get('to') || '',
         params: url.searchParams,
