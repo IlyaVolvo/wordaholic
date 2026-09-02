@@ -3592,7 +3592,22 @@ a.header-brand-home:focus-visible {
   margin: 0 0 1rem;
 }
 
+.hydra-size-gate-full {
+  display: inline-block;
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 1rem;
+  border: none;
+  border-radius: 8px;
+  background: #1a3d66;
+  color: #fff;
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 .hydra-size-gate-home {
+  display: block;
   font-family: var(--font-body, system-ui, sans-serif);
   font-weight: 700;
   color: inherit;

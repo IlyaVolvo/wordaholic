@@ -244,6 +244,7 @@ export const Game: React.FC<GameProps> = ({
 
   const selectBoardMode = useCallback((mode: 'summary' | 'full', fromUser: boolean) => {
     if (fromUser) modeUserOverrideRef.current = true;
+    boardModeRef.current = mode;
     setBoardMode(mode);
   }, []);
 
@@ -731,6 +732,18 @@ export const Game: React.FC<GameProps> = ({
   ]);
 
   useEffect(() => {
+    const scrollEntries = (delta: number) => {
+      const entries = boardsViewportRef.current?.querySelector(
+        '.hydra-board-entries'
+      ) as HTMLElement | null;
+      if (!entries) return false;
+      const maxScroll = Math.max(0, entries.scrollHeight - entries.clientHeight);
+      if (maxScroll <= 0) return false;
+      const before = entries.scrollTop;
+      entries.scrollTop = Math.max(0, Math.min(maxScroll, before + delta));
+      return entries.scrollTop !== before;
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (view !== 'game' || showCalendar || loading) return;
       const target = e.target as HTMLElement | null;
@@ -753,8 +766,18 @@ export const Game: React.FC<GameProps> = ({
         if (inField && target) target.blur();
         if (e.key === 'ArrowLeft') setWindowStart((s) => Math.max(0, s - 1));
         else if (e.key === 'ArrowRight') setWindowStart((s) => Math.min(maxWindowStart, s + 1));
-        else if (e.key === 'ArrowDown') selectBoardMode('full', true);
-        else selectBoardMode('summary', true);
+        else if (e.key === 'ArrowDown') {
+          if (boardModeRef.current === 'full') scrollEntries(120);
+          else selectBoardMode('full', true);
+        } else if (boardModeRef.current === 'full') {
+          const entries = boardsViewportRef.current?.querySelector(
+            '.hydra-board-entries'
+          ) as HTMLElement | null;
+          if (entries && entries.scrollTop > 1) scrollEntries(-120);
+          else selectBoardMode('summary', true);
+        } else {
+          selectBoardMode('summary', true);
+        }
         return;
       }
 
@@ -791,6 +814,19 @@ export const Game: React.FC<GameProps> = ({
       const padY =
         parseFloat(entryStyles.paddingTop) + parseFloat(entryStyles.paddingBottom);
       const availableHeight = Math.max(0, entries.clientHeight - padY);
+      // Flex/layout can briefly report a tiny height — don't autoscale from that frame.
+      // Summary on a collapsed pane → ask for more space; full must stay playable.
+      if (availableHeight < 80) {
+        if (boardModeRef.current === 'full' || isCompleteRef.current) {
+          setViewportTooSmall(false);
+          const scaleW = widthOnlyScale(availableWidth, boardNaturalWidth);
+          setBoardScale(Math.max(ABS_MIN_BOARD_SCALE, scaleW || ABS_MIN_BOARD_SCALE));
+        } else if (boardModeRef.current === 'summary') {
+          setViewportTooSmall(true);
+        }
+        return;
+      }
+
       const showEntry = !isCompleteRef.current;
       const scaleW = widthOnlyScale(availableWidth, boardNaturalWidth);
       const summaryScale = scaleToFitSummary(
@@ -800,50 +836,41 @@ export const Game: React.FC<GameProps> = ({
         wordLength,
         showEntry
       );
-      // ≥1080px tall: always allow play. Shorter: keep a readable floor.
+      // ≥1080px tall: always allow summary. Shorter: keep a readable floor.
       const rejectBelow =
         (typeof window !== 'undefined' ? window.innerHeight : 0) >= TARGET_FIT_HEIGHT
           ? ABS_MIN_BOARD_SCALE
           : MIN_BOARD_SCALE;
 
-      // Width alone too narrow → reject. Height overflow is OK in full (scroll).
-      if (scaleW < rejectBelow && !isCompleteRef.current) {
-        setViewportTooSmall(true);
-        setBoardScale(MIN_BOARD_SCALE);
-        return;
-      }
-
       let mode = boardModeRef.current;
       if (!modeUserOverrideRef.current && !isCompleteRef.current) {
         const fullFits =
-          fullBoardPixelHeight(scaleW, maxGuesses) <= availableHeight + 1;
+          fullBoardPixelHeight(Math.max(ABS_MIN_BOARD_SCALE, scaleW), maxGuesses) <=
+          availableHeight + 1;
         if (fullFits) mode = 'full';
         else if (summaryScale >= rejectBelow) mode = 'summary';
-        else mode = 'full'; // summary can't shrink enough — full + scroll
+        else mode = 'full'; // summary can't fit — play full with scroll
         if (mode !== boardModeRef.current) {
           boardModeRef.current = mode;
           setBoardMode(mode);
         }
       }
 
-      // Summary: fit height+width, no scroll. Full: width-only size, may scroll.
-      if (mode === 'summary') {
-        if (summaryScale < rejectBelow && !isCompleteRef.current) {
-          // User forced summary on a pane that can't fit it — fall back to full+scroll.
-          modeUserOverrideRef.current = false;
-          boardModeRef.current = 'full';
-          setBoardMode('full');
-          setViewportTooSmall(false);
-          setBoardScale(Math.max(ABS_MIN_BOARD_SCALE, scaleW));
-          return;
-        }
+      // Full: width-only size + scroll. Never show the size gate.
+      if (mode === 'full') {
         setViewportTooSmall(false);
-        setBoardScale(Math.max(ABS_MIN_BOARD_SCALE, Math.min(1, summaryScale)));
+        setBoardScale(Math.max(ABS_MIN_BOARD_SCALE, scaleW || ABS_MIN_BOARD_SCALE));
         return;
       }
 
+      // Summary: must fit without scroll; otherwise ask for a bigger screen / orientation.
+      if (summaryScale < rejectBelow && !isCompleteRef.current) {
+        setViewportTooSmall(true);
+        setBoardScale(Math.max(ABS_MIN_BOARD_SCALE, Math.min(1, summaryScale || rejectBelow)));
+        return;
+      }
       setViewportTooSmall(false);
-      setBoardScale(Math.max(ABS_MIN_BOARD_SCALE, scaleW));
+      setBoardScale(Math.max(ABS_MIN_BOARD_SCALE, Math.min(1, summaryScale)));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -890,10 +917,21 @@ export const Game: React.FC<GameProps> = ({
       {viewportTooSmall ? (
         <div className="hydra-size-gate" role="alert">
           <div className="hydra-size-gate-card">
-            <p className="hydra-size-gate-title">Screen too small</p>
+            <p className="hydra-size-gate-title">Screen too small for summary</p>
             <p className="hydra-size-gate-body">
-              PolyHydra needs more space for the board. Use a larger window or a bigger device.
+              Summary needs more space. Use a larger window, change orientation, or continue in
+              full board mode (scrollable).
             </p>
+            <button
+              type="button"
+              className="hydra-size-gate-full"
+              onClick={() => {
+                setViewportTooSmall(false);
+                selectBoardMode('full', true);
+              }}
+            >
+              Full board
+            </button>
             <a className="hydra-size-gate-home" href="/">
               Wordaholic home
             </a>
