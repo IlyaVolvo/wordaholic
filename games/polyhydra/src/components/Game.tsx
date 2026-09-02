@@ -17,6 +17,7 @@ import {
   loadWinMessage,
   maxGuessesForBoardCount,
   normalizeForLanguage,
+  summaryKnownRows,
 } from '@wordaholic/wordle-core';
 import { openHelp } from '@wordaholic/help';
 import { reportStats } from '@wordaholic/stats';
@@ -115,23 +116,62 @@ function windowStartForBoards(
 
 const CELL_NATURAL = 60;
 const CELL_GAP = 8;
-/** Sticky board label + a little slack so "fits" means no scroll. */
+/** Sticky board label + slack so "fits" means no scroll. */
 const BOARD_LABEL_HEIGHT = 40;
+/** Summary ↓ control with margins (not scaled with cells). */
+const SUMMARY_MODE_CONTROL_HEIGHT = 56;
+/**
+ * Screens at least this tall must always be playable (scale as needed).
+ * Shorter screens may still play if they fit at MIN_BOARD_SCALE.
+ */
+const TARGET_FIT_HEIGHT = 1080;
+/** Floor for short screens (< TARGET_FIT_HEIGHT); below this → reject. */
+const MIN_BOARD_SCALE = 0.5;
+/** Absolute CSS floor when height ≥ TARGET_FIT_HEIGHT (never reject there). */
+const ABS_MIN_BOARD_SCALE = 0.2;
 
-function fullBoardPixelHeight(scale: number, rows: number): number {
+function gridPixelHeight(scale: number, rows: number): number {
+  if (rows <= 0) return 0;
   const cell = CELL_NATURAL * scale;
   const gap = CELL_GAP * scale;
-  return BOARD_LABEL_HEIGHT + rows * cell + Math.max(0, rows - 1) * gap;
+  return rows * cell + (rows - 1) * gap;
 }
 
-/** Summary only when the full grid would overflow the pane. */
-function defaultBoardModeForPane(
+function fullBoardPixelHeight(scale: number, rows: number): number {
+  return BOARD_LABEL_HEIGHT + gridPixelHeight(scale, rows);
+}
+
+function summaryBoardPixelHeight(scale: number, wordLength: number, showEntry: boolean): number {
+  const known = summaryKnownRows(wordLength);
+  const entryExtra = showEntry ? CELL_GAP * scale + gridPixelHeight(scale, 1) : 0;
+  return (
+    BOARD_LABEL_HEIGHT +
+    gridPixelHeight(scale, known) +
+    SUMMARY_MODE_CONTROL_HEIGHT +
+    gridPixelHeight(scale, 1) +
+    entryExtra
+  );
+}
+
+function scaleToFitSummary(
+  availableWidth: number,
   availableHeight: number,
-  scale: number,
-  rows: number
-): 'summary' | 'full' {
-  if (availableHeight <= 0) return 'summary';
-  return fullBoardPixelHeight(scale, rows) > availableHeight + 1 ? 'summary' : 'full';
+  naturalWidth: number,
+  wordLength: number,
+  showEntry: boolean
+): number {
+  if (availableWidth <= 0 || availableHeight <= 0 || naturalWidth <= 0) return 0;
+  const scaleW = availableWidth / naturalWidth;
+  const h1 = summaryBoardPixelHeight(1, wordLength, showEntry);
+  const h0 = summaryBoardPixelHeight(0, wordLength, showEntry);
+  const variable = h1 - h0;
+  const scaleH = variable > 0 ? (availableHeight - h0) / variable : 1;
+  return Math.min(1, scaleW, scaleH);
+}
+
+function widthOnlyScale(availableWidth: number, naturalWidth: number): number {
+  if (availableWidth <= 0 || naturalWidth <= 0) return 0;
+  return Math.min(1, availableWidth / naturalWidth);
 }
 
 /** Win: earliest solved board (fewest guesses; lowest index on tie). Loss: first unsolved. */
@@ -188,11 +228,13 @@ export const Game: React.FC<GameProps> = ({
   const [exiting, setExiting] = useState<number[]>([]);
   const [boardScale, setBoardScale] = useState(1);
   const [boardMode, setBoardMode] = useState<'summary' | 'full'>('summary');
+  const [viewportTooSmall, setViewportTooSmall] = useState(false);
   const prevSolvedRef = useRef<boolean[] | null>(null);
   const finaleAppliedRef = useRef(false);
   const finaleFocusRef = useRef(false);
   const modeUserOverrideRef = useRef(false);
   const isCompleteRef = useRef(false);
+  const boardModeRef = useRef(boardMode);
   const boardsViewportRef = useRef<HTMLDivElement | null>(null);
   const swipeRef = useRef<{ x: number; y: number; active: boolean } | null>(null);
 
@@ -208,6 +250,10 @@ export const Game: React.FC<GameProps> = ({
   useEffect(() => {
     isCompleteRef.current = isComplete;
   }, [isComplete]);
+
+  useEffect(() => {
+    boardModeRef.current = boardMode;
+  }, [boardMode]);
 
   const persist = useCallback(
     async (next: {
@@ -737,21 +783,67 @@ export const Game: React.FC<GameProps> = ({
     if (!el || loading) return;
     const measure = () => {
       const styles = getComputedStyle(el);
-      const pad = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
-      const inner = Math.max(0, el.clientWidth - pad);
-      if (inner <= 0) return;
-      const scale = inner < boardNaturalWidth ? inner / boardNaturalWidth : 1;
-      setBoardScale(scale);
-
+      const padX = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+      const availableWidth = Math.max(0, el.clientWidth - padX);
       const entries = el.querySelector('.hydra-board-entries') as HTMLElement | null;
-      if (!entries) return;
+      if (!entries || availableWidth <= 0) return;
       const entryStyles = getComputedStyle(entries);
       const padY =
         parseFloat(entryStyles.paddingTop) + parseFloat(entryStyles.paddingBottom);
-      const available = Math.max(0, entries.clientHeight - padY);
-      if (!modeUserOverrideRef.current && !isCompleteRef.current) {
-        setBoardMode(defaultBoardModeForPane(available, scale, maxGuesses));
+      const availableHeight = Math.max(0, entries.clientHeight - padY);
+      const showEntry = !isCompleteRef.current;
+      const scaleW = widthOnlyScale(availableWidth, boardNaturalWidth);
+      const summaryScale = scaleToFitSummary(
+        availableWidth,
+        availableHeight,
+        boardNaturalWidth,
+        wordLength,
+        showEntry
+      );
+      // ≥1080px tall: always allow play. Shorter: keep a readable floor.
+      const rejectBelow =
+        (typeof window !== 'undefined' ? window.innerHeight : 0) >= TARGET_FIT_HEIGHT
+          ? ABS_MIN_BOARD_SCALE
+          : MIN_BOARD_SCALE;
+
+      // Width alone too narrow → reject. Height overflow is OK in full (scroll).
+      if (scaleW < rejectBelow && !isCompleteRef.current) {
+        setViewportTooSmall(true);
+        setBoardScale(MIN_BOARD_SCALE);
+        return;
       }
+
+      let mode = boardModeRef.current;
+      if (!modeUserOverrideRef.current && !isCompleteRef.current) {
+        const fullFits =
+          fullBoardPixelHeight(scaleW, maxGuesses) <= availableHeight + 1;
+        if (fullFits) mode = 'full';
+        else if (summaryScale >= rejectBelow) mode = 'summary';
+        else mode = 'full'; // summary can't shrink enough — full + scroll
+        if (mode !== boardModeRef.current) {
+          boardModeRef.current = mode;
+          setBoardMode(mode);
+        }
+      }
+
+      // Summary: fit height+width, no scroll. Full: width-only size, may scroll.
+      if (mode === 'summary') {
+        if (summaryScale < rejectBelow && !isCompleteRef.current) {
+          // User forced summary on a pane that can't fit it — fall back to full+scroll.
+          modeUserOverrideRef.current = false;
+          boardModeRef.current = 'full';
+          setBoardMode('full');
+          setViewportTooSmall(false);
+          setBoardScale(Math.max(ABS_MIN_BOARD_SCALE, scaleW));
+          return;
+        }
+        setViewportTooSmall(false);
+        setBoardScale(Math.max(ABS_MIN_BOARD_SCALE, Math.min(1, summaryScale)));
+        return;
+      }
+
+      setViewportTooSmall(false);
+      setBoardScale(Math.max(ABS_MIN_BOARD_SCALE, scaleW));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -759,7 +851,18 @@ export const Game: React.FC<GameProps> = ({
     const entries = el.querySelector('.hydra-board-entries');
     if (entries) ro.observe(entries);
     return () => ro.disconnect();
-  }, [loading, boardNaturalWidth, maxGuesses, language, wordLength, boardCount, selectedPlayDate, importTick]);
+  }, [
+    loading,
+    boardNaturalWidth,
+    maxGuesses,
+    wordLength,
+    language,
+    boardCount,
+    selectedPlayDate,
+    importTick,
+    boardMode,
+    isComplete,
+  ]);
 
   useEffect(() => {
     setWindowStart((s) => Math.min(s, Math.max(0, displayIndices.length - visibleCount)));
@@ -784,6 +887,19 @@ export const Game: React.FC<GameProps> = ({
 
   return (
     <div className="game-container hydra-container">
+      {viewportTooSmall ? (
+        <div className="hydra-size-gate" role="alert">
+          <div className="hydra-size-gate-card">
+            <p className="hydra-size-gate-title">Screen too small</p>
+            <p className="hydra-size-gate-body">
+              PolyHydra needs more space for the board. Use a larger window or a bigger device.
+            </p>
+            <a className="hydra-size-gate-home" href="/">
+              Wordaholic home
+            </a>
+          </div>
+        </div>
+      ) : null}
       <div className="header-section">
         <div className="game-header-bar">
           <div className="game-header-side game-header-left">
@@ -876,7 +992,10 @@ export const Game: React.FC<GameProps> = ({
           }}
           onPointerDown={(e) => {
             swipeRef.current = { x: e.clientX, y: e.clientY, active: true };
-            e.currentTarget.setPointerCapture(e.pointerId);
+            // Full mode needs native vertical scroll — don't capture the pointer.
+            if (boardMode !== 'full') {
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }
           }}
           onPointerUp={(e) => {
             const start = swipeRef.current;
@@ -888,6 +1007,8 @@ export const Game: React.FC<GameProps> = ({
             const ady = Math.abs(dy);
             if (adx < 40 && ady < 40) return;
             if (ady >= adx) {
+              // Vertical swipe changes mode only in summary (full uses scroll).
+              if (boardMode === 'full') return;
               selectBoardMode(dy < 0 ? 'summary' : 'full', true);
               return;
             }
@@ -897,7 +1018,9 @@ export const Game: React.FC<GameProps> = ({
             swipeRef.current = null;
           }}
         >
-          <div className="hydra-board-entries">
+          <div
+            className={`hydra-board-entries${boardMode === 'full' ? ' is-full-mode' : ''}`}
+          >
             {visibleIndices.map((i) => {
               const board = boardViews[i];
               if (!board) return null;

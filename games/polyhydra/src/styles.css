@@ -3545,13 +3545,58 @@ a.header-brand-home:focus-visible {
   flex: 1;
   min-height: 0;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: hidden;
   display: flex;
   flex-direction: row;
   justify-content: center;
   align-items: flex-start;
   gap: var(--hydra-board-gap);
   padding-bottom: 16px;
+}
+
+.hydra-board-entries.is-full-mode {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.hydra-size-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 3500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(1.25rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right))
+    max(1.25rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
+  background: var(--water, #6fa8c9);
+  color: var(--text-on-water, #000);
+  text-align: center;
+}
+
+.hydra-size-gate-card {
+  max-width: 22rem;
+}
+
+.hydra-size-gate-title {
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0 0 0.4rem;
+}
+
+.hydra-size-gate-body {
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-size: 1rem;
+  line-height: 1.45;
+  margin: 0 0 1rem;
+}
+
+.hydra-size-gate-home {
+  font-family: var(--font-body, system-ui, sans-serif);
+  font-weight: 700;
+  color: inherit;
+  text-decoration: underline;
 }
 
 .hydra-board-wrap {
