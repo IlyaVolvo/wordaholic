@@ -169,6 +169,7 @@ export const Game: React.FC<GameProps> = ({
   const [boardMode, setBoardMode] = useState<'summary' | 'full'>('summary');
   const prevSolvedRef = useRef<boolean[] | null>(null);
   const finaleAppliedRef = useRef(false);
+  const finaleFocusRef = useRef(false);
   const boardsViewportRef = useRef<HTMLDivElement | null>(null);
   const swipeRef = useRef<{ x: number; y: number; active: boolean } | null>(null);
 
@@ -383,17 +384,24 @@ export const Game: React.FC<GameProps> = ({
     setBoardMode('summary');
     prevSolvedRef.current = null;
     finaleAppliedRef.current = false;
+    finaleFocusRef.current = false;
   }, [language, wordLength, boardCount, selectedPlayDate, importTick]);
 
-  // After win/lose: Full mode focused on first win, or first lost board.
+  // Switch to Full as soon as the game ends (do not wait for exit animation).
   useEffect(() => {
-    if (loading || !isComplete || exiting.length > 0) return;
-    if (finaleAppliedRef.current) return;
+    if (loading || !isComplete || finaleAppliedRef.current) return;
     finaleAppliedRef.current = true;
-    const focus = finaleBoardIndex(solvedFlags, boardGuesses, isWon);
     setBoardMode('full');
+  }, [loading, isComplete]);
+
+  // After exit animation, focus first win / first lost board once.
+  useEffect(() => {
+    if (loading || !isComplete || exiting.length > 0 || finaleFocusRef.current) return;
+    const focus = finaleBoardIndex(solvedFlags, boardGuesses, isWon);
     const pos = displayIndices.indexOf(focus);
-    if (pos >= 0) setWindowStart(pos);
+    if (pos < 0) return;
+    finaleFocusRef.current = true;
+    setWindowStart(pos);
   }, [loading, isComplete, exiting.length, solvedFlags, boardGuesses, isWon, displayIndices]);
 
   useEffect(() => {
@@ -654,20 +662,25 @@ export const Game: React.FC<GameProps> = ({
           target.tagName === 'SELECT' ||
           target.tagName === 'TEXTAREA' ||
           target.isContentEditable);
+
+      // Always claim arrows for board nav / summary↔full — even when a settings
+      // <select> is focused, otherwise Up/Down silently change the control instead.
       if (
-        !inField &&
-        (e.key === 'ArrowLeft' ||
-          e.key === 'ArrowRight' ||
-          e.key === 'ArrowUp' ||
-          e.key === 'ArrowDown')
+        e.key === 'ArrowLeft' ||
+        e.key === 'ArrowRight' ||
+        e.key === 'ArrowUp' ||
+        e.key === 'ArrowDown'
       ) {
         e.preventDefault();
+        if (inField && target) target.blur();
         if (e.key === 'ArrowLeft') setWindowStart((s) => Math.max(0, s - 1));
         else if (e.key === 'ArrowRight') setWindowStart((s) => Math.min(maxWindowStart, s + 1));
         else if (e.key === 'ArrowDown') setBoardMode('full');
         else setBoardMode('summary');
         return;
       }
+
+      if (inField) return;
       if (e.key === 'Enter') handleEnter();
       else if (e.key === 'Backspace') handleBackspace();
       else if (e.key.length === 1 && /[a-zA-Zа-яА-ЯёЁ\u0590-\u05FF]/.test(e.key)) {
