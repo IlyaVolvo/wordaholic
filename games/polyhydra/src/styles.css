@@ -3285,6 +3285,7 @@ a.header-brand-home:focus-visible {
 }
 
 .hydra-attempts {
+  position: relative;
   font-size: 1.05rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -3295,6 +3296,35 @@ a.header-brand-home:focus-visible {
   text-align: center;
   max-width: min(28rem, 52vw);
   justify-self: center;
+}
+
+.hydra-attempts-tip {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-top: 8px;
+  transform: translate(-50%, -4px);
+  background: var(--bg);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-variant-numeric: normal;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  line-height: 1.35;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out 0.3s, transform 0.2s ease-out 0.3s;
+  z-index: 20;
+}
+
+.hydra-attempts:hover .hydra-attempts-tip,
+.hydra-attempts:focus-visible .hydra-attempts-tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }
 
 .hydra-attempts.is-message {

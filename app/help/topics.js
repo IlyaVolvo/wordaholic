@@ -255,8 +255,9 @@ export const HELP_TOPICS = {
         title: 'How many guesses',
         screenshot: '/help/polyhydra/attempts.svg',
         body:
-          'You have board count + 5 shared guesses (for 16 boards that is 21). Win by ' +
-          'solving every board. If the pool runs out with any board still open, those ' +
+          'You have board count + 5 shared guesses (for 16 boards that is 21). The header ' +
+          'shows words left / attempts left (for example 16/21, then 16/18 after three misses). ' +
+          'Win by solving every board. If the pool runs out with any board still open, those ' +
           'secrets are shown. Each combination of date, language, word length, and ' +
           'board count is its own Daily.',
       },

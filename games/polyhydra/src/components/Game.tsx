@@ -392,6 +392,8 @@ export const Game: React.FC<GameProps> = ({
   }, [targets, boardGuesses, language]);
 
   const boardsSolved = boardViews.filter((board) => board.solved).length;
+  const wordsLeft = Math.max(0, targets.length - boardsSolved);
+  const attemptsLeft = Math.max(0, maxGuesses - attemptsUsed);
   const solvedFlags = useMemo(() => boardViews.map((board) => board.solved), [boardViews]);
   const openIndices = useMemo(() => openBoardIndices(solvedFlags), [solvedFlags]);
   const displayIndices = useMemo(() => {
@@ -806,19 +808,27 @@ export const Game: React.FC<GameProps> = ({
             className={`hydra-attempts${
               isComplete ? (isWon ? ' is-won' : ' is-lost') : ''
             }${isComplete ? ' is-message' : ''}`}
+            title={
+              isComplete ? undefined : 'Words left to guess / attempts left'
+            }
             aria-label={
               isComplete
                 ? isWon
                   ? winMessage
                   : loseMessage
-                : `${boardsSolved} solved, ${attemptsUsed} of ${maxGuesses} attempts`
+                : `${wordsLeft} words left to guess, ${attemptsLeft} attempts left`
             }
           >
+            {!isComplete ? (
+              <span className="hydra-attempts-tip" role="tooltip">
+                Words left to guess / attempts left
+              </span>
+            ) : null}
             {isComplete
               ? isWon
                 ? winMessage
                 : loseMessage
-              : `${boardsSolved} - ${attemptsUsed}/${maxGuesses}`}
+              : `${wordsLeft}/${attemptsLeft}`}
           </div>
           <div className="game-header-side game-header-right">
             {onViewChange && (
