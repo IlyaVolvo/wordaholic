@@ -1029,6 +1029,9 @@ export const Game: React.FC<GameProps> = ({
             ['--hydra-board-scale' as string]: String(boardScale),
           }}
           onPointerDown={(e) => {
+            const target = e.target as HTMLElement | null;
+            // Don't capture swipes that start on controls (↓/↑, etc.) — capture steals the click.
+            if (target?.closest('button, a, input, select, textarea, label')) return;
             swipeRef.current = { x: e.clientX, y: e.clientY, active: true };
             // Full mode needs native vertical scroll — don't capture the pointer.
             if (boardMode !== 'full') {
@@ -1088,6 +1091,7 @@ export const Game: React.FC<GameProps> = ({
                         type="button"
                         className="hydra-board-mode hydra-board-mode--up"
                         aria-label="Show summary"
+                        onPointerDown={(e) => e.stopPropagation()}
                         onClick={() => selectBoardMode('summary', true)}
                       >
                         ↑

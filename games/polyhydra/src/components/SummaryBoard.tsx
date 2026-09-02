@@ -102,6 +102,7 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
         type="button"
         className="hydra-board-mode hydra-board-mode--down"
         aria-label="Show full board"
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={onExpand}
       >
         ↓
