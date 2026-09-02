@@ -113,6 +113,27 @@ function windowStartForBoards(
   return Math.max(0, Math.min(pos, maxStart));
 }
 
+const CELL_NATURAL = 60;
+const CELL_GAP = 8;
+/** Sticky board label + a little slack so "fits" means no scroll. */
+const BOARD_LABEL_HEIGHT = 40;
+
+function fullBoardPixelHeight(scale: number, rows: number): number {
+  const cell = CELL_NATURAL * scale;
+  const gap = CELL_GAP * scale;
+  return BOARD_LABEL_HEIGHT + rows * cell + Math.max(0, rows - 1) * gap;
+}
+
+/** Summary only when the full grid would overflow the pane. */
+function defaultBoardModeForPane(
+  availableHeight: number,
+  scale: number,
+  rows: number
+): 'summary' | 'full' {
+  if (availableHeight <= 0) return 'summary';
+  return fullBoardPixelHeight(scale, rows) > availableHeight + 1 ? 'summary' : 'full';
+}
+
 /** Win: earliest solved board (fewest guesses; lowest index on tie). Loss: first unsolved. */
 function finaleBoardIndex(solved: boolean[], boardGuesses: string[][], won: boolean): number {
   if (won) {
@@ -170,14 +191,23 @@ export const Game: React.FC<GameProps> = ({
   const prevSolvedRef = useRef<boolean[] | null>(null);
   const finaleAppliedRef = useRef(false);
   const finaleFocusRef = useRef(false);
+  const modeUserOverrideRef = useRef(false);
+  const isCompleteRef = useRef(false);
   const boardsViewportRef = useRef<HTMLDivElement | null>(null);
   const swipeRef = useRef<{ x: number; y: number; active: boolean } | null>(null);
 
   const maxGuesses = maxGuessesForBoardCount(boardCount);
   const attemptsUsed = Math.max(0, ...boardGuesses.map((g) => g.length));
-  const CELL_NATURAL = 60;
-  const CELL_GAP = 8;
   const boardNaturalWidth = wordLength * CELL_NATURAL + (wordLength - 1) * CELL_GAP;
+
+  const selectBoardMode = useCallback((mode: 'summary' | 'full', fromUser: boolean) => {
+    if (fromUser) modeUserOverrideRef.current = true;
+    setBoardMode(mode);
+  }, []);
+
+  useEffect(() => {
+    isCompleteRef.current = isComplete;
+  }, [isComplete]);
 
   const persist = useCallback(
     async (next: {
@@ -381,7 +411,7 @@ export const Game: React.FC<GameProps> = ({
 
   useEffect(() => {
     setExiting([]);
-    setBoardMode('summary');
+    modeUserOverrideRef.current = false;
     prevSolvedRef.current = null;
     finaleAppliedRef.current = false;
     finaleFocusRef.current = false;
@@ -675,8 +705,8 @@ export const Game: React.FC<GameProps> = ({
         if (inField && target) target.blur();
         if (e.key === 'ArrowLeft') setWindowStart((s) => Math.max(0, s - 1));
         else if (e.key === 'ArrowRight') setWindowStart((s) => Math.min(maxWindowStart, s + 1));
-        else if (e.key === 'ArrowDown') setBoardMode('full');
-        else setBoardMode('summary');
+        else if (e.key === 'ArrowDown') selectBoardMode('full', true);
+        else selectBoardMode('summary', true);
         return;
       }
 
@@ -689,23 +719,45 @@ export const Game: React.FC<GameProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [view, showCalendar, loading, handleEnter, handleBackspace, handleKeyPress, maxWindowStart]);
+  }, [
+    view,
+    showCalendar,
+    loading,
+    handleEnter,
+    handleBackspace,
+    handleKeyPress,
+    maxWindowStart,
+    selectBoardMode,
+  ]);
 
   useEffect(() => {
     const el = boardsViewportRef.current;
-    if (!el) return;
+    if (!el || loading) return;
     const measure = () => {
       const styles = getComputedStyle(el);
       const pad = parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
       const inner = Math.max(0, el.clientWidth - pad);
       if (inner <= 0) return;
-      setBoardScale(inner < boardNaturalWidth ? inner / boardNaturalWidth : 1);
+      const scale = inner < boardNaturalWidth ? inner / boardNaturalWidth : 1;
+      setBoardScale(scale);
+
+      const entries = el.querySelector('.hydra-board-entries') as HTMLElement | null;
+      if (!entries) return;
+      const entryStyles = getComputedStyle(entries);
+      const padY =
+        parseFloat(entryStyles.paddingTop) + parseFloat(entryStyles.paddingBottom);
+      const available = Math.max(0, entries.clientHeight - padY);
+      if (!modeUserOverrideRef.current && !isCompleteRef.current) {
+        setBoardMode(defaultBoardModeForPane(available, scale, maxGuesses));
+      }
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
+    const entries = el.querySelector('.hydra-board-entries');
+    if (entries) ro.observe(entries);
     return () => ro.disconnect();
-  }, [loading, boardNaturalWidth]);
+  }, [loading, boardNaturalWidth, maxGuesses, language, wordLength, boardCount, selectedPlayDate, importTick]);
 
   useEffect(() => {
     setWindowStart((s) => Math.min(s, Math.max(0, displayIndices.length - visibleCount)));
@@ -826,7 +878,7 @@ export const Game: React.FC<GameProps> = ({
             const ady = Math.abs(dy);
             if (adx < 40 && ady < 40) return;
             if (ady >= adx) {
-              setBoardMode(dy < 0 ? 'summary' : 'full');
+              selectBoardMode(dy < 0 ? 'summary' : 'full', true);
               return;
             }
             shiftWindow(dx < 0 ? 1 : -1);
@@ -865,7 +917,7 @@ export const Game: React.FC<GameProps> = ({
                         type="button"
                         className="hydra-board-mode hydra-board-mode--up"
                         aria-label="Show summary"
-                        onClick={() => setBoardMode('summary')}
+                        onClick={() => selectBoardMode('summary', true)}
                       >
                         ↑
                       </button>
@@ -886,7 +938,7 @@ export const Game: React.FC<GameProps> = ({
                       invalidRow={invalidRow && !board.solved}
                       rtl={keyboardRtl}
                       frozen={board.solved || isComplete}
-                      onExpand={() => setBoardMode('full')}
+                      onExpand={() => selectBoardMode('full', true)}
                     />
                   ) : (
                     <GameBoard
