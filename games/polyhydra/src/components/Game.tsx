@@ -195,6 +195,20 @@ function finaleBoardIndex(solved: boolean[], boardGuesses: string[][], won: bool
   return 0;
 }
 
+/** Win score as extra guesses beyond board count (+0…+5), matching statistics. */
+function winExtraLabel(usedGuesses: number, boards: number): string {
+  return `+${Math.min(5, Math.max(0, usedGuesses - boards))}`;
+}
+
+function formatWinAnnounce(base: string, usedGuesses: number, boards: number): string {
+  const text = (base || 'Well done!').trim();
+  return `${text} ${winExtraLabel(usedGuesses, boards)}`;
+}
+
+function usedGuessCount(guessLists: string[][]): number {
+  return Math.max(0, ...guessLists.map((g) => g.length));
+}
+
 export const Game: React.FC<GameProps> = ({
   view = 'game',
   onViewChange,
@@ -217,7 +231,10 @@ export const Game: React.FC<GameProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [keyboardRtl, setKeyboardRtl] = useState(false);
   const [winMessage, setWinMessage] = useState('Well done!');
+  const [winMessageBase, setWinMessageBase] = useState('Well done!');
   const [loseMessage, setLoseMessage] = useState('Out of guesses.');
+  const [endFlash, setEndFlash] = useState(false);
+  const allowEndFxRef = useRef(false);
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const [calendarGames, setCalendarGames] = useState<StoredHydra[]>([]);
@@ -239,7 +256,7 @@ export const Game: React.FC<GameProps> = ({
   const swipeRef = useRef<{ x: number; y: number; active: boolean } | null>(null);
 
   const maxGuesses = maxGuessesForBoardCount(boardCount);
-  const attemptsUsed = Math.max(0, ...boardGuesses.map((g) => g.length));
+  const attemptsUsed = usedGuessCount(boardGuesses);
   const boardNaturalWidth = wordLength * CELL_NATURAL + (wordLength - 1) * CELL_GAP;
 
   const selectBoardMode = useCallback((mode: 'summary' | 'full', fromUser: boolean) => {
@@ -255,6 +272,24 @@ export const Game: React.FC<GameProps> = ({
   useEffect(() => {
     boardModeRef.current = boardMode;
   }, [boardMode]);
+
+  useEffect(() => {
+    if (loading) {
+      allowEndFxRef.current = false;
+      return;
+    }
+    const id = requestAnimationFrame(() => {
+      allowEndFxRef.current = true;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [loading]);
+
+  useEffect(() => {
+    if (loading || !isComplete || !allowEndFxRef.current) return;
+    setEndFlash(true);
+    const t = window.setTimeout(() => setEndFlash(false), 1000);
+    return () => window.clearTimeout(t);
+  }, [isComplete, loading]);
 
   const persist = useCallback(
     async (next: {
@@ -352,6 +387,7 @@ export const Game: React.FC<GameProps> = ({
         const win = (await loadWinMessage(language)) || 'Well done!';
         if (cancelled) return;
         setKeyboardRtl(rtl);
+        setWinMessageBase(win);
         setWinMessage(win);
         const storedDate = getSelectedDate(language, wordLength, boardCount) || formatDate();
         const date = storedDate > formatDate() ? formatDate() : storedDate;
@@ -366,13 +402,17 @@ export const Game: React.FC<GameProps> = ({
         if (cancelled) return;
         if (stored && stored.target_words?.length === boardCount) {
           applyStored(stored, dict);
-          if (stored.is_complete === 1 && stored.is_won !== 1) {
-            setLoseMessage(
-              await loadLoseMessage(
-                language,
-                remainingTargets(stored.target_words, stored.board_guesses, language).join(', ')
-              )
-            );
+          if (stored.is_complete === 1) {
+            if (stored.is_won === 1) {
+              setWinMessage(formatWinAnnounce(win, usedGuessCount(stored.board_guesses), boardCount));
+            } else {
+              setLoseMessage(
+                await loadLoseMessage(
+                  language,
+                  remainingTargets(stored.target_words, stored.board_guesses, language).join(', ')
+                )
+              );
+            }
           }
         } else {
           await startFresh(dict, date);
@@ -703,9 +743,12 @@ export const Game: React.FC<GameProps> = ({
       if (nextStart !== windowStart) setWindowStart(nextStart);
     }
     const won = nextGuesses.every((words, i) => boardSolvedAt(words, targets[i], language));
-    const used = Math.max(0, ...nextGuesses.map((g) => g.length));
+    const used = usedGuessCount(nextGuesses);
     const complete = won || used >= hydraMaxGuesses(boardCount);
     commitState(nextGuesses, '', false, complete, won);
+    if (complete && won) {
+      setWinMessage(formatWinAnnounce(winMessageBase, used, boardCount));
+    }
     if (complete && !won) {
       void loadLoseMessage(language, remainingTargets(targets, nextGuesses, language).join(', ')).then(
         setLoseMessage
@@ -724,6 +767,7 @@ export const Game: React.FC<GameProps> = ({
     targets,
     language,
     boardCount,
+    winMessageBase,
     commitState,
     exiting,
     openIndices,
@@ -914,6 +958,7 @@ export const Game: React.FC<GameProps> = ({
 
   return (
     <div className="game-container hydra-container">
+      {endFlash ? <div className="hydra-end-flash" aria-hidden="true" /> : null}
       {viewportTooSmall ? (
         <div className="hydra-size-gate" role="alert">
           <div className="hydra-size-gate-card">

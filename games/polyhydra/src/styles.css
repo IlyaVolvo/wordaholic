@@ -3337,11 +3337,60 @@ a.header-brand-home:focus-visible {
 }
 
 .hydra-attempts.is-won {
-  color: var(--accent);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
 }
 
 .hydra-attempts.is-lost {
   color: #dc3545;
+}
+
+.hydra-end-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 3600;
+  pointer-events: none;
+  background: #fff;
+  opacity: 0;
+  animation: hydra-end-flash 0.9s ease-in-out;
+}
+
+@keyframes hydra-end-flash {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  8%,
+  18% {
+    opacity: 0.72;
+  }
+  28% {
+    opacity: 0;
+  }
+  48%,
+  58% {
+    opacity: 0.72;
+  }
+  68% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hydra-end-flash {
+    animation-duration: 0.35s;
+  }
+
+  @keyframes hydra-end-flash {
+    0%,
+    100% {
+      opacity: 0;
+    }
+    40% {
+      opacity: 0.45;
+    }
+  }
 }
 
 @media (max-width: 600px) {
