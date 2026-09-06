@@ -13,6 +13,8 @@ const STATS_HELP =
   'Homehits only keeps networks with home hits and no games, including polywordlot, transword, and polyhydra. Those count filters are disabled while it is checked. Unchecked, it has no effect. Country, place, and ISP still apply.\n' +
   'Place and ISP match any part of the name; multiple words all have to match. Filters apply as you change them.\n' +
   'Export CSV downloads the rows currently visible under those filters (not the totals row).\n' +
+  'Clear filters also clears the From/To dates and reloads the range.\n' +
+  'Use the arrow on the Totals/Trends row to hide or show the filter controls.\n' +
   'Trends shows activity by hour, day, week, or month for the From/To window (empty = all available).\n' +
   'GET /api/stats is the raw 24h JSON dump.';
 
@@ -335,6 +337,24 @@ const SORT_SCRIPT = `(function () {
   });
 })();`;
 
+const COLLAPSE_SCRIPT = `(function () {
+  var form = document.getElementById('stats-filters');
+  var btn = form && form.querySelector('[data-toggle-filters]');
+  if (!form || !btn) return;
+  var key = 'wordaholic-stats-filters-collapsed';
+  function setCollapsed(on) {
+    form.classList.toggle('filters-collapsed', on);
+    btn.setAttribute('aria-expanded', on ? 'false' : 'true');
+    btn.title = on ? 'Show filters' : 'Hide filters';
+    btn.textContent = on ? '▸' : '▾';
+    try { localStorage.setItem(key, on ? '1' : '0'); } catch (e) {}
+  }
+  try { if (localStorage.getItem(key) === '1') setCollapsed(true); } catch (e) {}
+  btn.addEventListener('click', function () {
+    setCollapsed(!form.classList.contains('filters-collapsed'));
+  });
+})();`;
+
 const FILTER_SCRIPT = `(function () {
   var form = document.getElementById('stats-filters');
   var table = document.getElementById('stats-table');
@@ -520,7 +540,7 @@ const FILTER_SCRIPT = `(function () {
   }
   function goWithDates() {
     syncUrl();
-    location.href = location.pathname + location.search;
+    location.reload();
   }
   form.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -529,7 +549,11 @@ const FILTER_SCRIPT = `(function () {
   });
   form.addEventListener('input', function (e) {
     var name = e.target && e.target.name;
-    if (!name || name === 'from' || name === 'to') return;
+    if (name === 'from' || name === 'to') {
+      if (datesChanged()) goWithDates();
+      return;
+    }
+    if (!name) return;
     if (name === 'place' || name === 'isp') {
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(apply, 80);
@@ -540,7 +564,7 @@ const FILTER_SCRIPT = `(function () {
   form.addEventListener('change', function (e) {
     var name = e.target && e.target.name;
     if (name === 'from' || name === 'to') {
-      goWithDates();
+      if (datesChanged()) goWithDates();
       return;
     }
     apply();
@@ -549,6 +573,9 @@ const FILTER_SCRIPT = `(function () {
   if (clearBtn) {
     clearBtn.addEventListener('click', function (e) {
       e.preventDefault();
+      var hadDates = !!(fromEl && fromEl.value) || !!(toEl && toEl.value);
+      if (fromEl) fromEl.value = '';
+      if (toEl) toEl.value = '';
       var countryEl = form.querySelector('[name=country]');
       var placeEl = form.querySelector('[name=place]');
       var ispEl = form.querySelector('[name=isp]');
@@ -560,6 +587,10 @@ const FILTER_SCRIPT = `(function () {
         var el = form.querySelector('[name="gt_' + gtKeys[i] + '"]');
         if (!el) continue;
         el.value = gtKeys[i] === 'languages' || gtKeys[i] === 'games' ? '0' : '';
+      }
+      if (hadDates) {
+        goWithDates();
+        return;
       }
       apply();
     });
@@ -681,6 +712,10 @@ export function renderStatsHtml(opts) {
   const tabs = `<nav class="stats-tabs" aria-label="Stats views">
       <a href="/stats${qsBase({ tab: 'totals' })}"${isTrends ? '' : ' aria-current="page"'}>Totals</a>
       <a href="/stats${qsBase({ tab: 'trends', interval })}"${isTrends ? ' aria-current="page"' : ''}>Trends</a>
+      <span class="stats-tabs-end">
+        ${isTrends ? '' : '<button type="button" data-clear-filters>Clear filters</button>'}
+        <button type="button" data-toggle-filters aria-expanded="true" aria-controls="stats-filter-body" title="Hide filters">▾</button>
+      </span>
     </nav>`;
 
   const notice = remaining
@@ -733,6 +768,20 @@ export function renderStatsHtml(opts) {
     .stats-tabs a[aria-current="page"] {
       border-bottom-color: currentColor;
     }
+    .stats-tabs-end {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .stats-filter-body {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      align-items: end;
+      width: 100%;
+    }
+    form.filters-collapsed .stats-filter-body { display: none; }
     form { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: end; margin-bottom: 0.65rem; }
     label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 12px; }
     label.check { flex-direction: row; align-items: center; gap: 0.35rem; padding-bottom: 0.15rem; }
@@ -743,7 +792,8 @@ export function renderStatsHtml(opts) {
       padding-bottom: 0.15rem;
     }
     .stats-chrome button[data-export-csv],
-    .stats-chrome button[data-clear-filters] {
+    .stats-chrome button[data-clear-filters],
+    .stats-chrome button[data-toggle-filters] {
       font: inherit;
       font-weight: 500;
       color: inherit;
@@ -753,12 +803,19 @@ export function renderStatsHtml(opts) {
       border-radius: 0.3rem;
       background: color-mix(in srgb, currentColor 14%, Canvas);
     }
+    .stats-chrome button[data-toggle-filters] {
+      padding: 0.2rem 0.55rem;
+      line-height: 1;
+      font-size: 1rem;
+    }
     .stats-chrome button[data-export-csv]:hover,
-    .stats-chrome button[data-clear-filters]:hover {
+    .stats-chrome button[data-clear-filters]:hover,
+    .stats-chrome button[data-toggle-filters]:hover {
       background: color-mix(in srgb, currentColor 22%, Canvas);
     }
     .stats-chrome button[data-export-csv]:active,
-    .stats-chrome button[data-clear-filters]:active {
+    .stats-chrome button[data-clear-filters]:active,
+    .stats-chrome button[data-toggle-filters]:active {
       background: color-mix(in srgb, currentColor 28%, Canvas);
     }
     input[type="text"], input[type="date"], select { font: inherit; min-width: 7rem; }
@@ -903,9 +960,14 @@ ${TREND_INTERVALS.map(
     if (intervalEl && intervalEl.value) params.set('interval', intervalEl.value);
     location.href = '/stats?' + params.toString();
   }
-  form.addEventListener('change', function (e) {
+  function onDateOrInterval(e) {
     var name = e.target && e.target.name;
     if (name === 'from' || name === 'to' || name === 'interval') go();
+  }
+  form.addEventListener('change', onDateOrInterval);
+  form.addEventListener('input', function (e) {
+    var name = e.target && e.target.name;
+    if (name === 'from' || name === 'to') go();
   });
   form.addEventListener('submit', function (e) {
     e.preventDefault();
@@ -932,8 +994,10 @@ ${TREND_INTERVALS.map(
         </div>
       </div>
       ${tabs}
-      ${sharedDates}
-      ${intervalSelect}
+      <div id="stats-filter-body" class="stats-filter-body">
+        ${sharedDates}
+        ${intervalSelect}
+      </div>
     </form>
     ${notice}
   </div>
@@ -951,6 +1015,7 @@ ${emptyRow}
   </table>
   </div>
   <script>${SORT_SCRIPT}</script>
+  <script>${COLLAPSE_SCRIPT}</script>
   <script>${TRENDS_NAV}</script>
   <script>${TRENDS_CSV}</script>
 </body>
@@ -1022,15 +1087,16 @@ ${countryOptions
         </div>
       </div>
       ${tabs}
-      ${sharedDates}
-      <label>Country${countrySelect}</label>
-      <label>Place<input type="text" name="place" value="${esc(filters.place)}" autocomplete="off"/></label>
-      <label>ISP<input type="text" name="isp" value="${esc(filters.isp)}" autocomplete="off"/></label>
-      ${gtFields}
-      <span class="stats-filter-end">
-        <label class="check"><input type="checkbox" name="homeHitsOnly" value="1"${homeHitsOnly ? ' checked' : ''}/> Homehits only</label>
-        <button type="button" data-clear-filters>Clear filters</button>
-      </span>
+      <div id="stats-filter-body" class="stats-filter-body">
+        ${sharedDates}
+        <label>Country${countrySelect}</label>
+        <label>Place<input type="text" name="place" value="${esc(filters.place)}" autocomplete="off"/></label>
+        <label>ISP<input type="text" name="isp" value="${esc(filters.isp)}" autocomplete="off"/></label>
+        ${gtFields}
+        <span class="stats-filter-end">
+          <label class="check"><input type="checkbox" name="homeHitsOnly" value="1"${homeHitsOnly ? ' checked' : ''}/> Homehits only</label>
+        </span>
+      </div>
     </form>
     ${notice}
   </div>
@@ -1049,6 +1115,7 @@ ${emptyRow}
   </table>
   </div>
   <script>${SORT_SCRIPT}</script>
+  <script>${COLLAPSE_SCRIPT}</script>
   <script>${FILTER_SCRIPT}</script>
   <script>${CSV_SCRIPT}</script>
 </body>
