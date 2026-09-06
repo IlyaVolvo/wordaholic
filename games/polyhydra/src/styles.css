@@ -3483,7 +3483,7 @@ a.header-brand-home:focus-visible {
 }
 
 .hydra-scoreboard-cell.guessed .hydra-scoreboard-answer {
-  color: var(--correct);
+  color: #fff;
 }
 
 .hydra-scoreboard-cell.missed .hydra-scoreboard-answer {
