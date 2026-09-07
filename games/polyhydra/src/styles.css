@@ -3277,7 +3277,25 @@ a.header-brand-home:focus-visible {
 
 .hydra-container .game-header-bar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 3px;
+}
+
+.hydra-container .game-header-left,
+.hydra-container .game-header-right,
+.hydra-container .help-trigger--game {
+  flex-shrink: 0;
+  min-width: max-content;
+}
+
+/* 3px bar gap is for message↔icons; keep brand↔help at the side gap. */
+.hydra-container .help-trigger--game {
+  margin-inline-start: calc(0.55rem - 3px);
+}
+
+.hydra-container .header-game-name {
+  white-space: nowrap;
 }
 
 .hydra-container .game-header-right {
@@ -3294,8 +3312,10 @@ a.header-brand-home:focus-visible {
   line-height: 1.15;
   user-select: none;
   text-align: center;
-  max-width: min(28rem, 52vw);
-  justify-self: center;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  justify-self: stretch;
 }
 
 .hydra-attempts-tip {
@@ -3332,8 +3352,26 @@ a.header-brand-home:focus-visible {
   letter-spacing: 0.01em;
   font-size: clamp(1.05rem, 3.2vw, 1.45rem);
   font-weight: 700;
-  overflow-wrap: anywhere;
-  max-width: min(40rem, 70vw);
+  overflow: hidden;
+  text-align: start;
+}
+
+.hydra-attempts-scroll {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  white-space: nowrap;
+  overflow-x: hidden;
+  text-overflow: ellipsis;
+  text-align: start;
+  outline: none;
+  scrollbar-width: thin;
+}
+
+.hydra-attempts-scroll:hover,
+.hydra-attempts-scroll:focus {
+  overflow-x: auto;
+  text-overflow: clip;
 }
 
 .hydra-attempts.is-won {
@@ -3396,16 +3434,17 @@ a.header-brand-home:focus-visible {
 @media (max-width: 600px) {
   .hydra-container .game-header-bar {
     display: flex;
-    justify-content: space-between;
-    gap: 0.4rem;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 3px;
   }
 
   .hydra-attempts {
-    margin-left: auto;
-    margin-right: auto;
-    flex: 1 1 auto;
+    flex: 1 1 0;
     min-width: 0;
     max-width: none;
+    margin-left: 0;
+    margin-right: 0;
     font-size: 0.95rem;
   }
 

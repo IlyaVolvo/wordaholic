@@ -990,25 +990,29 @@ export const Game: React.FC<GameProps> = ({
               <img className="header-brand-home-svg" src="/brand/wordaholic-mark.svg" width={34} height={34} alt="" />
             </a>
             <span className="header-game-name">PolyHydra</span>
-            <button
-              type="button"
-              className="help-trigger help-trigger--game"
-              aria-label="How to play PolyHydra"
-              onClick={() => openHelp('polyhydra')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-              </svg>
-              <span className="help-trigger-tip">How to play PolyHydra</span>
-            </button>
           </div>
+          <button
+            type="button"
+            className="help-trigger help-trigger--game"
+            aria-label="How to play PolyHydra"
+            onClick={() => openHelp('polyhydra')}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+            </svg>
+            <span className="help-trigger-tip">How to play PolyHydra</span>
+          </button>
           <div
             className={`hydra-attempts${
               isComplete ? (isWon ? ' is-won' : ' is-lost') : ''
             }${isComplete ? ' is-message' : ''}`}
             title={
-              isComplete ? undefined : 'Words left to guess / attempts left'
+              isComplete
+                ? isWon
+                  ? winMessage
+                  : loseMessage
+                : 'Words left to guess / attempts left'
             }
             aria-label={
               isComplete
@@ -1023,11 +1027,13 @@ export const Game: React.FC<GameProps> = ({
                 Words left to guess / attempts left
               </span>
             ) : null}
-            {isComplete
-              ? isWon
-                ? winMessage
-                : loseMessage
-              : `${wordsLeft}/${attemptsLeft}`}
+            {isComplete ? (
+              <span className="hydra-attempts-scroll" tabIndex={0}>
+                {isWon ? winMessage : loseMessage}
+              </span>
+            ) : (
+              `${wordsLeft}/${attemptsLeft}`
+            )}
           </div>
           <div className="game-header-side game-header-right">
             {onViewChange && (
