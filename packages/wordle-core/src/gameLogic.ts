@@ -6,11 +6,11 @@ import { normalizeForLanguage } from './characterNormalization';
  */
 export function evaluateGuess(guess: string, target: string, language: string = 'en'): LetterEvaluation[] {
   const evaluations: LetterEvaluation[] = [];
-  
-  // Normalize for Russian (ё -> е)
-  const normalizedTarget = normalizeForLanguage(target, language);
-  const normalizedGuess = normalizeForLanguage(guess, language);
-  
+
+  // Compare normalized forms (accents / ё / ä…); keep original guess letters for display
+  const normalizedTarget = normalizeForLanguage(target.toLowerCase(), language);
+  const normalizedGuess = normalizeForLanguage(guess.toLowerCase(), language);
+
   const targetChars = normalizedTarget.split('');
   const guessChars = normalizedGuess.split('');
   const originalGuessChars = guess.split(''); // Keep original for display

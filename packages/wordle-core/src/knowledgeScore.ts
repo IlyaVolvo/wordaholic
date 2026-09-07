@@ -1,7 +1,8 @@
 import type { Guess, LetterEvaluation } from './types';
+import { normalizeForLanguage } from './characterNormalization';
 
-function letterKey(letter: string): string {
-  return letter.toLowerCase();
+function letterKey(letter: string, language: string): string {
+  return normalizeForLanguage(letter.toLowerCase(), language);
 }
 
 function lockedGreens(guesses: Guess[], wordLength: number): Array<string | null> {
@@ -20,13 +21,13 @@ function lockedGreens(guesses: Guess[], wordLength: number): Array<string | null
  * Known multiplicity of each letter: the highest (correct + present) count
  * seen in any single guess. Appearances across later guesses are not added.
  */
-function knownCountByLetter(guesses: Guess[]): Map<string, number> {
+function knownCountByLetter(guesses: Guess[], language: string): Map<string, number> {
   const known = new Map<string, number>();
   for (const guess of guesses) {
     const inGuess = new Map<string, number>();
     for (const ev of guess.evaluations || []) {
       if (ev?.state === 'correct' || ev.state === 'present') {
-        const key = letterKey(ev.letter);
+        const key = letterKey(ev.letter, language);
         inGuess.set(key, (inGuess.get(key) || 0) + 1);
       }
     }
@@ -40,10 +41,11 @@ function knownCountByLetter(guesses: Guess[]): Map<string, number> {
 function knowledgeParts(
   guesses: Guess[],
   wordLength: number,
+  language: string,
   targetWord?: string
 ): { greens: number; yellows: number } {
   const locked = lockedGreens(guesses, wordLength);
-  const knownByLetter = knownCountByLetter(guesses);
+  const knownByLetter = knownCountByLetter(guesses, language);
 
   const greenByLetter = new Map<string, number>();
   let greenCount = 0;
@@ -51,7 +53,7 @@ function knowledgeParts(
     const letter = locked[i];
     if (!letter) continue;
     greenCount += 1;
-    const key = letterKey(letter);
+    const key = letterKey(letter, language);
     greenByLetter.set(key, (greenByLetter.get(key) || 0) + 1);
   }
 
@@ -59,7 +61,7 @@ function knowledgeParts(
   if (targetWord) {
     const target = targetWord.slice(0, wordLength);
     for (const ch of target) {
-      const key = letterKey(ch);
+      const key = letterKey(ch, language);
       instanceCount.set(key, (instanceCount.get(key) || 0) + 1);
     }
   } else {
@@ -83,9 +85,10 @@ function knowledgeParts(
 export function boardKnowledgeTally(
   guesses: Guess[],
   wordLength: number,
-  targetWord?: string
+  targetWord?: string,
+  language: string = 'en'
 ): { greens: number; yellows: number } {
-  return knowledgeParts(guesses, wordLength, targetWord);
+  return knowledgeParts(guesses, wordLength, language, targetWord);
 }
 
 /**
@@ -97,9 +100,10 @@ export function boardKnowledgeTally(
 export function boardKnowledgeScore(
   guesses: Guess[],
   wordLength: number,
-  targetWord?: string
+  targetWord?: string,
+  language: string = 'en'
 ): number {
-  const { greens, yellows } = knowledgeParts(guesses, wordLength, targetWord);
+  const { greens, yellows } = knowledgeParts(guesses, wordLength, language, targetWord);
   return greens * 1 + yellows * 0.7;
 }
 
@@ -117,14 +121,15 @@ export function scoreboardYellowFactor(score: number, cap: number): number {
  */
 export function boardSummaryKnowledge(
   guesses: Guess[],
-  wordLength: number
+  wordLength: number,
+  language: string = 'en'
 ): { greens: Array<string | null>; yellowsByColumn: string[][] } {
   const greens = lockedGreens(guesses, wordLength);
-  const knownByLetter = knownCountByLetter(guesses);
+  const knownByLetter = knownCountByLetter(guesses, language);
   const greenByLetter = new Map<string, number>();
   for (const letter of greens) {
     if (!letter) continue;
-    const key = letterKey(letter);
+    const key = letterKey(letter, language);
     greenByLetter.set(key, (greenByLetter.get(key) || 0) + 1);
   }
 
@@ -135,8 +140,8 @@ export function boardSummaryKnowledge(
     for (let i = 0; i < wordLength; i++) {
       const ev = evals[i];
       if (!ev || ev.state !== 'present') continue;
-      const key = letterKey(ev.letter);
-      if (greens[i] && letterKey(greens[i] as string) === key) continue;
+      const key = letterKey(ev.letter, language);
+      if (greens[i] && letterKey(greens[i] as string, language) === key) continue;
       const greenCount = greenByLetter.get(key) || 0;
       const known = Math.max(knownByLetter.get(key) || 0, greenCount);
       if (known - greenCount <= 0) continue;
@@ -150,9 +155,10 @@ export function boardSummaryKnowledge(
 
 function rowHasLetter(
   row: Array<LetterEvaluation | null>,
-  key: string
+  key: string,
+  language: string
 ): boolean {
-  return row.some((cell) => cell && letterKey(cell.letter) === key);
+  return row.some((cell) => cell && letterKey(cell.letter, language) === key);
 }
 
 /**
@@ -162,9 +168,10 @@ function rowHasLetter(
  */
 export function layoutSummaryKnown(
   guesses: Guess[],
-  wordLength: number
+  wordLength: number,
+  language: string = 'en'
 ): Array<Array<LetterEvaluation | null>> {
-  const { greens, yellowsByColumn } = boardSummaryKnowledge(guesses, wordLength);
+  const { greens, yellowsByColumn } = boardSummaryKnowledge(guesses, wordLength, language);
   const knownRowCount = Math.max(1, wordLength);
   const rows: Array<Array<LetterEvaluation | null>> = Array.from(
     { length: knownRowCount },
@@ -176,10 +183,10 @@ export function layoutSummaryKnown(
   }
   for (let col = 0; col < wordLength; col++) {
     for (const letter of yellowsByColumn[col] || []) {
-      const key = letterKey(letter);
+      const key = letterKey(letter, language);
       for (let row = 1; row < knownRowCount; row++) {
         if (rows[row][col]) continue;
-        if (rowHasLetter(rows[row], key)) continue;
+        if (rowHasLetter(rows[row], key, language)) continue;
         rows[row][col] = { letter, state: 'present' };
         break;
       }

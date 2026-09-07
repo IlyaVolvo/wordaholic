@@ -564,7 +564,7 @@ export const Game: React.FC<GameProps> = ({
   const scoreboardCells: ScoreboardCell[] = useMemo(
     () =>
       boardViews.map((board) => {
-        const tally = boardKnowledgeTally(board.guesses, wordLength, board.target);
+        const tally = boardKnowledgeTally(board.guesses, wordLength, board.target, language);
         return {
           solved: board.solved,
           greens: tally.greens,
@@ -573,7 +573,7 @@ export const Game: React.FC<GameProps> = ({
           solvedAt: board.solved ? board.words.length : undefined,
         };
       }),
-    [boardViews, wordLength]
+    [boardViews, wordLength, language]
   );
 
   const calendarFeed = useMemo(() => {
@@ -1161,6 +1161,7 @@ export const Game: React.FC<GameProps> = ({
                       guesses={board.guesses}
                       currentGuess={board.solved ? '' : currentGuess}
                       wordLength={wordLength}
+                      language={language}
                       invalidRow={invalidRow && !board.solved}
                       rtl={keyboardRtl}
                       frozen={board.solved || isComplete}

@@ -6,6 +6,7 @@ interface SummaryBoardProps {
   guesses: Guess[];
   currentGuess: string;
   wordLength: number;
+  language?: string;
   invalidRow?: boolean;
   rtl?: boolean;
   frozen?: boolean;
@@ -40,13 +41,14 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
   guesses,
   currentGuess,
   wordLength,
+  language = 'en',
   invalidRow = false,
   rtl = false,
   frozen = false,
   onExpand,
 }) => {
   const knownRowCount = summaryKnownRows(wordLength);
-  const knownRows = layoutSummaryKnown(guesses, wordLength);
+  const knownRows = layoutSummaryKnown(guesses, wordLength, language);
   const showEntry = !frozen;
   const activeCol = showEntry
     ? rtl
