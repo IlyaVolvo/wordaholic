@@ -287,7 +287,7 @@ export const Game: React.FC<GameProps> = ({
   useEffect(() => {
     if (loading || !isComplete || !allowEndFxRef.current) return;
     setEndFlash(true);
-    const t = window.setTimeout(() => setEndFlash(false), 1000);
+    const t = window.setTimeout(() => setEndFlash(false), 2300);
     return () => window.clearTimeout(t);
   }, [isComplete, loading]);
 
