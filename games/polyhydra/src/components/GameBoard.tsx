@@ -10,8 +10,15 @@ interface GameBoardProps {
   isComplete?: boolean;
   isWon?: boolean;
   invalidRow?: boolean;
+  duplicateRow?: boolean;
   rtl?: boolean;
   frozen?: boolean;
+}
+
+function rowWarnClass(invalid: boolean, duplicate: boolean): string {
+  if (duplicate) return ' duplicate';
+  if (invalid) return ' invalid';
+  return '';
 }
 
 export const GameBoard: React.FC<GameBoardProps> = ({
@@ -23,6 +30,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   isComplete,
   isWon,
   invalidRow = false,
+  duplicateRow = false,
   rtl = false,
   frozen = false,
 }) => {
@@ -48,7 +56,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
         const startCol = wordLength - currentGuess.length;
         if (col >= startCol && col < wordLength) {
           const idx = col - startCol;
-          return { letter: currentGuess[idx], state: invalidRow ? 'typing' : 'typing' };
+          return { letter: currentGuess[idx], state: 'typing' };
         }
       } else if (col < currentGuess.length) {
         return { letter: currentGuess[col], state: 'typing' };
@@ -58,9 +66,13 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     return null;
   };
 
-  const getCellClass = (state: LetterEvaluation | null, isActive: boolean, rowInvalid: boolean): string => {
-    if (!state) return `cell empty${isActive ? ' cell-active' : ''}${rowInvalid ? ' invalid' : ''}`;
-    return `cell ${state.state}${isActive ? ' cell-active' : ''}${rowInvalid ? ' invalid' : ''}`;
+  const getCellClass = (
+    state: LetterEvaluation | null,
+    isActive: boolean,
+    warn: string
+  ): string => {
+    if (!state) return `cell empty${isActive ? ' cell-active' : ''}${warn}`;
+    return `cell ${state.state}${isActive ? ' cell-active' : ''}${warn}`;
   };
 
   const getActiveCol = (): number => {
@@ -72,14 +84,15 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     const cells: React.ReactNode[] = [];
     const activeCol = showCurrent && row === guesses.length ? getActiveCol() : -1;
     const missedReveal = Boolean(isComplete && !isWon && targetWord && row === guesses.length);
-    const rowInvalid = Boolean(invalidRow && showCurrent && row === guesses.length && currentGuess.length > 0);
+    const onEntry = Boolean(showCurrent && row === guesses.length && currentGuess.length > 0);
+    const warn = onEntry ? rowWarnClass(invalidRow, duplicateRow) : '';
     for (let col = 0; col < wordLength; col++) {
       const cellState = getCellState(row, col);
       const isActive = col === activeCol;
       cells.push(
         <div
           key={col}
-          className={`${getCellClass(cellState, isActive, rowInvalid)}${missedReveal ? ' missed-reveal' : ''}`}
+          className={`${getCellClass(cellState, isActive, warn)}${missedReveal ? ' missed-reveal' : ''}`}
         >
           {cellState?.letter.toUpperCase() || ''}
           {isActive && <span className="cell-cursor" aria-hidden="true" />}
@@ -87,7 +100,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
       );
     }
     rows.push(
-      <div key={row} className={`row${rowInvalid ? ' invalid' : ''}`}>
+      <div key={row} className={`row${warn}`}>
         {cells}
       </div>
     );

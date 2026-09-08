@@ -3901,6 +3901,15 @@ a.header-brand-home:focus-visible {
   color: #fff;
 }
 
+.cell.duplicate,
+.cell.typing.duplicate,
+.cell.empty.duplicate,
+.row.duplicate .cell {
+  background: #f48fb1;
+  border-color: #f06292;
+  color: #fff;
+}
+
 .key.used,
 .key.used:hover,
 .key.used.long-press-active {

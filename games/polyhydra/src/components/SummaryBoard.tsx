@@ -8,6 +8,7 @@ interface SummaryBoardProps {
   wordLength: number;
   language?: string;
   invalidRow?: boolean;
+  duplicateRow?: boolean;
   rtl?: boolean;
   frozen?: boolean;
   onExpand: () => void;
@@ -28,13 +29,19 @@ function displayGuessCells(
   return cells;
 }
 
+function rowWarnClass(invalid: boolean, duplicate: boolean): string {
+  if (duplicate) return ' duplicate';
+  if (invalid) return ' invalid';
+  return '';
+}
+
 function cellClass(
   state: LetterEvaluation | null,
   isActive: boolean,
-  rowInvalid: boolean
+  warn: string
 ): string {
-  if (!state) return `cell empty${isActive ? ' cell-active' : ''}${rowInvalid ? ' invalid' : ''}`;
-  return `cell ${state.state}${isActive ? ' cell-active' : ''}${rowInvalid ? ' invalid' : ''}`;
+  if (!state) return `cell empty${isActive ? ' cell-active' : ''}${warn}`;
+  return `cell ${state.state}${isActive ? ' cell-active' : ''}${warn}`;
 }
 
 export const SummaryBoard: React.FC<SummaryBoardProps> = ({
@@ -43,6 +50,7 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
   wordLength,
   language = 'en',
   invalidRow = false,
+  duplicateRow = false,
   rtl = false,
   frozen = false,
   onExpand,
@@ -55,7 +63,8 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
       ? wordLength - 1 - currentGuess.length
       : currentGuess.length
     : -1;
-  const rowInvalid = Boolean(invalidRow && showEntry && currentGuess.length > 0);
+  const entryWarn =
+    showEntry && currentGuess.length > 0 ? rowWarnClass(invalidRow, duplicateRow) : '';
 
   const logical = (col: number) => (rtl ? wordLength - 1 - col : col);
 
@@ -92,7 +101,7 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
             {row.map((_, col) => {
               const state = row[logical(col)];
               return (
-                <div key={col} className={cellClass(state, false, false)}>
+                <div key={col} className={cellClass(state, false, '')}>
                   {state?.letter.toUpperCase() || ''}
                 </div>
               );
@@ -121,7 +130,7 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
       >
         <div className="row">
           {previousCells.map((state, col) => (
-            <div key={col} className={cellClass(state, false, false)}>
+            <div key={col} className={cellClass(state, false, '')}>
               {state?.letter.toUpperCase() || ''}
             </div>
           ))}
@@ -137,12 +146,12 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
             } as React.CSSProperties
           }
         >
-          <div className={`row${rowInvalid ? ' invalid' : ''}`}>
+          <div className={`row${entryWarn}`}>
             {entryCells.map((_, col) => {
               const state = entryCells[col];
               const isActive = col === activeCol;
               return (
-                <div key={col} className={cellClass(state, isActive, rowInvalid)}>
+                <div key={col} className={cellClass(state, isActive, entryWarn)}>
                   {state?.letter.toUpperCase() || ''}
                   {isActive ? <span className="cell-cursor" aria-hidden="true" /> : null}
                 </div>

@@ -84,6 +84,18 @@ function boardSolvedAt(words: string[] | undefined, target: string, language: st
   return Boolean(last && isWinningGuessForLanguage(last, target, language));
 }
 
+/** True if this guess was already submitted on any board (normalized). */
+function guessAlreadyUsed(guess: string, boardGuesses: string[][], language: string): boolean {
+  const key = normalizeForLanguage(guess.toLowerCase().trim(), language);
+  if (!key) return false;
+  for (const words of boardGuesses) {
+    for (const word of words || []) {
+      if (normalizeForLanguage(word.toLowerCase().trim(), language) === key) return true;
+    }
+  }
+  return false;
+}
+
 function newlySolvedIndices(
   prevGuesses: string[][],
   nextGuesses: string[][],
@@ -556,10 +568,14 @@ export const Game: React.FC<GameProps> = ({
   const letterStates = useMemo(() => usedLetterMap(boardGuesses, language), [boardGuesses, language]);
 
   const currentGuessWord = keyboardRtl ? [...currentGuess].reverse().join('') : currentGuess;
+  const duplicateRow = useMemo(() => {
+    if (currentGuessWord.length !== wordLength) return false;
+    return guessAlreadyUsed(currentGuessWord, boardGuesses, language);
+  }, [currentGuessWord, wordLength, boardGuesses, language]);
   const invalidRow = useMemo(() => {
-    if (!dictionary || currentGuessWord.length !== wordLength) return false;
+    if (!dictionary || currentGuessWord.length !== wordLength || duplicateRow) return false;
     return !isValidWord(currentGuessWord, dictionary);
-  }, [dictionary, currentGuessWord, wordLength]);
+  }, [dictionary, currentGuessWord, wordLength, duplicateRow]);
 
   const scoreboardCells: ScoreboardCell[] = useMemo(
     () =>
@@ -721,6 +737,11 @@ export const Game: React.FC<GameProps> = ({
     const rawGuess = keyboardRtl ? [...currentGuess].reverse().join('') : currentGuess;
     const guess = rawGuess.toLowerCase().trim();
     if (guess.length !== wordLength) return;
+
+    if (guessAlreadyUsed(guess, boardGuesses, language)) {
+      commitState(boardGuesses, '', false, false, false);
+      return;
+    }
 
     if (!isValidWord(guess, dictionary)) {
       commitState(boardGuesses, '', false, false, false);
@@ -1163,6 +1184,7 @@ export const Game: React.FC<GameProps> = ({
                       wordLength={wordLength}
                       language={language}
                       invalidRow={invalidRow && !board.solved}
+                      duplicateRow={duplicateRow && !board.solved}
                       rtl={keyboardRtl}
                       frozen={board.solved || isComplete}
                       onExpand={() => selectBoardMode('full', true)}
@@ -1177,6 +1199,7 @@ export const Game: React.FC<GameProps> = ({
                       isComplete={isComplete || board.solved}
                       isWon={board.solved}
                       invalidRow={invalidRow && !board.solved}
+                      duplicateRow={duplicateRow && !board.solved}
                       rtl={keyboardRtl}
                       frozen={board.solved}
                     />
