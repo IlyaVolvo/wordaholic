@@ -491,6 +491,105 @@ export function combineTotals(rows) {
   return { ...acc, languages: codes.length, languageCodes: codes };
 }
 
+export const STATS_GROUPS = ['network', 'country', 'city'];
+
+/**
+ * @param {unknown} value
+ * @returns {'network' | 'country' | 'city'}
+ */
+export function parseStatsGroup(value) {
+  const v = String(value || '').trim().toLowerCase();
+  if (v === 'country' || v === 'city') return v;
+  return 'network';
+}
+
+/**
+ * @param {StatsRow} row
+ * @param {'country' | 'city'} group
+ */
+function groupBucketKey(row, group) {
+  const country = row.geo?.country || '';
+  if (group === 'country') return country;
+  return `${country}\n${row.geo?.city || ''}`;
+}
+
+/**
+ * @param {'country' | 'city'} group
+ * @param {StatsRow | undefined} sample
+ */
+export function groupedRowLabel(group, sample) {
+  const country = sample?.geo?.country || '';
+  const city = sample?.geo?.city || '';
+  const countryName = formatCountry(country) || country;
+  if (group === 'country') return countryName || 'Unknown';
+  if (!country && !city) return 'Unknown';
+  if (!city) return countryName ? `${countryName} (city unknown)` : 'Unknown';
+  return countryName ? `${city}, ${countryName}` : city;
+}
+
+/**
+ * @typedef {{
+ *   key: string,
+ *   label: string,
+ *   networks: number,
+ *   addrs: number,
+ *   games: number,
+ *   byGame: Record<string, number>,
+ *   homeHits: number,
+ *   languages: number,
+ *   languageCodes: string[],
+ *   country: string,
+ *   city: string,
+ * }} StatsGroupedRow
+ */
+
+/**
+ * Roll up already-filtered network rows by country or city.
+ * City key is country+city. Missing city stays in that country as city unknown.
+ * Unknown geo is one Unknown bucket, not dropped.
+ *
+ * @param {StatsRow[]} rows
+ * @param {'country' | 'city'} group
+ * @returns {StatsGroupedRow[]}
+ */
+export function groupStatsRows(rows, group) {
+  const g = group === 'city' ? 'city' : 'country';
+  /** @type {Map<string, StatsRow[]>} */
+  const buckets = new Map();
+  for (const row of rows || []) {
+    const key = groupBucketKey(row, g);
+    const list = buckets.get(key);
+    if (list) list.push(row);
+    else buckets.set(key, [row]);
+  }
+  const unknownKey = g === 'country' ? '' : '\n';
+  const keys = [...buckets.keys()].sort((a, b) => {
+    if (a === unknownKey && b !== unknownKey) return 1;
+    if (b === unknownKey && a !== unknownKey) return -1;
+    const la = groupedRowLabel(g, buckets.get(a)?.[0]);
+    const lb = groupedRowLabel(g, buckets.get(b)?.[0]);
+    return la.localeCompare(lb, undefined, { numeric: true, sensitivity: 'base' });
+  });
+  return keys.map((key) => {
+    const members = buckets.get(key) || [];
+    const totals = combineTotals(members);
+    const sample = members[0];
+    return {
+      key,
+      label: groupedRowLabel(g, sample),
+      networks: members.length,
+      addrs: totals.addrs,
+      games: totals.games,
+      byGame: totals.byGame,
+      homeHits: totals.homeHits,
+      languages: totals.languages,
+      languageCodes: totals.languageCodes,
+      country: sample?.geo?.country || '',
+      city: g === 'city' ? sample?.geo?.city || '' : '',
+    };
+  });
+}
+
 export const TREND_INTERVALS = ['hours', 'days', 'weeks', 'months'];
 
 /**

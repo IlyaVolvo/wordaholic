@@ -1,4 +1,12 @@
-import { combineTotals, formatCountry, parseStatsTab, parseTrendInterval, TREND_INTERVALS } from './stats-combine.js';
+import {
+  combineTotals,
+  formatCountry,
+  groupStatsRows,
+  parseStatsGroup,
+  parseStatsTab,
+  parseTrendInterval,
+  TREND_INTERVALS,
+} from './stats-combine.js';
 import { STATS_GAMES, STATS_GAME_IDS } from './stats-games.js';
 import languageCatalog from '../word-data/languages.json' with { type: 'json' };
 
@@ -12,8 +20,11 @@ const STATS_HELP =
   'Numeric filters keep rows with a count greater than the value (default 0; use -1 to include zeros).\n' +
   'Homehits only keeps networks with home hits and no games, including polywordlot, transword, and polyhydra. Those count filters are disabled while it is checked. Unchecked, it has no effect. Country, place, and ISP still apply.\n' +
   'Place and ISP match any part of the name; multiple words all have to match. Filters apply as you change them.\n' +
+  'Group on Totals rolls the same filtered networks up by country or city. City is country plus city; a missing city stays in that country as city unknown. Unknown geo is one Unknown row.\n' +
+  'Grouped languages are the union of codes, not a sum of counts. Click a country or city to filter to it and return to Network.\n' +
+  'City totals follow coarse IP geo (Starlink often Seattle, T-Mobile San Francisco).\n' +
   'Export CSV downloads the rows currently visible under those filters (not the totals row).\n' +
-  'Clear filters also clears the From/To dates and reloads the range.\n' +
+  'Clear filters also clears the From/To dates and reloads the range. Group is unchanged.\n' +
   'Use the arrow on the Totals/Trends row to hide or show the filter controls.\n' +
   'Trends shows activity by hour, day, week, or month for the From/To window (empty = all available).\n' +
   'GET /api/stats is the raw 24h JSON dump.';
@@ -35,6 +46,24 @@ const GT_KEYS = ['languages', 'games', ...STATS_GAMES.map((g) => g.id)];
 const HOME_GT_OFF = ['games', ...STATS_GAMES.map((g) => g.id)];
 const GT_MAX = 9999;
 const GT_MIN = -1;
+const GROUP_OPTIONS = [
+  { id: 'network', label: 'Network' },
+  { id: 'country', label: 'Country' },
+  { id: 'city', label: 'City' },
+];
+
+/**
+ * @param {'network' | 'country' | 'city'} group
+ * @returns {StatsColumn[]}
+ */
+function totalsColumns(group) {
+  if (group === 'network') return COLUMNS;
+  return [
+    { key: 'label', label: group === 'country' ? 'country' : 'city', type: 'text' },
+    { key: 'networks', label: 'networks', type: 'num' },
+    ...COLUMNS.slice(2),
+  ];
+}
 
 /** @type {StatsColumn[]} */
 const TREND_COLUMNS = [
@@ -240,16 +269,71 @@ function columnDisplay(col, row, index) {
  * @param {StatsColumn} col
  * @param {ReturnType<typeof combineTotals>} totals
  * @param {number} networkCount
+ * @param {'network' | 'country' | 'city'} [group]
+ * @param {number} [groupCount]
  */
-function totalDisplay(col, totals, networkCount) {
+function totalDisplay(col, totals, networkCount, group = 'network', groupCount = 0) {
   const totalLangTip = (totals.languageCodes || []).map((code) => LANGUAGE_MENU.get(code) || code).join('\n');
-  if (col.key === 'ip') return esc(`(${networkCount} networks)`);
+  if (col.key === 'ip') return esc(`(${networkCount} network${networkCount === 1 ? '' : 's'})`);
+  if (col.key === 'label') {
+    const unit = group === 'city' ? (groupCount === 1 ? 'city' : 'cities') : groupCount === 1 ? 'country' : 'countries';
+    return esc(`(${groupCount} ${unit})`);
+  }
   if (col.key === 'location') return '';
+  if (col.key === 'networks') return esc(networkCount);
   if (col.key === 'languages') return tipCell(String(totals.languages), totalLangTip, 'lang-total');
   if (col.key === 'addrs') return esc(totals.addrs);
   if (col.key === 'games') return esc(totals.games);
   if (col.key === 'homeHits') return esc(totals.homeHits);
   return esc(totals.byGame?.[col.key] ?? 0);
+}
+
+/**
+ * @param {StatsColumn} col
+ * @param {import('./stats-combine.js').StatsGroupedRow} row
+ * @param {number} index
+ * @param {'country' | 'city'} group
+ */
+function groupedColumnSortValue(col, row) {
+  if (col.key === 'label') return row.label;
+  if (col.key === 'networks') return row.networks;
+  if (col.key === 'addrs') return row.addrs;
+  if (col.key === 'languages') return row.languages;
+  if (col.key === 'games') return row.games;
+  if (col.key === 'homeHits') return row.homeHits;
+  return row.byGame?.[col.key] ?? 0;
+}
+
+/**
+ * @param {string} label
+ * @param {'country' | 'city'} group
+ * @param {string} country
+ * @param {string} city
+ */
+function drillCell(label, group, country, city) {
+  if (!country) return esc(label);
+  const extra = group === 'city' ? ` data-drill-city="${esc(city)}"` : '';
+  return `<button type="button" class="group-drill" data-drill="${esc(group)}" data-drill-country="${esc(
+    country
+  )}"${extra}>${esc(label)}</button>`;
+}
+
+/**
+ * @param {StatsColumn} col
+ * @param {import('./stats-combine.js').StatsGroupedRow} row
+ * @param {number} index
+ * @param {'country' | 'city'} group
+ */
+function groupedColumnDisplay(col, row, index, group) {
+  const langCodes = row.languageCodes || [];
+  const langTip = langCodes.map((code) => LANGUAGE_MENU.get(code) || code).join('\n');
+  if (col.key === 'label') return drillCell(row.label, group, row.country, row.city);
+  if (col.key === 'networks') return esc(row.networks);
+  if (col.key === 'languages') return tipCell(String(row.languages), langTip, `glang-${index}`);
+  if (col.key === 'addrs') return esc(row.addrs);
+  if (col.key === 'games') return esc(row.games);
+  if (col.key === 'homeHits') return esc(row.homeHits);
+  return esc(row.byGame?.[col.key] ?? 0);
 }
 
 /**
@@ -270,7 +354,10 @@ function rowDataAttrs(row) {
   const place = geo ? `${geo.city} ${geo.region}` : row.location || '';
   const isp = geo?.asOrg || row.location || '';
   const parts = [
+    `data-grain="network"`,
+    `data-ip="${esc(row.ip)}"`,
     `data-country="${esc(geo?.country || '')}"`,
+    `data-city="${esc(geo?.city || '')}"`,
     `data-place="${esc(place)}"`,
     `data-isp="${esc(isp)}"`,
     `data-langs="${esc((row.languageCodes || []).join(' '))}"`,
@@ -278,6 +365,8 @@ function rowDataAttrs(row) {
     `data-games="${esc(row.games)}"`,
     `data-homehits="${esc(row.homeHits)}"`,
     `data-addrs="${esc(row.addrs)}"`,
+    `data-location="${esc(row.location || '')}"`,
+    `data-perms="${esc(row.perms || '')}"`,
   ];
   for (const g of STATS_GAMES) {
     parts.push(`data-game-${esc(g.id)}="${esc(row.byGame?.[g.id] ?? 0)}"`);
@@ -305,9 +394,19 @@ const SORT_SCRIPT = `(function () {
   }
 
   function sortBy(index, type, dir) {
-    var rows = Array.prototype.slice.call(tbody.rows).filter(function (row) {
-      return row.getAttribute('data-empty') !== '1';
-    });
+    var all = Array.prototype.slice.call(tbody.rows);
+    var emptyRow = null;
+    var hidden = [];
+    var rows = [];
+    for (var i = 0; i < all.length; i++) {
+      var row = all[i];
+      if (row.getAttribute('data-empty') === '1') {
+        emptyRow = row;
+        continue;
+      }
+      if (row.hidden) hidden.push(row);
+      else rows.push(row);
+    }
     if (!rows.length) return;
     rows.sort(function (a, b) {
       var av = cellKey(a, index, type);
@@ -318,14 +417,16 @@ const SORT_SCRIPT = `(function () {
       if (cmp === 0) cmp = cellKey(a, 0, 'text').localeCompare(cellKey(b, 0, 'text'), undefined, { numeric: true });
       return cmp * dir;
     });
-    for (var i = 0; i < rows.length; i++) tbody.appendChild(rows[i]);
+    for (var r = 0; r < rows.length; r++) tbody.appendChild(rows[r]);
+    for (var h = 0; h < hidden.length; h++) tbody.appendChild(hidden[h]);
+    if (emptyRow) tbody.appendChild(emptyRow);
   }
 
   Array.prototype.forEach.call(headers, function (th, index) {
-    var type = th.getAttribute('data-type') || 'text';
     var btn = th.querySelector('button.sort');
     if (!btn) return;
     btn.addEventListener('click', function () {
+      var type = th.getAttribute('data-type') || 'text';
       var firstDir = type === 'num' ? -1 : 1;
       var dir = currentCol === index ? -currentDir : firstDir;
       currentCol = index;
@@ -396,6 +497,145 @@ const FILTER_SCRIPT = `(function () {
     var n = Number(row.getAttribute(name) || '0');
     return isFinite(n) ? n : 0;
   }
+  function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function countryLabel(code) {
+    if (!code) return '';
+    try {
+      return new Intl.DisplayNames(['en'], { type: 'region' }).of(code) || code;
+    } catch (e) {
+      return code;
+    }
+  }
+  function groupedLabel(group, country, city) {
+    var name = countryLabel(country);
+    if (group === 'country') return name || 'Unknown';
+    if (!country && !city) return 'Unknown';
+    if (!city) return name ? name + ' (city unknown)' : 'Unknown';
+    return name ? city + ', ' + name : city;
+  }
+  function currentGroup() {
+    var el = form.querySelector('[name=group]');
+    var v = el ? String(el.value || '') : 'network';
+    return v === 'country' || v === 'city' ? v : 'network';
+  }
+  function setHeaders(group) {
+    var labels = group === 'country' ? ['country', 'networks'] : group === 'city' ? ['city', 'networks'] : ['IP', 'location'];
+    var types = group === 'network' ? ['text', 'text'] : ['text', 'num'];
+    var ths = table.tHead && table.tHead.rows[0] ? table.tHead.rows[0].cells : [];
+    for (var i = 0; i < 2 && i < ths.length; i++) {
+      ths[i].setAttribute('data-type', types[i]);
+      if (types[i] === 'num') ths[i].classList.add('n');
+      else ths[i].classList.remove('n');
+      var btn = ths[i].querySelector('button.sort');
+      if (btn) btn.textContent = labels[i];
+      ths[i].removeAttribute('aria-sort');
+    }
+    if (ths[0]) ths[0].setAttribute('aria-sort', 'ascending');
+  }
+  function numTd(value) {
+    return '<td class="n" data-sort="' + escHtml(value) + '">' + escHtml(value) + '</td>';
+  }
+  function rollup(visible, group) {
+    var buckets = {};
+    var order = [];
+    var i;
+    var j;
+    for (i = 0; i < visible.length; i++) {
+      var row = visible[i];
+      var country = String(row.getAttribute('data-country') || '');
+      var city = String(row.getAttribute('data-city') || '');
+      var key = group === 'country' ? country : country + '\\n' + city;
+      if (!buckets[key]) {
+        buckets[key] = {
+          country: country,
+          city: group === 'city' ? city : '',
+          networks: 0,
+          addrs: 0,
+          games: 0,
+          homeHits: 0,
+          byGame: {},
+          langs: {}
+        };
+        for (j = 0; j < gameIds.length; j++) buckets[key].byGame[gameIds[j]] = 0;
+        order.push(key);
+      }
+      var b = buckets[key];
+      b.networks += 1;
+      b.addrs += numAttr(row, 'data-addrs');
+      b.games += numAttr(row, 'data-games');
+      b.homeHits += numAttr(row, 'data-homehits');
+      for (j = 0; j < gameIds.length; j++) {
+        b.byGame[gameIds[j]] += numAttr(row, 'data-game-' + gameIds[j]);
+      }
+      var codes = String(row.getAttribute('data-langs') || '').split(/\\s+/);
+      for (var c = 0; c < codes.length; c++) {
+        if (codes[c]) b.langs[codes[c]] = true;
+      }
+    }
+    var unknownKey = group === 'country' ? '' : '\\n';
+    var items = order.map(function (key) {
+      var bucket = buckets[key];
+      var langCodes = Object.keys(bucket.langs).sort();
+      return {
+        key: key,
+        label: groupedLabel(group, bucket.country, bucket.city),
+        country: bucket.country,
+        city: bucket.city,
+        networks: bucket.networks,
+        addrs: bucket.addrs,
+        games: bucket.games,
+        homeHits: bucket.homeHits,
+        byGame: bucket.byGame,
+        languages: langCodes.length,
+        langCodes: langCodes
+      };
+    });
+    items.sort(function (a, b) {
+      if (a.key === unknownKey && b.key !== unknownKey) return 1;
+      if (b.key === unknownKey && a.key !== unknownKey) return -1;
+      return a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' });
+    });
+    return items;
+  }
+  function makeGroupedRow(item, group) {
+    var tr = document.createElement('tr');
+    tr.setAttribute('data-grouped', '1');
+    tr.setAttribute('data-country', item.country);
+    tr.setAttribute('data-city', item.city);
+    tr.setAttribute('data-networks', String(item.networks));
+    tr.setAttribute('data-addrs', String(item.addrs));
+    tr.setAttribute('data-languages', String(item.languages));
+    tr.setAttribute('data-langs', item.langCodes.join(' '));
+    tr.setAttribute('data-games', String(item.games));
+    tr.setAttribute('data-homehits', String(item.homeHits));
+    var j;
+    for (j = 0; j < gameIds.length; j++) {
+      tr.setAttribute('data-game-' + gameIds[j], String(item.byGame[gameIds[j]] || 0));
+    }
+    var langTip = item.langCodes.map(function (code) { return langNames[code] || code; }).join('\\n');
+    var labelInner;
+    if (item.country) {
+      labelInner = '<button type="button" class="group-drill" data-drill="' + escHtml(group) +
+        '" data-drill-country="' + escHtml(item.country) + '"' +
+        (group === 'city' ? ' data-drill-city="' + escHtml(item.city) + '"' : '') +
+        '>' + escHtml(item.label) + '</button>';
+    } else {
+      labelInner = escHtml(item.label);
+    }
+    var langInner = '<span class="tip-cell"><button type="button" class="tip-trigger" title="' +
+      escHtml(langTip) + '">' + escHtml(item.languages) + '</button><span class="tip" role="tooltip">' +
+      escHtml(langTip) + '</span></span>';
+    var html = '<td data-sort="' + escHtml(item.label) + '">' + labelInner + '</td>' +
+      numTd(item.networks) + numTd(item.addrs) +
+      '<td class="n" data-sort="' + escHtml(item.languages) + '">' + langInner + '</td>' +
+      numTd(item.games);
+    for (j = 0; j < gameIds.length; j++) html += numTd(item.byGame[gameIds[j]] || 0);
+    html += numTd(item.homeHits);
+    tr.innerHTML = html;
+    return tr;
+  }
   function syncDisabled() {
     var on = !!(home && home.checked);
     for (var i = 0; i < off.length; i++) {
@@ -424,7 +664,7 @@ const FILTER_SCRIPT = `(function () {
       td.textContent = String(visible);
     }
   }
-  function updateTotals(visible) {
+  function updateTotals(visible, group, groupCount) {
     if (!tfoot || !tfoot.rows[0]) return;
     var n = visible.length;
     var addrs = 0;
@@ -450,9 +690,31 @@ const FILTER_SCRIPT = `(function () {
     }
     var langList = Object.keys(langs).sort();
     var langTip = langList.map(function (code) { return langNames[code] || code; }).join('\\n');
+    var footRow = tfoot.rows[0];
+    var first = footRow.cells[0];
+    var second = footRow.cells[1];
+    if (group === 'country' || group === 'city') {
+      var one = group === 'city' ? 'city' : 'country';
+      var many = group === 'city' ? 'cities' : 'countries';
+      if (first) {
+        first.classList.remove('n');
+        first.textContent = '(' + groupCount + ' ' + (groupCount === 1 ? one : many) + ')';
+      }
+      if (second) {
+        second.classList.add('n');
+        second.textContent = String(n);
+      }
+    } else {
+      if (first) {
+        first.classList.remove('n');
+        first.textContent = '(' + n + ' network' + (n === 1 ? '' : 's') + ')';
+      }
+      if (second) {
+        second.classList.remove('n');
+        second.textContent = '';
+      }
+    }
     var cell = function (key) { return tfoot.querySelector('[data-col="' + key + '"]'); };
-    var ipTd = cell('ip');
-    if (ipTd) ipTd.textContent = '(' + n + ' network' + (n === 1 ? '' : 's') + ')';
     var addrsTd = cell('addrs');
     if (addrsTd) addrsTd.textContent = String(addrs);
     setTipCell(cell('languages'), langList.length, langTip);
@@ -467,10 +729,13 @@ const FILTER_SCRIPT = `(function () {
   }
   function apply() {
     syncDisabled();
+    var group = currentGroup();
     var country = String((form.querySelector('[name=country]') || {}).value || '').trim().toUpperCase();
     var place = String((form.querySelector('[name=place]') || {}).value || '').trim();
     var isp = String((form.querySelector('[name=isp]') || {}).value || '').trim();
     var homeOnly = !!(home && home.checked);
+    var oldGrouped = tbody.querySelectorAll('tr[data-grouped="1"]');
+    for (var r = 0; r < oldGrouped.length; r++) oldGrouped[r].remove();
     var visible = [];
     var emptyRow = null;
     var rows = tbody.rows;
@@ -480,6 +745,7 @@ const FILTER_SCRIPT = `(function () {
         emptyRow = row;
         continue;
       }
+      if (row.getAttribute('data-grouped') === '1' || row.getAttribute('data-grain') !== 'network') continue;
       var ok = true;
       if (country && String(row.getAttribute('data-country') || '').toUpperCase() !== country) ok = false;
       if (ok && place && !smartMatch(row.getAttribute('data-place') || '', place)) ok = false;
@@ -501,11 +767,20 @@ const FILTER_SCRIPT = `(function () {
           }
         }
       }
-      row.hidden = !ok;
       if (ok) visible.push(row);
+      row.hidden = group === 'network' ? !ok : true;
     }
-    if (emptyRow) emptyRow.hidden = visible.length > 0;
-    updateTotals(visible);
+    var groupCount = 0;
+    if (group !== 'network') {
+      var items = rollup(visible, group);
+      groupCount = items.length;
+      for (var gi = 0; gi < items.length; gi++) {
+        tbody.insertBefore(makeGroupedRow(items[gi], group), emptyRow);
+      }
+    }
+    if (emptyRow) emptyRow.hidden = (group === 'network' ? visible.length : groupCount) > 0;
+    setHeaders(group);
+    updateTotals(visible, group, groupCount);
     syncUrl();
   }
   function syncUrl() {
@@ -521,6 +796,8 @@ const FILTER_SCRIPT = `(function () {
     if (countryEl && countryEl.value) params.set('country', countryEl.value);
     if (placeEl && placeEl.value) params.set('place', placeEl.value);
     if (ispEl && ispEl.value) params.set('isp', ispEl.value);
+    var groupEl = form.querySelector('[name=group]');
+    if (groupEl && groupEl.value && groupEl.value !== 'network') params.set('group', groupEl.value);
     for (var i = 0; i < gtKeys.length; i++) {
       var el = form.querySelector('[name="gt_' + gtKeys[i] + '"]');
       if (!el || el.disabled) continue;
@@ -595,6 +872,22 @@ const FILTER_SCRIPT = `(function () {
       apply();
     });
   }
+  tbody.addEventListener('click', function (e) {
+    var t = e.target;
+    var btn = t && t.closest ? t.closest('[data-drill]') : null;
+    if (!btn) return;
+    e.preventDefault();
+    var countryEl = form.querySelector('[name=country]');
+    var placeEl = form.querySelector('[name=place]');
+    var groupEl = form.querySelector('[name=group]');
+    var country = btn.getAttribute('data-drill-country') || '';
+    var city = btn.getAttribute('data-drill-city') || '';
+    var grain = btn.getAttribute('data-drill') || '';
+    if (countryEl) countryEl.value = country;
+    if (placeEl && grain === 'city') placeEl.value = city;
+    if (groupEl) groupEl.value = 'network';
+    apply();
+  });
   apply();
 })();`;
 
@@ -604,10 +897,25 @@ const CSV_SCRIPT = `(function () {
   var btn = document.querySelector('[data-export-csv]');
   if (!form || !table || !table.tBodies[0] || !btn) return;
   var tbody = table.tBodies[0];
-  var headers = ${JSON.stringify(COLUMNS.map((c) => c.label))};
-  var keys = ${JSON.stringify(COLUMNS.map((c) => c.key))};
+  var networkHeaders = ${JSON.stringify(COLUMNS.map((c) => c.label))};
+  var networkKeys = ${JSON.stringify(COLUMNS.map((c) => c.key))};
+  var restHeaders = ${JSON.stringify(COLUMNS.slice(2).map((c) => c.label))};
+  var restKeys = ${JSON.stringify(COLUMNS.slice(2).map((c) => c.key))};
   var gameIds = ${JSON.stringify(STATS_GAMES.map((g) => g.id))};
 
+  function currentGroup() {
+    var el = form.querySelector('[name=group]');
+    var v = el ? String(el.value || '') : 'network';
+    return v === 'country' || v === 'city' ? v : 'network';
+  }
+  function columns() {
+    var group = currentGroup();
+    if (group === 'network') return { headers: networkHeaders, keys: networkKeys };
+    return {
+      headers: [group === 'country' ? 'country' : 'city', 'networks'].concat(restHeaders),
+      keys: ['label', 'networks'].concat(restKeys)
+    };
+  }
   function csvEscape(value) {
     var s = String(value == null ? '' : value);
     if (/[",\\n\\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
@@ -617,12 +925,16 @@ const CSV_SCRIPT = `(function () {
     var n = Number(row.getAttribute(name) || '0');
     return isFinite(n) ? n : 0;
   }
+  function firstCellText(row) {
+    var cell = row.cells[0];
+    if (!cell) return '';
+    var btn = cell.querySelector('.group-drill') || cell.querySelector('.tip-trigger');
+    return (btn ? btn.textContent : cell.textContent) || '';
+  }
   function cellValue(row, key) {
-    if (key === 'ip') {
-      var btn = row.cells[0] && row.cells[0].querySelector('.tip-trigger');
-      return btn ? btn.textContent : (row.cells[0] ? row.cells[0].textContent : '');
-    }
+    if (key === 'ip' || key === 'label') return firstCellText(row);
     if (key === 'location') return row.cells[1] ? row.cells[1].textContent : '';
+    if (key === 'networks') return numAttr(row, 'data-networks');
     if (key === 'addrs') return numAttr(row, 'data-addrs');
     if (key === 'languages') return numAttr(row, 'data-languages');
     if (key === 'games') return numAttr(row, 'data-games');
@@ -635,18 +947,21 @@ const CSV_SCRIPT = `(function () {
     var toEl = form.querySelector('[name=to]');
     var from = fromEl && fromEl.value ? fromEl.value : 'all';
     var to = toEl && toEl.value ? toEl.value : 'all';
-    return 'wordaholic-stats-' + from + '-to-' + to + '.csv';
+    var group = currentGroup();
+    var prefix = group === 'network' ? 'wordaholic-stats-' : 'wordaholic-stats-' + group + '-';
+    return prefix + from + '-to-' + to + '.csv';
   }
   btn.addEventListener('click', function () {
-    var lines = [headers.map(csvEscape).join(',')];
+    var cols = columns();
+    var lines = [cols.headers.map(csvEscape).join(',')];
     var rows = tbody.rows;
     for (var i = 0; i < rows.length; i++) {
       var row = rows[i];
       if (row.getAttribute('data-empty') === '1') continue;
       if (row.hidden) continue;
-      var cols = [];
-      for (var k = 0; k < keys.length; k++) cols.push(csvEscape(cellValue(row, keys[k])));
-      lines.push(cols.join(','));
+      var out = [];
+      for (var k = 0; k < cols.keys.length; k++) out.push(csvEscape(cellValue(row, cols.keys[k])));
+      lines.push(out.join(','));
     }
     var blob = new Blob([lines.join('\\n') + '\\n'], { type: 'text/csv;charset=utf-8' });
     var url = URL.createObjectURL(blob);
@@ -686,6 +1001,7 @@ export function renderStatsHtml(opts) {
   const filters = parseStatsFilters(opts.params);
   const tab = parseStatsTab(opts.params?.get?.('tab'));
   const interval = parseTrendInterval(opts.params?.get?.('interval'));
+  const group = parseStatsGroup(opts.params?.get?.('group'));
   const filtered = applyStatsFilters(allRows, filters);
   const totals = combineTotals(filtered);
   const from = opts.from || '';
@@ -878,6 +1194,17 @@ export function renderStatsHtml(opts) {
     }
     td.n .tip { left: auto; right: 0; }
     .tip-cell:hover .tip, .tip-cell:focus-within .tip { display: block; }
+    button.group-drill {
+      background: none;
+      border: 0;
+      padding: 0;
+      font: inherit;
+      color: inherit;
+      cursor: pointer;
+      text-decoration: underline;
+      text-underline-offset: 0.2em;
+    }
+    button.group-drill:hover { text-decoration-thickness: 2px; }
   `;
 
   if (isTrends) {
@@ -1023,32 +1350,71 @@ ${emptyRow}
 `;
   }
 
-  const bodyRows = allRows
+  const columns = totalsColumns(group);
+  const grouped = group === 'network' ? [] : groupStatsRows(filtered, group);
+  const networkRows = allRows
     .map((r, i) => {
       const match = rowMatchesFilters(r, filters);
+      const hide = group !== 'network' || !match;
       const cells = COLUMNS.map((col) => dataCell(col, columnDisplay(col, r, i), columnSortValue(col, r))).join(
         '\n'
       );
-      return `<tr ${rowDataAttrs(r)}${match ? '' : ' hidden'}>\n${cells}\n</tr>`;
+      return `<tr ${rowDataAttrs(r)}${hide ? ' hidden' : ''}>\n${cells}\n</tr>`;
     })
     .join('\n');
-
-  const emptyHidden = filtered.length ? ' hidden' : '';
-  const emptyRow = `<tr data-empty="1"${emptyHidden}><td colspan="${COLUMNS.length}">No rows in this range.</td></tr>`;
+  const groupedRows = grouped
+    .map((r, i) => {
+      const grain = group === 'city' ? 'city' : 'country';
+      const cells = columns
+        .map((col) => dataCell(col, groupedColumnDisplay(col, r, i, grain), groupedColumnSortValue(col, r)))
+        .join('\n');
+      const attrs = [
+        `data-grouped="1"`,
+        `data-country="${esc(r.country)}"`,
+        `data-city="${esc(r.city)}"`,
+        `data-networks="${esc(r.networks)}"`,
+        `data-langs="${esc((r.languageCodes || []).join(' '))}"`,
+        `data-languages="${esc(r.languages)}"`,
+        `data-games="${esc(r.games)}"`,
+        `data-homehits="${esc(r.homeHits)}"`,
+        `data-addrs="${esc(r.addrs)}"`,
+        ...STATS_GAMES.map((g) => `data-game-${esc(g.id)}="${esc(r.byGame?.[g.id] ?? 0)}"`),
+      ].join(' ');
+      return `<tr ${attrs}>\n${cells}\n</tr>`;
+    })
+    .join('\n');
+  const displayCount = group === 'network' ? filtered.length : grouped.length;
+  const emptyHidden = displayCount ? ' hidden' : '';
+  const emptyRow = `<tr data-empty="1"${emptyHidden}><td colspan="${columns.length}">No rows in this range.</td></tr>`;
+  const bodyRows = [networkRows, groupedRows].filter(Boolean).join('\n');
 
   const totalRow = allRows.length
     ? `<tr class="total">
-${COLUMNS.map((col) =>
-  dataCell(col, totalDisplay(col, totals, filtered.length), '', ` data-col="${esc(col.key)}"`)
-).join('\n')}
+${columns
+  .map((col) =>
+    dataCell(
+      col,
+      totalDisplay(col, totals, filtered.length, group, grouped.length),
+      '',
+      ` data-col="${esc(col.key)}"`
+    )
+  )
+  .join('\n')}
 </tr>`
     : '';
 
-  const headerRow = COLUMNS.map((col, i) => {
+  const headerRow = columns.map((col, i) => {
     const cls = col.type === 'num' ? ' class="n"' : '';
     const aria = i === 0 ? ' aria-sort="ascending"' : '';
     return `        <th${cls} data-type="${col.type}"${aria}><button type="button" class="sort">${esc(col.label)}</button></th>`;
   }).join('\n');
+
+  const groupSelect = `<label>Group<select name="group">
+${GROUP_OPTIONS.map(
+  (opt) =>
+    `        <option value="${esc(opt.id)}"${opt.id === group ? ' selected' : ''}>${esc(opt.label)}</option>`
+).join('\n')}
+      </select></label>`;
 
   const countrySelect = `<select name="country">
         <option value="">All</option>
@@ -1089,6 +1455,7 @@ ${countryOptions
       ${tabs}
       <div id="stats-filter-body" class="stats-filter-body">
         ${sharedDates}
+        ${groupSelect}
         <label>Country${countrySelect}</label>
         <label>Place<input type="text" name="place" value="${esc(filters.place)}" autocomplete="off"/></label>
         <label>ISP<input type="text" name="isp" value="${esc(filters.isp)}" autocomplete="off"/></label>
