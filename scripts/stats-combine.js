@@ -9,6 +9,7 @@
  */
 
 import { STATS_GAME_IDS } from './stats-games.js';
+import { resolveLocalityCoords } from './stats-capitals.js';
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -778,4 +779,121 @@ export function combineTrends(inputs, range = {}, interval = 'days') {
       byGame: m.byGame,
     };
   });
+}
+
+
+/**
+ * @param {ReturnType<typeof emptyRecord>} rec
+ */
+function eventCountsFromRecord(rec) {
+  /** @type {Record<string, number>} */
+  const byGame = Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0]));
+  let games = 0;
+  for (const id of STATS_GAME_IDS) {
+    let n = 0;
+    for (const v of Object.values(rec.games[id] || {})) n += Number(v) || 0;
+    byGame[id] = n;
+    games += n;
+  }
+  return { games, byGame };
+}
+
+/**
+ * Locality activity for the home map (event counts, no IPs).
+ * City missing/unresolved → country capital coordinates.
+ *
+ * @param {{ source: string, body: unknown }[]} inputs
+ * @param {{ from?: string | null, toExclusive?: string | null }} [range]
+ * @returns {{
+ *   localities: {
+ *     key: string,
+ *     country: string,
+ *     city: string,
+ *     label: string,
+ *     lat: number,
+ *     lon: number,
+ *     capitalFallback: boolean,
+ *     total: number,
+ *     byGame: Record<string, number>,
+ *   }[],
+ *   total: number,
+ * }}
+ */
+export function combineGeoLocalities(inputs, range = {}) {
+  /** @type {Map<string, Map<string, ReturnType<typeof emptyRecord>>>} */
+  const byHour = new Map();
+  for (const { source, body } of inputs) {
+    for (const { hour, ip, rec } of extractRows(body, source, range)) {
+      let byIp = byHour.get(hour);
+      if (!byIp) {
+        byIp = new Map();
+        byHour.set(hour, byIp);
+      }
+      const prev = byIp.get(ip);
+      byIp.set(ip, prev ? maxRecord(prev, rec) : rec);
+    }
+  }
+
+  /** @type {Map<string, { country: string, city: string, total: number, byGame: Record<string, number> }>} */
+  const buckets = new Map();
+  for (const hour of [...byHour.keys()].sort()) {
+    const collapsed = collapseHour(byHour.get(hour) || new Map());
+    for (const { rec } of collapsed.values()) {
+      const country = rec.geo?.country || '';
+      if (!country) continue;
+      const city = rec.geo?.city || '';
+      const key = `${country}\n${city}`;
+      const counts = eventCountsFromRecord(rec);
+      if (counts.games <= 0) continue;
+      const prev = buckets.get(key);
+      if (!prev) {
+        buckets.set(key, {
+          country,
+          city,
+          total: counts.games,
+          byGame: { ...counts.byGame },
+        });
+      } else {
+        prev.total += counts.games;
+        for (const id of STATS_GAME_IDS) {
+          prev.byGame[id] = (prev.byGame[id] || 0) + (counts.byGame[id] || 0);
+        }
+      }
+    }
+  }
+
+  /** @type {{
+   *   key: string,
+   *   country: string,
+   *   city: string,
+   *   label: string,
+   *   lat: number,
+   *   lon: number,
+   *   capitalFallback: boolean,
+   *   total: number,
+   *   byGame: Record<string, number>,
+   * }[]} */
+  const localities = [];
+  let total = 0;
+  for (const [key, b] of buckets) {
+    const coords = resolveLocalityCoords(b.country, b.city);
+    if (!coords) continue;
+    total += b.total;
+    const countryName = formatCountry(b.country) || b.country;
+    const label = b.city ? `${b.city}, ${countryName}` : countryName;
+    localities.push({
+      key,
+      country: b.country,
+      city: b.city,
+      label,
+      lat: coords.lat,
+      lon: coords.lon,
+      capitalFallback: coords.capitalFallback,
+      total: b.total,
+      byGame: b.byGame,
+    });
+  }
+
+  localities.sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
+  return { localities, total };
 }

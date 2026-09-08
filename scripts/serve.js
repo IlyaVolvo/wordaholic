@@ -7,8 +7,9 @@ import { createStatsStore, PRUNE_INTERVAL_MS } from './stats-store.js';
 import { createStatsHandler } from './stats-http.js';
 import { combineBodies, combineTrends, parseDateRange, parseTrendInterval } from './stats-combine.js';
 import { renderStatsHtml } from './stats-page.js';
-import { isStatsApiPath, isStatsPagePath } from './stats-path.js';
+import { isStatsApiPath, isStatsGeoApiPath, isStatsPagePath } from './stats-path.js';
 import { lookupMissingGeos } from './stats-geo-lookup.js';
+import { buildStatsGeoPayload } from './stats-geo-api.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../dist');
@@ -88,6 +89,26 @@ function lanAddresses() {
 }
 
 /**
+ * Local /stats page and /api/stats/geo: live dump plus ./stats-hours/*.json.
+ * @returns {{ source: string, body: unknown }[]}
+ */
+function loadStatsInputs() {
+  /** @type {{ source: string, body: unknown }[]} */
+  const inputs = [{ source: 'live', body: statsStore.dump() }];
+  if (fs.existsSync(HOURS_DIR)) {
+    for (const name of fs.readdirSync(HOURS_DIR).filter((n) => n.endsWith('.json')).sort()) {
+      const file = path.join(HOURS_DIR, name);
+      try {
+        inputs.push({ source: file, body: JSON.parse(fs.readFileSync(file, 'utf8')) });
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : err);
+      }
+    }
+  }
+  return inputs;
+}
+
+/**
  * Local /stats: live in-memory dump plus ./stats-hours/*.json (from stats-pull-gcs).
  * GET /api/stats stays the raw JSON dump.
  * @param {import('node:http').IncomingMessage} req
@@ -106,23 +127,12 @@ async function handleStatsPage(req, res) {
   } catch {
     url = new URL('/stats', 'http://localhost');
   }
-  /** @type {{ source: string, body: unknown }[]} */
-  const inputs = [{ source: 'live', body: statsStore.dump() }];
-  if (fs.existsSync(HOURS_DIR)) {
-    for (const name of fs.readdirSync(HOURS_DIR).filter((n) => n.endsWith('.json')).sort()) {
-      const file = path.join(HOURS_DIR, name);
-      try {
-        inputs.push({ source: file, body: JSON.parse(fs.readFileSync(file, 'utf8')) });
-      } catch (err) {
-        console.error(err instanceof Error ? err.message : err);
-      }
-    }
-  }
+  const inputs = loadStatsInputs();
   const range = parseDateRange(url.searchParams.get('from') || '', url.searchParams.get('to') || '');
   const rows = combineBodies(inputs, range);
   const trends = combineTrends(inputs, range, parseTrendInterval(url.searchParams.get('interval')));
   await lookupMissingGeos(rows);
-      const html = renderStatsHtml({
+  const html = renderStatsHtml({
     rows,
     trends,
     from: url.searchParams.get('from') || '',
@@ -136,11 +146,51 @@ async function handleStatsPage(req, res) {
   res.end(method === 'HEAD' ? undefined : html);
 }
 
+/**
+ * @param {import('node:http').IncomingMessage} req
+ * @param {import('node:http').ServerResponse} res
+ */
+async function handleStatsGeoApi(req, res) {
+  const method = req.method || 'GET';
+  if (method !== 'GET' && method !== 'HEAD') {
+    res.writeHead(405, { Allow: 'GET', 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Method not allowed');
+    return;
+  }
+  let url;
+  try {
+    url = new URL(req.url || '/api/stats/geo', 'http://localhost');
+  } catch {
+    url = new URL('/api/stats/geo', 'http://localhost');
+  }
+  const payload = await buildStatsGeoPayload(
+    loadStatsInputs(),
+    url.searchParams.get('from') || '',
+    url.searchParams.get('to') || ''
+  );
+  const body = JSON.stringify(payload);
+  res.writeHead(200, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+  });
+  res.end(method === 'HEAD' ? undefined : body);
+}
+
 const server = http.createServer((req, res) => {
   res.on('finish', () => logAccess(req, res));
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
   if (isStatsPagePath(urlPath)) {
     void handleStatsPage(req, res).catch((err) => {
+      console.error(err);
+      if (!res.headersSent) {
+        res.writeHead(500);
+        res.end('Internal error');
+      }
+    });
+    return;
+  }
+  if (isStatsGeoApiPath(urlPath)) {
+    void handleStatsGeoApi(req, res).catch((err) => {
       console.error(err);
       if (!res.headersSent) {
         res.writeHead(500);

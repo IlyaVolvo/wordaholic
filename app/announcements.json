@@ -6,5 +6,9 @@
   {
     "commit": "8d1958e",
     "body": "New game: PolyHydra.\n\nPlay several PolyWordlot boards at once with one shared guess. Each board has its own secret. One typed word is scored on every board that is not solved yet. Win by solving all of them before the shared guesses run out."
+  },
+  {
+    "commit": "HEAD",
+    "body": "Home map: activity dots show where people have played (when you are online). Use From/To on the left to narrow the dates.\n\nLocations are approximate. If a city is missing or unknown, the dot is placed on that country’s capital. VPN and mobile roaming can shift a player far from where they really are, so the map is a rough picture, not a precise census."
   }
 ]

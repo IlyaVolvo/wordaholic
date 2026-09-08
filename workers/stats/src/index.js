@@ -3,8 +3,9 @@ import { archiveClosedHours } from '../../../scripts/stats-archive.js';
 import { gcsConfigured, getGcsObject, listGcsKeys } from '../../../scripts/gcs-xml-put.js';
 import { createStatsStore, PRUNE_INTERVAL_MS } from '../../../scripts/stats-store.js';
 import { combineBodies, combineTrends, normalizeGeo, parseDateRange, parseTrendInterval } from '../../../scripts/stats-combine.js';
-import { isStatsApiPath, isStatsPagePath } from '../../../scripts/stats-path.js';
+import { isStatsApiPath, isStatsGeoApiPath, isStatsPagePath } from '../../../scripts/stats-path.js';
 import { renderStatsHtml } from '../../../scripts/stats-page.js';
+import { buildStatsGeoPayload } from '../../../scripts/stats-geo-api.js';
 import { HOUR_PULL_BATCH, HOUR_STORAGE_GET_BATCH, hourFromObjectKey } from '../../../scripts/stats-hour-cache.js';
 import { lookupMissingGeos } from '../../../scripts/stats-geo-lookup.js';
 
@@ -242,6 +243,21 @@ export class StatsStore {
       return new Response(method === 'HEAD' ? null : html, { status: 200, headers: HTML_HEADERS });
     }
 
+    if (isStatsGeoApiPath(url.pathname) && (method === 'GET' || method === 'HEAD')) {
+      await this.fillHourCacheFromGcs();
+      await this.loadHourBodies();
+      /** @type {{ source: string, body: unknown }[]} */
+      const inputs = [{ source: 'live', body: this.store.dump() }];
+      for (const [hour, body] of this.hourBodies) {
+        inputs.push({ source: `hour:${hour}`, body });
+      }
+      const from = url.searchParams.get('from') || '';
+      const to = url.searchParams.get('to') || '';
+      const payload = await buildStatsGeoPayload(inputs, from, to);
+      const body = JSON.stringify(payload);
+      return new Response(method === 'HEAD' ? null : body, { status: 200, headers: JSON_HEADERS });
+    }
+
     if (!isStatsApiPath(url.pathname)) {
       return new Response('Not found', { status: 404 });
     }
@@ -313,7 +329,11 @@ export default {
    */
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (!isStatsApiPath(url.pathname) && !isStatsPagePath(url.pathname)) {
+    if (
+      !isStatsApiPath(url.pathname) &&
+      !isStatsPagePath(url.pathname) &&
+      !isStatsGeoApiPath(url.pathname)
+    ) {
       return new Response('Not found', { status: 404 });
     }
 

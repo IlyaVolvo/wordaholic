@@ -19,6 +19,8 @@ export const HELP_TOPICS = {
           'Wordaholic starts on a world map. Languages live on countries — not in a long ' +
           'dropdown. Hover a country to peek at what is spoken there. Click the country to ' +
           'keep that list open so you can tap a language to select or deselect it.\n\n' +
+          'When you are online, colored dots show where people have played. Use From/To on ' +
+          'the left to narrow the dates (empty = all known activity).\n\n' +
           'Zoom in if a country is tiny. Click empty ocean (or the ×) to close the list.',
       },
       {

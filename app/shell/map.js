@@ -8,6 +8,15 @@ import {
   playableLanguageCodes,
   fallbackCountryName,
 } from './country-languages.js';
+import {
+  GEO_GAME_COLORS,
+  GEO_GAME_IDS,
+  GEO_GAME_LABELS,
+  fetchGeoLocalities,
+  geoTooltipHtml,
+  mergeByCoords,
+  paintGeoBubbles,
+} from './map-geo.js';
 
 const SKIP_IDS = new Set(['ocean', 'svg2', 'wh-map-style', 'false']);
 
@@ -22,6 +31,31 @@ const mapTooltipPos = { left: /** @type {number | null} */ (null), top: /** @typ
 const MIN_SCALE = 1;
 const MAX_SCALE = 10;
 const TOOLTIP_FOCUS_DELAY_MS = 1000;
+const GEO_PANEL_KEY = 'wordaholic.mapActivityPanel';
+
+/**
+ * Sticky Activity panel: open unless explicitly collapsed.
+ */
+function readGeoPanelOpen() {
+  try {
+    const v = localStorage.getItem(GEO_PANEL_KEY);
+    if (v === '0' || v === 'collapsed') return false;
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * @param {boolean} open
+ */
+function writeGeoPanelOpen(open) {
+  try {
+    localStorage.setItem(GEO_PANEL_KEY, open ? '1' : '0');
+  } catch {
+    /* ignore quota / private mode */
+  }
+}
 
 async function loadMapSvg() {
   const res = await fetch('/map/world.svg');
@@ -70,7 +104,22 @@ export async function renderWorldMap(container, opts = {}) {
     mapSvg = `<div class="map-fallback">World map unavailable</div>`;
   }
 
+  const legendRows = GEO_GAME_IDS.map(
+    (id) =>
+      `<div class="map-geo-legend-row"><span class="map-geo-swatch" style="background:${GEO_GAME_COLORS[id]}"></span>${GEO_GAME_LABELS[id]}</div>`
+  ).join('');
+
   container.innerHTML = `
+    <aside class="map-geo-strip" aria-label="Play activity">
+      <div class="map-geo-strip-body">
+        <div class="map-geo-strip-title">Activity</div>
+        <label class="map-geo-date">From (UTC)<input type="date" data-geo-from /></label>
+        <label class="map-geo-date">To (UTC)<input type="date" data-geo-to /></label>
+        <button type="button" class="map-geo-all" data-geo-all>All time</button>
+        <div class="map-geo-legend" aria-hidden="true">${legendRows}</div>
+      </div>
+      <button type="button" class="map-geo-strip-toggle" data-geo-toggle aria-controls="map-geo-strip-body" title="Hide activity" aria-label="Hide activity">&lt;</button>
+    </aside>
     <div class="map-stage">
       <div class="world-map-layer" aria-hidden="true">
         <div class="world-map-svg">${mapSvg}</div>
@@ -124,6 +173,7 @@ export async function renderWorldMap(container, opts = {}) {
         </div>
       </div>
       <div class="map-lang-tooltip" hidden></div>
+      <div class="map-geo-tooltip" hidden role="tooltip"></div>
       <div class="map-fav-toast" hidden role="status"></div>
     </div>
   `;
@@ -139,10 +189,25 @@ export async function renderWorldMap(container, opts = {}) {
   svgEl.classList.add('world-map-inline');
 
   const tooltip = container.querySelector('.map-lang-tooltip');
+  const geoTooltip = container.querySelector('.map-geo-tooltip');
   const toast = container.querySelector('.map-fav-toast');
   const stage = container.querySelector('.map-stage');
   const layer = container.querySelector('.world-map-layer');
+  const geoStrip = container.querySelector('.map-geo-strip');
+  const geoStripBody = container.querySelector('.map-geo-strip-body');
+  const geoToggle = /** @type {HTMLButtonElement | null} */ (container.querySelector('[data-geo-toggle]'));
+  const geoFrom = /** @type {HTMLInputElement | null} */ (container.querySelector('[data-geo-from]'));
+  const geoTo = /** @type {HTMLInputElement | null} */ (container.querySelector('[data-geo-to]'));
+  const geoAll = container.querySelector('[data-geo-all]');
+  const mapViewEl = container.closest('.map-view');
+  if (geoStripBody) geoStripBody.id = 'map-geo-strip-body';
   let toastTimer = 0;
+  /** @type {Map<string, ReturnType<typeof mergeByCoords>[number]>} */
+  let geoByKey = new Map();
+  /** @type {ReturnType<typeof mergeByCoords>} */
+  let lastGeoMerged = [];
+  let geoFetchGen = 0;
+  let geoPanelOpen = readGeoPanelOpen();
 
   function applyMapView() {
     if (!layer) return;
@@ -248,7 +313,7 @@ export async function renderWorldMap(container, opts = {}) {
   stage?.addEventListener('pointerdown', (e) => {
     if (!stage) return;
     if (mapView.scale <= MIN_SCALE) return;
-    if (e.target instanceof Element && e.target.closest('.map-chrome, .map-lang-tooltip')) return;
+    if (e.target instanceof Element && e.target.closest('.map-chrome, .map-lang-tooltip, .map-geo-tooltip')) return;
     if (e.pointerType === 'touch') return; // touch handled via touch events for pinch
     stage.setPointerCapture(e.pointerId);
     pan = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
@@ -282,7 +347,7 @@ export async function renderWorldMap(container, opts = {}) {
   stage?.addEventListener(
     'touchstart',
     (e) => {
-      if (e.target instanceof Element && e.target.closest('.map-chrome, .map-lang-tooltip')) return;
+      if (e.target instanceof Element && e.target.closest('.map-chrome, .map-lang-tooltip, .map-geo-tooltip')) return;
       if (e.touches.length === 2) {
         const [a, b] = [e.touches[0], e.touches[1]];
         pinch = {
@@ -353,6 +418,133 @@ export async function renderWorldMap(container, opts = {}) {
       toast.hidden = true;
     }, 2200);
   }
+
+  function hideGeoTooltip() {
+    if (!geoTooltip) return;
+    geoTooltip.hidden = true;
+    geoTooltip.innerHTML = '';
+  }
+
+  /**
+   * @param {ReturnType<typeof mergeByCoords>[number]} loc
+   * @param {number} clientX
+   * @param {number} clientY
+   */
+  function showGeoTooltip(loc, clientX, clientY) {
+    if (!geoTooltip || !stage) return;
+    if (tooltip) tooltip.hidden = true;
+    mapTooltipPinned = false;
+    geoTooltip.innerHTML = geoTooltipHtml(loc);
+    geoTooltip.hidden = false;
+    const rect = stage.getBoundingClientRect();
+    const left = Math.min(Math.max(8, clientX - rect.left + 12), Math.max(8, stage.clientWidth - 180));
+    const top = Math.min(Math.max(8, clientY - rect.top + 12), Math.max(8, stage.clientHeight - 120));
+    geoTooltip.style.left = `${left}px`;
+    geoTooltip.style.top = `${top}px`;
+  }
+
+  /**
+   * @param {ReturnType<typeof mergeByCoords>} merged
+   */
+  function renderGeoBubbles(merged) {
+    lastGeoMerged = merged;
+    geoByKey = new Map(merged.map((loc) => [loc.key, loc]));
+    const group = paintGeoBubbles(svgEl, merged, { zoomScale: mapView.scale });
+    group?.querySelectorAll('.map-geo-bubble').forEach((el) => {
+      el.addEventListener('pointerenter', (e) => {
+        const key = decodeURIComponent(el.getAttribute('data-geo-key') || '');
+        const loc = geoByKey.get(key);
+        if (!loc || !(e instanceof PointerEvent)) return;
+        showGeoTooltip(loc, e.clientX, e.clientY);
+      });
+      el.addEventListener('pointermove', (e) => {
+        const key = decodeURIComponent(el.getAttribute('data-geo-key') || '');
+        const loc = geoByKey.get(key);
+        if (!loc || !(e instanceof PointerEvent) || geoTooltip?.hidden) return;
+        showGeoTooltip(loc, e.clientX, e.clientY);
+      });
+      el.addEventListener('pointerleave', () => hideGeoTooltip());
+    });
+  }
+
+  /**
+   * @param {boolean} open
+   * @param {{ persist?: boolean }} [opts]
+   */
+  function setGeoPanelOpen(open, opts = {}) {
+    geoPanelOpen = open;
+    container.classList.toggle('map-root--geo-collapsed', !open);
+    mapViewEl?.classList.toggle('map-view--geo-collapsed', !open);
+    geoStrip?.classList.toggle('map-geo-strip--collapsed', !open);
+    if (geoStripBody) geoStripBody.hidden = !open;
+    if (geoToggle) {
+      geoToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      geoToggle.title = open ? 'Hide activity' : 'Show activity';
+      geoToggle.setAttribute('aria-label', open ? 'Hide activity' : 'Show activity');
+      geoToggle.textContent = open ? '<' : '>';
+    }
+    if (opts.persist !== false) writeGeoPanelOpen(open);
+    if (!open) {
+      geoFetchGen += 1;
+      renderGeoBubbles([]);
+      hideGeoTooltip();
+      return;
+    }
+    void refreshGeoBubbles();
+  }
+
+  async function refreshGeoBubbles() {
+    if (!geoPanelOpen) {
+      renderGeoBubbles([]);
+      hideGeoTooltip();
+      return;
+    }
+    const gen = ++geoFetchGen;
+    const from = geoFrom?.value || '';
+    const to = geoTo?.value || '';
+    try {
+      const data = await fetchGeoLocalities(from, to);
+      if (gen !== geoFetchGen || !geoPanelOpen) return;
+      if (!data) {
+        renderGeoBubbles([]);
+        hideGeoTooltip();
+        return;
+      }
+      renderGeoBubbles(mergeByCoords(data.localities));
+    } catch {
+      if (gen !== geoFetchGen || !geoPanelOpen) return;
+      renderGeoBubbles([]);
+      hideGeoTooltip();
+    }
+  }
+
+  geoToggle?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setGeoPanelOpen(!geoPanelOpen);
+  });
+  geoFrom?.addEventListener('change', () => {
+    void refreshGeoBubbles();
+  });
+  geoTo?.addEventListener('change', () => {
+    void refreshGeoBubbles();
+  });
+  geoAll?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (geoFrom) geoFrom.value = '';
+    if (geoTo) geoTo.value = '';
+    void refreshGeoBubbles();
+  });
+  if (typeof ResizeObserver !== 'undefined' && stage) {
+    let resizeTimer = 0;
+    const ro = new ResizeObserver(() => {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        if (geoPanelOpen && lastGeoMerged.length) renderGeoBubbles(lastGeoMerged);
+      }, 80);
+    });
+    ro.observe(stage);
+  }
+  setGeoPanelOpen(geoPanelOpen, { persist: false });
 
   /**
    * @param {string} code
@@ -450,6 +642,7 @@ export async function renderWorldMap(container, opts = {}) {
    */
   function openLanguageSelector(e, shape, opts = {}) {
     if (!tooltip || !stage) return;
+    hideGeoTooltip();
     const meta = getCountryLanguage(shape.id);
     const country = meta?.country || fallbackCountryName(shape.id);
     const playable = playableLanguageCodes(meta, supported);

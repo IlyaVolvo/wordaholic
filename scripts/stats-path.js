@@ -20,3 +20,11 @@ export function isStatsPagePath(pathname) {
 export function isStatsApiPath(pathname) {
   return canonicalPath(pathname) === '/api/stats';
 }
+
+/**
+ * Public locality aggregates for the home map (no IPs).
+ * @param {string} pathname
+ */
+export function isStatsGeoApiPath(pathname) {
+  return canonicalPath(pathname) === '/api/stats/geo';
+}
