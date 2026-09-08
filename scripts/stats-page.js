@@ -5,6 +5,7 @@ import {
   parseStatsGroup,
   parseStatsTab,
   parseTrendInterval,
+  parseTrendsView,
   TREND_INTERVALS,
 } from './stats-combine.js';
 import { STATS_GAMES, STATS_GAME_IDS } from './stats-games.js';
@@ -27,6 +28,7 @@ const STATS_HELP =
   'Clear filters also clears the From/To dates and reloads the range. Group is unchanged.\n' +
   'Use the arrow on the Totals/Trends row to hide or show the filter controls.\n' +
   'Trends shows activity by hour, day, week, or month for the From/To window (empty = all available).\n' +
+  'Under Trends, Table is the numeric grid; Graph plots games total and each game as separate colored lines (hover for values).\n' +
   'GET /api/stats is the raw 24h JSON dump.';
 
 /** @typedef {{ key: string, label: string, type: 'text' | 'num' }} StatsColumn */
@@ -71,6 +73,14 @@ const TREND_COLUMNS = [
   { key: 'games', label: 'games', type: 'num' },
   ...STATS_GAMES.map((g) => ({ key: g.id, label: g.id, type: /** @type {'num'} */ ('num') })),
 ];
+
+/** Line colors for Trends graph (total + each game). */
+const TREND_SERIES_COLORS = {
+  games: '#2563eb',
+  polywordlot: '#0d9488',
+  transword: '#c2410c',
+  polyhydra: '#7c3aed',
+};
 
 /**
  * @param {number} n
@@ -1205,14 +1215,98 @@ export function renderStatsHtml(opts) {
       text-underline-offset: 0.2em;
     }
     button.group-drill:hover { text-decoration-thickness: 2px; }
+    .stats-subtabs {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin: 0 0 0.55rem;
+    }
+    .stats-subtabs a {
+      color: inherit;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+      padding: 0.1rem 0;
+      border-bottom: 2px solid transparent;
+    }
+    .stats-subtabs a[aria-current="page"] {
+      border-bottom-color: currentColor;
+    }
+    .stats-chart-wrap {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      box-sizing: border-box;
+      padding: 0.25rem 0.25rem 0.5rem;
+    }
+    .stats-chart-svg {
+      width: 100%;
+      height: 100%;
+      min-height: 16rem;
+      display: block;
+      touch-action: none;
+    }
+    .stats-chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.55rem 1rem;
+      margin: 0 0 0.45rem;
+      font-size: 12px;
+    }
+    .stats-chart-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .stats-chart-swatch {
+      width: 0.85rem;
+      height: 0.28rem;
+      border-radius: 1px;
+      background: currentColor;
+    }
+    .stats-chart-tip {
+      display: none;
+      position: absolute;
+      z-index: 6;
+      min-width: 9rem;
+      max-width: min(18rem, 80vw);
+      padding: 0.4rem 0.55rem;
+      background: Canvas;
+      color: CanvasText;
+      border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
+      box-shadow: 0 4px 16px color-mix(in srgb, currentColor 18%, transparent);
+      font-size: 12px;
+      white-space: pre;
+      pointer-events: none;
+    }
+    .stats-chart-tip.is-on { display: block; }
+    .stats-chart-empty {
+      color: color-mix(in srgb, currentColor 70%, transparent);
+      font-size: 13px;
+      padding: 1rem 0.25rem;
+    }
   `;
 
   if (isTrends) {
+    const trendsView = parseTrendsView(opts.params?.get?.('view'));
+    const isGraph = trendsView === 'graph';
+
     const intervalSelect = `<label>Interval<select name="interval">
 ${TREND_INTERVALS.map(
   (id) => `        <option value="${esc(id)}"${id === interval ? ' selected' : ''}>${esc(id)}</option>`
 ).join('\n')}
-      </select></label>`;
+      </select></label>
+      <input type="hidden" name="view" value="${esc(trendsView)}"/>`;
+
+    const subtabs = `<nav class="stats-subtabs" aria-label="Trends display">
+      <a href="/stats${qsBase({ tab: 'trends', interval, view: 'table' })}"${
+        isGraph ? '' : ' aria-current="page"'
+      }>Table</a>
+      <a href="/stats${qsBase({ tab: 'trends', interval, view: 'graph' })}"${
+        isGraph ? ' aria-current="page"' : ''
+      }>Graph</a>
+    </nav>`;
 
     const headerRow = TREND_COLUMNS.map((col, i) => {
       const cls = col.type === 'num' ? ' class="n"' : '';
@@ -1237,12 +1331,47 @@ ${TREND_INTERVALS.map(
       ? ''
       : `<tr data-empty="1"><td colspan="${TREND_COLUMNS.length}">No hours in this range.</td></tr>`;
 
+    const chartSeries = [
+      { id: 'games', label: 'games', color: TREND_SERIES_COLORS.games },
+      ...STATS_GAMES.map((g) => ({
+        id: g.id,
+        label: g.id,
+        color: TREND_SERIES_COLORS[g.id] || '#666',
+      })),
+    ];
+    const chartPayload = {
+      labels: trendRows.map((r) => r.label),
+      series: chartSeries.map((s) => ({
+        ...s,
+        values: trendRows.map((r) =>
+          s.id === 'games' ? Number(r.games) || 0 : Number(r.byGame?.[s.id]) || 0
+        ),
+      })),
+    };
+
+    const legend = chartSeries
+      .map(
+        (s) =>
+          `<span style="color:${esc(s.color)}"><i class="stats-chart-swatch" aria-hidden="true"></i>${esc(
+            s.label
+          )}</span>`
+      )
+      .join('');
+
+    const chartBlock = trendRows.length
+      ? `<div class="stats-chart-wrap" id="stats-chart-wrap">
+      <div class="stats-chart-legend">${legend}</div>
+      <svg class="stats-chart-svg" id="stats-chart" role="img" aria-label="Trends chart"></svg>
+      <div class="stats-chart-tip" id="stats-chart-tip" role="tooltip"></div>
+    </div>`
+      : `<p class="stats-chart-empty">No hours in this range.</p>`;
+
     const TRENDS_CSV = `(function () {
-  var table = document.getElementById('stats-table');
   var btn = document.querySelector('[data-export-csv]');
   var form = document.getElementById('stats-filters');
-  if (!table || !table.tBodies[0] || !btn) return;
+  if (!btn) return;
   var headers = ${JSON.stringify(TREND_COLUMNS.map((c) => c.label))};
+  var payload = ${JSON.stringify(chartPayload)};
   function csvEscape(value) {
     var s = String(value == null ? '' : value);
     if (/[",\\n\\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
@@ -1250,15 +1379,12 @@ ${TREND_INTERVALS.map(
   }
   btn.addEventListener('click', function () {
     var lines = [headers.map(csvEscape).join(',')];
-    var rows = table.tBodies[0].rows;
-    for (var i = 0; i < rows.length; i++) {
-      var row = rows[i];
-      if (row.getAttribute('data-empty') === '1') continue;
-      var cells = [];
-      for (var c = 0; c < headers.length; c++) {
-        cells.push(csvEscape((row.cells[c] && row.cells[c].innerText || '').trim()));
+    for (var i = 0; i < payload.labels.length; i++) {
+      var cells = [payload.labels[i]];
+      for (var s = 0; s < payload.series.length; s++) {
+        cells.push(payload.series[s].values[i] || 0);
       }
-      lines.push(cells.join(','));
+      lines.push(cells.map(csvEscape).join(','));
     }
     var fromEl = form && form.querySelector('[name=from]');
     var toEl = form && form.querySelector('[name=to]');
@@ -1282,9 +1408,11 @@ ${TREND_INTERVALS.map(
     var fromEl = form.querySelector('[name=from]');
     var toEl = form.querySelector('[name=to]');
     var intervalEl = form.querySelector('[name=interval]');
+    var viewEl = form.querySelector('[name=view]');
     if (fromEl && fromEl.value) params.set('from', fromEl.value);
     if (toEl && toEl.value) params.set('to', toEl.value);
     if (intervalEl && intervalEl.value) params.set('interval', intervalEl.value);
+    if (viewEl && viewEl.value) params.set('view', viewEl.value);
     location.href = '/stats?' + params.toString();
   }
   function onDateOrInterval(e) {
@@ -1301,6 +1429,253 @@ ${TREND_INTERVALS.map(
     go();
   });
 })();`;
+
+    const TRENDS_CHART = `(function () {
+  var wrap = document.getElementById('stats-chart-wrap');
+  var svg = document.getElementById('stats-chart');
+  var tip = document.getElementById('stats-chart-tip');
+  if (!wrap || !svg || !tip) return;
+  var data = ${JSON.stringify(chartPayload)};
+  if (!data.labels.length) return;
+
+  var pad = { t: 12, r: 16, b: 44, l: 44 };
+  var guide = null;
+  var points = [];
+
+  function maxValue() {
+    var m = 0;
+    for (var s = 0; s < data.series.length; s++) {
+      for (var i = 0; i < data.series[s].values.length; i++) {
+        var v = data.series[s].values[i] || 0;
+        if (v > m) m = v;
+      }
+    }
+    return m || 1;
+  }
+
+  function niceMax(v) {
+    if (v <= 1) return 1;
+    var exp = Math.pow(10, Math.floor(Math.log10(v)));
+    var n = Math.ceil(v / exp);
+    if (n <= 2) return 2 * exp;
+    if (n <= 5) return 5 * exp;
+    return 10 * exp;
+  }
+
+  function svgEl(name, attrs) {
+    var el = document.createElementNS('http://www.w3.org/2000/svg', name);
+    for (var k in attrs) el.setAttribute(k, attrs[k]);
+    return el;
+  }
+
+  function draw() {
+    var rect = wrap.getBoundingClientRect();
+    var legendH = (wrap.querySelector('.stats-chart-legend') || {}).offsetHeight || 0;
+    var W = Math.max(320, Math.floor(rect.width));
+    var H = Math.max(260, Math.floor(rect.height - legendH - 8));
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    points = [];
+
+    var plotW = W - pad.l - pad.r;
+    var plotH = H - pad.t - pad.b;
+    var n = data.labels.length;
+    var yMax = niceMax(maxValue());
+    var xAt = function (i) {
+      return n === 1 ? pad.l + plotW / 2 : pad.l + (plotW * i) / (n - 1);
+    };
+    var yAt = function (v) {
+      return pad.t + plotH * (1 - v / yMax);
+    };
+
+    svg.appendChild(
+      svgEl('rect', {
+        x: pad.l,
+        y: pad.t,
+        width: plotW,
+        height: plotH,
+        fill: 'none',
+        stroke: 'color-mix(in srgb, currentColor 22%, transparent)',
+      })
+    );
+
+    for (var tick = 0; tick <= 4; tick++) {
+      var yv = (yMax * tick) / 4;
+      var y = yAt(yv);
+      svg.appendChild(
+        svgEl('line', {
+          x1: pad.l,
+          y1: y,
+          x2: pad.l + plotW,
+          y2: y,
+          stroke: 'color-mix(in srgb, currentColor 12%, transparent)',
+          'stroke-width': '1',
+        })
+      );
+      var yl = svgEl('text', {
+        x: pad.l - 6,
+        y: y + 3,
+        'text-anchor': 'end',
+        fill: 'currentColor',
+        'font-size': '11',
+      });
+      yl.textContent = String(Math.round(yv));
+      svg.appendChild(yl);
+    }
+
+    var labelStep = Math.max(1, Math.ceil(n / Math.max(4, Math.floor(plotW / 72))));
+    for (var i = 0; i < n; i++) {
+      if (i % labelStep !== 0 && i !== n - 1) continue;
+      var xl = svgEl('text', {
+        x: xAt(i),
+        y: H - 12,
+        'text-anchor': 'middle',
+        fill: 'currentColor',
+        'font-size': '10',
+      });
+      xl.textContent = data.labels[i];
+      svg.appendChild(xl);
+    }
+
+    guide = svgEl('line', {
+      x1: 0,
+      y1: pad.t,
+      x2: 0,
+      y2: pad.t + plotH,
+      stroke: 'color-mix(in srgb, currentColor 35%, transparent)',
+      'stroke-width': '1',
+      'stroke-dasharray': '3 3',
+      visibility: 'hidden',
+    });
+    svg.appendChild(guide);
+
+    for (var s = 0; s < data.series.length; s++) {
+      var series = data.series[s];
+      var d = [];
+      for (var j = 0; j < n; j++) {
+        var x = xAt(j);
+        var y2 = yAt(series.values[j] || 0);
+        d.push((j ? 'L' : 'M') + x.toFixed(1) + ' ' + y2.toFixed(1));
+        points.push({ i: j, s: s, x: x, y: y2, color: series.color });
+      }
+      svg.appendChild(
+        svgEl('path', {
+          d: d.join(' '),
+          fill: 'none',
+          stroke: series.color,
+          'stroke-width': '2',
+          'stroke-linejoin': 'round',
+          'stroke-linecap': 'round',
+        })
+      );
+    }
+
+    for (var p = 0; p < points.length; p++) {
+      var pt = points[p];
+      svg.appendChild(
+        svgEl('circle', {
+          cx: pt.x,
+          cy: pt.y,
+          r: 3.2,
+          fill: pt.color,
+          stroke: 'Canvas',
+          'stroke-width': '1',
+          'data-i': String(pt.i),
+        })
+      );
+    }
+
+    var hit = svgEl('rect', {
+      x: pad.l,
+      y: pad.t,
+      width: plotW,
+      height: plotH,
+      fill: 'transparent',
+    });
+    svg.appendChild(hit);
+
+    function nearestIndex(clientX) {
+      var bounds = svg.getBoundingClientRect();
+      var scaleX = W / Math.max(1, bounds.width);
+      var x = (clientX - bounds.left) * scaleX;
+      var best = 0;
+      var bestDist = Infinity;
+      for (var k = 0; k < n; k++) {
+        var dx = Math.abs(xAt(k) - x);
+        if (dx < bestDist) {
+          bestDist = dx;
+          best = k;
+        }
+      }
+      return best;
+    }
+
+    function showTip(index, clientX, clientY) {
+      var lines = [data.labels[index]];
+      for (var s = 0; s < data.series.length; s++) {
+        lines.push(data.series[s].label + ': ' + (data.series[s].values[index] || 0));
+      }
+      tip.textContent = lines.join('\\n');
+      tip.classList.add('is-on');
+      guide.setAttribute('x1', String(xAt(index)));
+      guide.setAttribute('x2', String(xAt(index)));
+      guide.setAttribute('visibility', 'visible');
+      var wrapBox = wrap.getBoundingClientRect();
+      var left = clientX - wrapBox.left + 12;
+      var top = clientY - wrapBox.top + 12;
+      tip.style.left = '0px';
+      tip.style.top = '0px';
+      var tipW = tip.offsetWidth;
+      var tipH = tip.offsetHeight;
+      if (left + tipW > wrapBox.width - 4) left = clientX - wrapBox.left - tipW - 12;
+      if (top + tipH > wrapBox.height - 4) top = clientY - wrapBox.top - tipH - 12;
+      tip.style.left = Math.max(4, left) + 'px';
+      tip.style.top = Math.max(4, top) + 'px';
+    }
+
+    function hideTip() {
+      tip.classList.remove('is-on');
+      guide.setAttribute('visibility', 'hidden');
+    }
+
+    hit.addEventListener('pointermove', function (e) {
+      showTip(nearestIndex(e.clientX), e.clientX, e.clientY);
+    });
+    hit.addEventListener('pointerleave', hideTip);
+  }
+
+  draw();
+  window.addEventListener('resize', function () {
+    window.clearTimeout(window.__statsChartResize);
+    window.__statsChartResize = window.setTimeout(draw, 80);
+  });
+})();`;
+
+    const mainPane = isGraph
+      ? chartBlock
+      : `<div class="stats-table-wrap">
+  <table id="stats-table">
+    <thead>
+      <tr>
+${headerRow}
+      </tr>
+    </thead>
+    <tbody>
+${bodyRows}
+${emptyRow}
+    </tbody>
+  </table>
+  </div>`;
+
+    const scripts = isGraph
+      ? `<script>${COLLAPSE_SCRIPT}</script>
+  <script>${TRENDS_NAV}</script>
+  <script>${TRENDS_CSV}</script>
+  <script>${TRENDS_CHART}</script>`
+      : `<script>${SORT_SCRIPT}</script>
+  <script>${COLLAPSE_SCRIPT}</script>
+  <script>${TRENDS_NAV}</script>
+  <script>${TRENDS_CSV}</script>`;
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -1321,6 +1696,7 @@ ${TREND_INTERVALS.map(
         </div>
       </div>
       ${tabs}
+      ${subtabs}
       <div id="stats-filter-body" class="stats-filter-body">
         ${sharedDates}
         ${intervalSelect}
@@ -1328,23 +1704,8 @@ ${TREND_INTERVALS.map(
     </form>
     ${notice}
   </div>
-  <div class="stats-table-wrap">
-  <table id="stats-table">
-    <thead>
-      <tr>
-${headerRow}
-      </tr>
-    </thead>
-    <tbody>
-${bodyRows}
-${emptyRow}
-    </tbody>
-  </table>
-  </div>
-  <script>${SORT_SCRIPT}</script>
-  <script>${COLLAPSE_SCRIPT}</script>
-  <script>${TRENDS_NAV}</script>
-  <script>${TRENDS_CSV}</script>
+  ${mainPane}
+  ${scripts}
 </body>
 </html>
 `;

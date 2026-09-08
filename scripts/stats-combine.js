@@ -611,6 +611,14 @@ export function parseStatsTab(value) {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {'table' | 'graph'}
+ */
+export function parseTrendsView(value) {
+  return String(value || '').trim().toLowerCase() === 'graph' ? 'graph' : 'table';
+}
+
+/**
  * @param {string} hourIso
  */
 function truncateHourIso(hourIso) {
