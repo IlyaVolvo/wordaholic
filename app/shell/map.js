@@ -33,25 +33,32 @@ const MAX_SCALE = 10;
 const TOOLTIP_FOCUS_DELAY_MS = 1000;
 const GEO_PANEL_KEY = 'wordaholic.mapActivityPanel';
 
+/** @typedef {'open' | 'panel' | 'off'} GeoPanelMode */
+
 /**
- * Sticky Activity panel: open unless explicitly collapsed.
+ * Sticky Activity panel mode.
+ * - open: panel + dots
+ * - panel: panel hidden, dots kept
+ * - off: panel hidden, dots cleared
+ * @returns {GeoPanelMode}
  */
-function readGeoPanelOpen() {
+function readGeoPanelMode() {
   try {
     const v = localStorage.getItem(GEO_PANEL_KEY);
-    if (v === '0' || v === 'collapsed') return false;
-    return true;
+    if (v === 'panel') return 'panel';
+    if (v === 'off' || v === '0' || v === 'collapsed') return 'off';
+    return 'open';
   } catch {
-    return true;
+    return 'open';
   }
 }
 
 /**
- * @param {boolean} open
+ * @param {GeoPanelMode} mode
  */
-function writeGeoPanelOpen(open) {
+function writeGeoPanelMode(mode) {
   try {
-    localStorage.setItem(GEO_PANEL_KEY, open ? '1' : '0');
+    localStorage.setItem(GEO_PANEL_KEY, mode);
   } catch {
     /* ignore quota / private mode */
   }
@@ -124,9 +131,19 @@ export async function renderWorldMap(container, opts = {}) {
         <button type="button" class="map-geo-all" data-geo-all>All time</button>
         <div class="map-geo-legend" aria-hidden="true">${legendRows}</div>
       </div>
-      <button type="button" class="map-geo-strip-toggle" data-geo-toggle aria-controls="map-geo-strip-body" title="Hide activity" aria-label="Hide activity">&lt;</button>
+      <div class="map-geo-strip-toggles" role="group" aria-label="Hide activity panel">
+        <button type="button" class="map-geo-strip-toggle" data-geo-collapse="panel" aria-label="Hide panel, keep activity dots">
+          &lt;<span class="map-geo-toggle-tip" role="tooltip">Hide panel, keep activity dots</span>
+        </button>
+        <button type="button" class="map-geo-strip-toggle" data-geo-collapse="off" aria-label="Hide panel and activity dots">
+          &lt;&lt;<span class="map-geo-toggle-tip" role="tooltip">Hide panel and activity dots</span>
+        </button>
+      </div>
     </aside>
     <div class="map-stage">
+      <button type="button" class="map-geo-expand" data-geo-expand hidden aria-label="Show activity panel">
+        &gt;<span class="map-geo-toggle-tip" role="tooltip">Show activity panel</span>
+      </button>
       <div class="world-map-layer" aria-hidden="true">
         <div class="world-map-svg">${mapSvg}</div>
       </div>
@@ -201,7 +218,13 @@ export async function renderWorldMap(container, opts = {}) {
   const layer = container.querySelector('.world-map-layer');
   const geoStrip = container.querySelector('.map-geo-strip');
   const geoStripBody = container.querySelector('.map-geo-strip-body');
-  const geoToggle = /** @type {HTMLButtonElement | null} */ (container.querySelector('[data-geo-toggle]'));
+  const geoCollapsePanel = /** @type {HTMLButtonElement | null} */ (
+    container.querySelector('[data-geo-collapse="panel"]')
+  );
+  const geoCollapseOff = /** @type {HTMLButtonElement | null} */ (
+    container.querySelector('[data-geo-collapse="off"]')
+  );
+  const geoExpand = /** @type {HTMLButtonElement | null} */ (container.querySelector('[data-geo-expand]'));
   const geoFrom = /** @type {HTMLInputElement | null} */ (container.querySelector('[data-geo-from]'));
   const geoTo = /** @type {HTMLInputElement | null} */ (container.querySelector('[data-geo-to]'));
   const geoAll = container.querySelector('[data-geo-all]');
@@ -213,7 +236,8 @@ export async function renderWorldMap(container, opts = {}) {
   /** @type {ReturnType<typeof mergeByCoords>} */
   let lastGeoMerged = [];
   let geoFetchGen = 0;
-  let geoPanelOpen = readGeoPanelOpen();
+  /** @type {GeoPanelMode} */
+  let geoPanelMode = readGeoPanelMode();
 
   function applyMapView() {
     if (!layer) return;
@@ -319,7 +343,7 @@ export async function renderWorldMap(container, opts = {}) {
   stage?.addEventListener('pointerdown', (e) => {
     if (!stage) return;
     if (mapView.scale <= MIN_SCALE) return;
-    if (e.target instanceof Element && e.target.closest('.map-chrome, .map-lang-tooltip, .map-geo-tooltip')) return;
+    if (e.target instanceof Element && e.target.closest('.map-chrome, .map-lang-tooltip, .map-geo-tooltip, .map-geo-expand')) return;
     if (e.pointerType === 'touch') return; // touch handled via touch events for pinch
     stage.setPointerCapture(e.pointerId);
     pan = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
@@ -353,7 +377,7 @@ export async function renderWorldMap(container, opts = {}) {
   stage?.addEventListener(
     'touchstart',
     (e) => {
-      if (e.target instanceof Element && e.target.closest('.map-chrome, .map-lang-tooltip, .map-geo-tooltip')) return;
+      if (e.target instanceof Element && e.target.closest('.map-chrome, .map-lang-tooltip, .map-geo-tooltip, .map-geo-expand')) return;
       if (e.touches.length === 2) {
         const [a, b] = [e.touches[0], e.touches[1]];
         pinch = {
@@ -474,33 +498,38 @@ export async function renderWorldMap(container, opts = {}) {
   }
 
   /**
-   * @param {boolean} open
+   * @param {GeoPanelMode} mode
    * @param {{ persist?: boolean }} [opts]
    */
-  function setGeoPanelOpen(open, opts = {}) {
-    geoPanelOpen = open;
+  function setGeoPanelMode(mode, opts = {}) {
+    const prev = geoPanelMode;
+    geoPanelMode = mode;
+    const open = mode === 'open';
+    const showDots = mode !== 'off';
     container.classList.toggle('map-root--geo-collapsed', !open);
     mapViewEl?.classList.toggle('map-view--geo-collapsed', !open);
     geoStrip?.classList.toggle('map-geo-strip--collapsed', !open);
+    if (geoStrip) geoStrip.hidden = !open;
     if (geoStripBody) geoStripBody.hidden = !open;
-    if (geoToggle) {
-      geoToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-      geoToggle.title = open ? 'Hide activity' : 'Show activity';
-      geoToggle.setAttribute('aria-label', open ? 'Hide activity' : 'Show activity');
-      geoToggle.textContent = open ? '<' : '>';
-    }
-    if (opts.persist !== false) writeGeoPanelOpen(open);
-    if (!open) {
+    if (geoExpand) geoExpand.hidden = open;
+    if (opts.persist !== false) writeGeoPanelMode(mode);
+
+    if (!showDots) {
       geoFetchGen += 1;
       renderGeoBubbles([]);
       hideGeoTooltip();
       return;
     }
-    void refreshGeoBubbles();
+    if (open || prev === 'off' || !lastGeoMerged.length) {
+      void refreshGeoBubbles();
+      return;
+    }
+    // Collapsed with dots kept: redraw current localities (e.g. after resize).
+    renderGeoBubbles(lastGeoMerged);
   }
 
   async function refreshGeoBubbles() {
-    if (!geoPanelOpen) {
+    if (geoPanelMode === 'off') {
       renderGeoBubbles([]);
       hideGeoTooltip();
       return;
@@ -510,7 +539,7 @@ export async function renderWorldMap(container, opts = {}) {
     const to = geoTo?.value || '';
     try {
       const data = await fetchGeoLocalities(from, to);
-      if (gen !== geoFetchGen || !geoPanelOpen) return;
+      if (gen !== geoFetchGen || geoPanelMode === 'off') return;
       if (!data) {
         renderGeoBubbles([]);
         hideGeoTooltip();
@@ -518,15 +547,23 @@ export async function renderWorldMap(container, opts = {}) {
       }
       renderGeoBubbles(mergeByCoords(data.localities));
     } catch {
-      if (gen !== geoFetchGen || !geoPanelOpen) return;
+      if (gen !== geoFetchGen || geoPanelMode === 'off') return;
       renderGeoBubbles([]);
       hideGeoTooltip();
     }
   }
 
-  geoToggle?.addEventListener('click', (e) => {
+  geoCollapsePanel?.addEventListener('click', (e) => {
     e.stopPropagation();
-    setGeoPanelOpen(!geoPanelOpen);
+    setGeoPanelMode('panel');
+  });
+  geoCollapseOff?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setGeoPanelMode('off');
+  });
+  geoExpand?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setGeoPanelMode('open');
   });
   geoFrom?.addEventListener('change', () => {
     void refreshGeoBubbles();
@@ -545,12 +582,12 @@ export async function renderWorldMap(container, opts = {}) {
     const ro = new ResizeObserver(() => {
       window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => {
-        if (geoPanelOpen && lastGeoMerged.length) renderGeoBubbles(lastGeoMerged);
+        if (geoPanelMode !== 'off' && lastGeoMerged.length) renderGeoBubbles(lastGeoMerged);
       }, 80);
     });
     ro.observe(stage);
   }
-  setGeoPanelOpen(geoPanelOpen, { persist: false });
+  setGeoPanelMode(geoPanelMode, { persist: false });
 
   /**
    * @param {string} code
