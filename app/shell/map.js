@@ -112,7 +112,13 @@ export async function renderWorldMap(container, opts = {}) {
   container.innerHTML = `
     <aside class="map-geo-strip" aria-label="Play activity">
       <div class="map-geo-strip-body">
-        <div class="map-geo-strip-title">Activity</div>
+        <div class="map-geo-strip-title" tabindex="0">
+          Activity
+          <span class="map-geo-strip-tip" role="tooltip">
+            Activity dots show where people have played (when you are online). Use From/To to narrow the dates.
+            Locations are approximate. If a city is missing or unknown, the dot is placed on that country’s capital. VPN and mobile roaming can shift a player far from where they really are, so the map is a rough picture, not a precise census.
+          </span>
+        </div>
         <label class="map-geo-date">From (UTC)<input type="date" data-geo-from /></label>
         <label class="map-geo-date">To (UTC)<input type="date" data-geo-to /></label>
         <button type="button" class="map-geo-all" data-geo-all>All time</button>

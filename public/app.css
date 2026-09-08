@@ -310,7 +310,7 @@ main {
   min-width: 0;
   min-height: 0;
   border-radius: 12px;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: var(--shadow);
   background: #6fa8c9;
   display: flex;
@@ -325,10 +325,12 @@ main {
   gap: 0.4rem;
   background: rgba(248, 250, 252, 0.96);
   border-right: 1px solid rgba(20, 35, 43, 0.1);
+  border-radius: 12px 0 0 12px;
   color: #1a3a4a;
   line-height: 1.2;
-  z-index: 3;
+  z-index: 6;
   transition: width 0.16s ease, padding 0.16s ease;
+  overflow: visible;
 }
 .map-geo-strip-body {
   display: flex;
@@ -375,12 +377,48 @@ main {
   display: none;
 }
 .map-geo-strip-title {
+  position: relative;
   font-family: var(--font-display), sans-serif;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #334155;
+  width: fit-content;
+  cursor: help;
+}
+.map-geo-strip-tip {
+  display: none;
+  position: absolute;
+  left: calc(100% + 0.55rem);
+  top: -0.15rem;
+  z-index: 12;
+  width: min(14rem, 42vw);
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(20, 35, 43, 0.14);
+  box-shadow: 0 8px 20px rgba(20, 35, 43, 0.16);
+  color: #1a3a4a;
+  font-family: var(--font-body), sans-serif;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.35;
+  white-space: normal;
+  pointer-events: none;
+}
+.map-geo-strip-title:hover,
+.map-geo-strip-title:focus-visible {
+  z-index: 12;
+}
+.map-geo-strip-title:hover .map-geo-strip-tip,
+.map-geo-strip-title:focus-visible .map-geo-strip-tip {
+  display: block;
+}
+.map-geo-strip-title:focus-visible {
+  outline: none;
 }
 .map-geo-date {
   display: flex;
@@ -486,6 +524,7 @@ main {
   min-height: min(52dvh, 560px);
   line-height: 0;
   overflow: hidden;
+  border-radius: 0 12px 12px 0;
   touch-action: none;
 }
 .map-stage--zoomed {
