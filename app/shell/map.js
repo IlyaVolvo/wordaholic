@@ -130,7 +130,7 @@ export async function renderWorldMap(container, opts = {}) {
         </div>
         <label class="map-geo-date">From (UTC)<input type="date" data-geo-from /></label>
         <label class="map-geo-date">To (UTC)<input type="date" data-geo-to /></label>
-        <button type="button" class="map-geo-all" data-geo-all>All time</button>
+        <button type="button" class="map-geo-all" data-geo-all>Clear dates</button>
         <div class="map-geo-legend" aria-hidden="true">${legendRows}</div>
       </div>
       <div class="map-geo-strip-toggles" role="group" aria-label="Hide activity panel">
@@ -582,18 +582,78 @@ export async function renderWorldMap(container, opts = {}) {
     e.stopPropagation();
     setGeoPanelMode('open');
   });
-  geoFrom?.addEventListener('change', () => {
-    void refreshGeoBubbles();
-  });
-  geoTo?.addEventListener('change', () => {
-    void refreshGeoBubbles();
-  });
-  geoAll?.addEventListener('click', (e) => {
+  /**
+   * iOS Safari date Clear restores `defaultValue` instead of "".
+   * Keep defaultValue empty so Clear / Clear dates actually empty the fields.
+   * @param {HTMLInputElement | null} el
+   */
+  function wireGeoDateInput(el) {
+    if (!el) return;
+    el.defaultValue = '';
+    el.addEventListener('focus', () => {
+      const v = el.value;
+      el.defaultValue = '';
+      if (v) el.value = v;
+    });
+    const onEdit = () => {
+      const v = el.value;
+      el.defaultValue = '';
+      if (v && el.value !== v) el.value = v;
+      window.clearTimeout(geoDateRefreshTimer);
+      geoDateRefreshTimer = window.setTimeout(() => {
+        void refreshGeoBubbles();
+      }, 0);
+    };
+    el.addEventListener('change', onEdit);
+    el.addEventListener('input', onEdit);
+    el.addEventListener('blur', () => {
+      el.defaultValue = '';
+      if (!el.value) void refreshGeoBubbles();
+    });
+  }
+
+  /** @type {number} */
+  let geoDateRefreshTimer = 0;
+  /** @type {number} */
+  let geoClearTouchAt = 0;
+
+  function clearGeoDates(e) {
+    e.preventDefault();
     e.stopPropagation();
-    if (geoFrom) geoFrom.value = '';
-    if (geoTo) geoTo.value = '';
+    for (const el of [geoFrom, geoTo]) {
+      if (!el) continue;
+      el.defaultValue = '';
+      el.value = '';
+      try {
+        el.blur();
+      } catch {
+        /* ignore */
+      }
+    }
+    window.clearTimeout(geoDateRefreshTimer);
     void refreshGeoBubbles();
+  }
+
+  wireGeoDateInput(geoFrom);
+  wireGeoDateInput(geoTo);
+  geoAll?.addEventListener('click', (e) => {
+    // touchend already cleared; ignore the synthetic click.
+    if (Date.now() - geoClearTouchAt < 500) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    clearGeoDates(e);
   });
+  // iPad: ensure touch activates Clear even if click is swallowed.
+  geoAll?.addEventListener(
+    'touchend',
+    (e) => {
+      geoClearTouchAt = Date.now();
+      clearGeoDates(e);
+    },
+    { passive: false }
+  );
   if (typeof ResizeObserver !== 'undefined' && stage) {
     let resizeTimer = 0;
     const ro = new ResizeObserver(() => {
