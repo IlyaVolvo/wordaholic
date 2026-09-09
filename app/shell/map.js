@@ -40,16 +40,18 @@ const GEO_PANEL_KEY = 'wordaholic.mapActivityPanel';
  * - open: panel + dots
  * - panel: panel hidden, dots kept
  * - off: panel hidden, dots cleared
+ * First visit (no preference) defaults to panel+dots without the strip.
  * @returns {GeoPanelMode}
  */
 function readGeoPanelMode() {
   try {
     const v = localStorage.getItem(GEO_PANEL_KEY);
-    if (v === 'panel') return 'panel';
+    if (v === 'open' || v === '1') return 'open';
     if (v === 'off' || v === '0' || v === 'collapsed') return 'off';
-    return 'open';
+    if (v === 'panel') return 'panel';
+    return 'panel';
   } catch {
-    return 'open';
+    return 'panel';
   }
 }
 
