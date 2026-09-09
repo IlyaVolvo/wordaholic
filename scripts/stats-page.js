@@ -31,16 +31,41 @@ const STATS_HELP =
   'Under Trends, Table is the numeric grid; Graph plots games total and each game as separate colored lines (hover for values).\n' +
   'GET /api/stats is the raw 24h JSON dump.';
 
-/** @typedef {{ key: string, label: string, type: 'text' | 'num' }} StatsColumn */
+/** @typedef {{ key: string, label: string, shortLabel?: string, type: 'text' | 'num' }} StatsColumn */
+
+/** Short header text when the stats table is narrow. */
+const COLUMN_SHORT_LABELS = {
+  languages: 'lang',
+  polywordlot: 'wordlot',
+  polyhydra: 'hydra',
+  transword: 'trans',
+};
+
+/**
+ * @param {StatsColumn} col
+ */
+function columnHeaderMarkup(col) {
+  const short = col.shortLabel || COLUMN_SHORT_LABELS[col.key];
+  if (!short || short === col.label) return esc(col.label);
+  return (
+    `<span class="col-label-full">${esc(col.label)}</span>` +
+    `<span class="col-label-short">${esc(short)}</span>`
+  );
+}
 
 /** @type {StatsColumn[]} */
 const COLUMNS = [
   { key: 'ip', label: 'IP', type: 'text' },
   { key: 'location', label: 'location', type: 'text' },
   { key: 'addrs', label: 'addrs', type: 'num' },
-  { key: 'languages', label: 'languages', type: 'num' },
+  { key: 'languages', label: 'languages', shortLabel: 'lang', type: 'num' },
   { key: 'games', label: 'games', type: 'num' },
-  ...STATS_GAMES.map((g) => ({ key: g.id, label: g.id, type: /** @type {'num'} */ ('num') })),
+  ...STATS_GAMES.map((g) => ({
+    key: g.id,
+    label: g.id,
+    shortLabel: COLUMN_SHORT_LABELS[g.id],
+    type: /** @type {'num'} */ ('num'),
+  })),
   { key: 'homeHits', label: 'homeHits', type: 'num' },
 ];
 
@@ -71,7 +96,12 @@ function totalsColumns(group) {
 const TREND_COLUMNS = [
   { key: 'bucket', label: 'interval', type: 'text' },
   { key: 'games', label: 'games', type: 'num' },
-  ...STATS_GAMES.map((g) => ({ key: g.id, label: g.id, type: /** @type {'num'} */ ('num') })),
+  ...STATS_GAMES.map((g) => ({
+    key: g.id,
+    label: g.id,
+    shortLabel: COLUMN_SHORT_LABELS[g.id],
+    type: /** @type {'num'} */ ('num'),
+  })),
 ];
 
 /** Line colors for Trends graph (total + each game). */
@@ -1172,6 +1202,18 @@ export function renderStatsHtml(opts) {
     th.n button.sort { text-align: right; }
     th[aria-sort="ascending"] button.sort::after { content: " \\25B2"; font-size: 0.7em; }
     th[aria-sort="descending"] button.sort::after { content: " \\25BC"; font-size: 0.7em; }
+    .col-label-short { display: none; }
+    @media (max-width: 1100px) {
+      .col-label-full { display: none; }
+      .col-label-short { display: inline; }
+      th, td { padding: 0.3rem 0.28rem; }
+      td.n, th.n {
+        width: 1%;
+        white-space: nowrap;
+        padding-left: 0.18rem;
+        padding-right: 0.22rem;
+      }
+    }
     tr.total { font-weight: 600; }
     tbody tr:hover, tbody tr:focus-within { position: relative; z-index: 5; }
     .note { color: color-mix(in srgb, currentColor 70%, transparent); font-size: 13px; }
@@ -1311,7 +1353,7 @@ ${TREND_INTERVALS.map(
     const headerRow = TREND_COLUMNS.map((col, i) => {
       const cls = col.type === 'num' ? ' class="n"' : '';
       const aria = i === 0 ? ' aria-sort="ascending"' : '';
-      return `        <th${cls} data-type="${col.type}"${aria}><button type="button" class="sort">${esc(col.label)}</button></th>`;
+      return `        <th${cls} data-type="${col.type}"${aria}><button type="button" class="sort">${columnHeaderMarkup(col)}</button></th>`;
     }).join('\n');
 
     const bodyRows = trendRows
@@ -1767,7 +1809,7 @@ ${columns
   const headerRow = columns.map((col, i) => {
     const cls = col.type === 'num' ? ' class="n"' : '';
     const aria = i === 0 ? ' aria-sort="ascending"' : '';
-    return `        <th${cls} data-type="${col.type}"${aria}><button type="button" class="sort">${esc(col.label)}</button></th>`;
+    return `        <th${cls} data-type="${col.type}"${aria}><button type="button" class="sort">${columnHeaderMarkup(col)}</button></th>`;
   }).join('\n');
 
   const groupSelect = `<label>Group<select name="group">
