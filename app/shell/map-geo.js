@@ -225,6 +225,7 @@ export function paintGeoBubbles(svgEl, merged, opts = {}) {
     circle.dataset.geoKey = encodeURIComponent(loc.key);
     circle.style.pointerEvents = 'all';
     circle.style.cursor = 'pointer';
+    circle.setAttribute('title', 'Click to select languages');
     group.appendChild(circle);
   }
   return group;

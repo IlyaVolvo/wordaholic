@@ -487,6 +487,7 @@ export async function renderWorldMap(container, opts = {}) {
         const key = decodeURIComponent(el.getAttribute('data-geo-key') || '');
         const loc = geoByKey.get(key);
         if (!loc || !(e instanceof PointerEvent)) return;
+        if (!tooltip?.hidden && mapTooltipPinned) return;
         showGeoTooltip(loc, e.clientX, e.clientY);
       });
       el.addEventListener('pointermove', (e) => {
@@ -496,6 +497,20 @@ export async function renderWorldMap(container, opts = {}) {
         showGeoTooltip(loc, e.clientX, e.clientY);
       });
       el.addEventListener('pointerleave', () => hideGeoTooltip());
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (suppressClickAfterPan) {
+          suppressClickAfterPan = false;
+          return;
+        }
+        if (!(e instanceof MouseEvent) && !(e instanceof PointerEvent)) return;
+        const hit = countryAtPoint(e.clientX, e.clientY);
+        if (!hit || hit === 'tooltip') return;
+        clearHoverTooltipTimer();
+        setHoverShape(hit);
+        setSelectedShape(hit);
+        openLanguageSelector(e, hit, { pin: true, reposition: true });
+      });
     });
   }
 
@@ -666,12 +681,15 @@ export async function renderWorldMap(container, opts = {}) {
       if (!(el instanceof Element)) continue;
       if (tooltip?.contains(el)) return 'tooltip';
       if (el.closest?.('.map-chrome')) return null;
+      // Activity bubbles sit above countries; ignore them so clicks can reach the path.
+      if (el.closest?.('.map-geo-bubble, .map-geo-bubbles, .map-geo-tooltip')) continue;
       const shape = countryShape(/** @type {SVGElement} */ (el));
       if (shape) return shape;
       // Walk up in case the event target is a child / use-element wrapper.
       let node = el.parentElement;
       while (node && node !== stage) {
         if (tooltip?.contains(node)) return 'tooltip';
+        if (node.closest?.('.map-geo-bubble, .map-geo-bubbles')) break;
         const parentShape = countryShape(/** @type {SVGElement} */ (node));
         if (parentShape) return parentShape;
         node = node.parentElement;
