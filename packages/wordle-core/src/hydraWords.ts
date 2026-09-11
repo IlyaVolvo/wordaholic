@@ -37,9 +37,14 @@ export function getHydraDailyWords(
   if (!answers.length || boardCount < 1) return [];
   const seed = hydraDailySeed(date, dictionary.language, dictionary.wordLength, boardCount);
   const rng = mulberry32(seed);
+  const pool = answers.slice();
   const words: string[] = [];
   for (let i = 0; i < boardCount; i++) {
-    words.push(answers[Math.floor(rng() * answers.length)]);
+    const j = i + Math.floor(rng() * (pool.length - i));
+    const picked = pool[j];
+    pool[j] = pool[i];
+    pool[i] = picked;
+    words.push(picked);
   }
   return words;
 }
