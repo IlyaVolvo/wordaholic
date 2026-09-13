@@ -216,7 +216,7 @@ export const HELP_TOPICS = {
           'Yellow = correct letter, wrong position\n' +
           'Gray = letter not in that board’s word\n\n' +
           'A solved board flashes green three times, then its grid disappears. The scoreboard ' +
-          'keeps that cell the same size, puts the attempt on the right, and places the word ' +
+          'keeps that cell the same size, puts the guess number on the right in a circle, and places the word ' +
           'above the cell. Unused rows on open boards stay empty. ' +
           'When the game ends, every board returns in its final state so you can page through ' +
           'them with the arrows, a swipe, or by tapping a scoreboard cell.',
@@ -226,9 +226,10 @@ export const HELP_TOPICS = {
         screenshot: '/help/polyhydra/scoreboard.svg',
         body:
           'The row of cells above the boards shows each board number on the left and n/m on ' +
-          'the right: locked greens / known yellows. The cell color mixes those two counts ' +
+          'the right: locked greens / known yellows. Type in every cell uses one size, scaled so ' +
+          'the longest board number and n/m (or guess number) still fit. The cell color mixes those two counts ' +
           '(0 is none, 5 is strongest). A solved board turns green, hides n/m, keeps the same ' +
-          'cell size, puts the guess attempt on the right, and places the word above the cell, ' +
+          'cell size, puts the guess number on the right in a circle, and places the word above the cell, ' +
           'scaled so it is no wider than the cell. One board is on screen at a time. The default ' +
           'summary shows greens on the first row, yellows in the positions they were found on ' +
           'the remaining rows of a square the size of the word (a green letter is not shown again unless a second copy is known, and the same letter is never shown twice on one row), ' +
