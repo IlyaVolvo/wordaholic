@@ -501,7 +501,7 @@ const FILTER_SCRIPT = `(function () {
   var table = document.getElementById('stats-table');
   if (!form || !table || !table.tBodies[0]) return;
   var tbody = table.tBodies[0];
-  var tfoot = table.tFoot;
+  var totalsRow = table.querySelector('tr.total');
   var home = form.querySelector('[name=homeHitsOnly]');
   var fromEl = form.querySelector('[name=from]');
   var toEl = form.querySelector('[name=to]');
@@ -704,8 +704,13 @@ const FILTER_SCRIPT = `(function () {
       td.textContent = String(visible);
     }
   }
+  function pinTotals() {
+    var legend = table.tHead && table.tHead.rows[0];
+    if (!legend) return;
+    table.style.setProperty('--stats-legend-h', legend.getBoundingClientRect().height + 'px');
+  }
   function updateTotals(visible, group, groupCount) {
-    if (!tfoot || !tfoot.rows[0]) return;
+    if (!totalsRow) return;
     var n = visible.length;
     var addrs = 0;
     var games = 0;
@@ -730,9 +735,8 @@ const FILTER_SCRIPT = `(function () {
     }
     var langList = Object.keys(langs).sort();
     var langTip = langList.map(function (code) { return langNames[code] || code; }).join('\\n');
-    var footRow = tfoot.rows[0];
-    var first = footRow.cells[0];
-    var second = footRow.cells[1];
+    var first = totalsRow.cells[0];
+    var second = totalsRow.cells[1];
     if (group === 'country' || group === 'city') {
       var one = group === 'city' ? 'city' : 'country';
       var many = group === 'city' ? 'cities' : 'countries';
@@ -754,7 +758,7 @@ const FILTER_SCRIPT = `(function () {
         second.textContent = '';
       }
     }
-    var cell = function (key) { return tfoot.querySelector('[data-col="' + key + '"]'); };
+    var cell = function (key) { return totalsRow.querySelector('[data-col="' + key + '"]'); };
     var addrsTd = cell('addrs');
     if (addrsTd) addrsTd.textContent = String(addrs);
     setTipCell(cell('languages'), langList.length, langTip);
@@ -821,6 +825,7 @@ const FILTER_SCRIPT = `(function () {
     if (emptyRow) emptyRow.hidden = (group === 'network' ? visible.length : groupCount) > 0;
     setHeaders(group);
     updateTotals(visible, group, groupCount);
+    pinTotals();
     syncUrl();
   }
   function syncUrl() {
@@ -928,6 +933,11 @@ const FILTER_SCRIPT = `(function () {
     if (groupEl) groupEl.value = 'network';
     apply();
   });
+  var legendRow = table.tHead && table.tHead.rows[0];
+  if (legendRow && window.ResizeObserver) {
+    new ResizeObserver(pinTotals).observe(legendRow);
+  }
+  window.addEventListener('resize', pinTotals);
   apply();
 })();`;
 
@@ -1190,7 +1200,14 @@ export function renderStatsHtml(opts) {
     thead th {
       position: sticky;
       top: 0;
-      z-index: 3;
+      z-index: 6;
+      background: Canvas;
+      box-shadow: inset 0 -1px 0 color-mix(in srgb, currentColor 18%, transparent);
+    }
+    thead tr.total td {
+      position: sticky;
+      top: var(--stats-legend-h, 2.4rem);
+      z-index: 6;
       background: Canvas;
       box-shadow: inset 0 -1px 0 color-mix(in srgb, currentColor 18%, transparent);
     }
@@ -1876,12 +1893,12 @@ ${countryOptions
       <tr>
 ${headerRow}
       </tr>
+      ${totalRow || ''}
     </thead>
     <tbody>
 ${bodyRows}
 ${emptyRow}
     </tbody>
-    ${totalRow ? `<tfoot>\n${totalRow}\n    </tfoot>` : ''}
   </table>
   </div>
   <script>${SORT_SCRIPT}</script>
