@@ -500,8 +500,8 @@ export const STATS_GROUPS = ['network', 'country', 'city'];
  */
 export function parseStatsGroup(value) {
   const v = String(value || '').trim().toLowerCase();
-  if (v === 'country' || v === 'city') return v;
-  return 'network';
+  if (v === 'network' || v === 'city') return v;
+  return 'country';
 }
 
 /**

@@ -21,7 +21,7 @@ const STATS_HELP =
   'Numeric filters keep rows with a count greater than the value (default 0; use -1 to include zeros).\n' +
   'Homehits only keeps networks with home hits and no games, including polywordlot, transword, and polyhydra. Those count filters are disabled while it is checked. Unchecked, it has no effect. Country, place, and ISP still apply.\n' +
   'Place and ISP match any part of the name; multiple words all have to match. Filters apply as you change them.\n' +
-  'Group on Totals rolls the same filtered networks up by country or city. City is country plus city; a missing city stays in that country as city unknown. Unknown geo is one Unknown row.\n' +
+  'Group on Totals defaults to country and can roll the same filtered networks up by country or city. City is country plus city; a missing city stays in that country as city unknown. Unknown geo is one Unknown row.\n' +
   'Grouped languages are the union of codes, not a sum of counts. Click a country or city to filter to it and return to Network.\n' +
   'City totals follow coarse IP geo (Starlink often Seattle, T-Mobile San Francisco).\n' +
   'Export CSV downloads the rows currently visible under those filters (not the totals row).\n' +
@@ -579,8 +579,9 @@ const FILTER_SCRIPT = `(function () {
   }
   function currentGroup() {
     var el = form.querySelector('[name=group]');
-    var v = el ? String(el.value || '') : 'network';
-    return v === 'country' || v === 'city' ? v : 'network';
+    var v = el ? String(el.value || '') : 'country';
+    if (v === 'network' || v === 'city') return v;
+    return 'country';
   }
   function setHeaders(group) {
     var labels = group === 'country' ? ['country', 'networks'] : group === 'city' ? ['city', 'networks'] : ['IP', 'location'];
@@ -864,7 +865,7 @@ const FILTER_SCRIPT = `(function () {
     if (placeEl && placeEl.value) params.set('place', placeEl.value);
     if (ispEl && ispEl.value) params.set('isp', ispEl.value);
     var groupEl = form.querySelector('[name=group]');
-    if (groupEl && groupEl.value && groupEl.value !== 'network') params.set('group', groupEl.value);
+    if (groupEl && groupEl.value && groupEl.value !== 'country') params.set('group', groupEl.value);
     for (var i = 0; i < gtKeys.length; i++) {
       var el = form.querySelector('[name="gt_' + gtKeys[i] + '"]');
       if (!el || el.disabled) continue;
@@ -977,8 +978,9 @@ const CSV_SCRIPT = `(function () {
 
   function currentGroup() {
     var el = form.querySelector('[name=group]');
-    var v = el ? String(el.value || '') : 'network';
-    return v === 'country' || v === 'city' ? v : 'network';
+    var v = el ? String(el.value || '') : 'country';
+    if (v === 'network' || v === 'city') return v;
+    return 'country';
   }
   function columns() {
     var group = currentGroup();
