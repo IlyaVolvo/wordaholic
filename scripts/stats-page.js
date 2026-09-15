@@ -28,7 +28,7 @@ const STATS_HELP =
   'Clear filters also clears the From/To dates and reloads the range. Group is unchanged.\n' +
   'Use the arrow on the Totals/Trends row to hide or show the filter controls.\n' +
   'Trends shows activity by hour, day, week, or month for the From/To window (empty = all available).\n' +
-  'Under Trends, Table is the numeric grid; Graph plots games total and each game as separate colored lines (hover for values).\n' +
+  'Under Trends, Table is newest-first with a sticky total row; Graph plots games total and each game as separate colored lines (hover for values).\n' +
   'GET /api/stats is the raw 24h JSON dump.';
 
 /** @typedef {{ key: string, label: string, shortLabel?: string, type: 'text' | 'num' }} StatsColumn */
@@ -421,6 +421,16 @@ const SORT_SCRIPT = `(function () {
   var headers = table.tHead.querySelectorAll('th[data-type]');
   var currentCol = 0;
   var currentDir = 1;
+  Array.prototype.forEach.call(headers, function (th, index) {
+    var sort = th.getAttribute('aria-sort');
+    if (sort === 'descending') {
+      currentCol = index;
+      currentDir = -1;
+    } else if (sort === 'ascending') {
+      currentCol = index;
+      currentDir = 1;
+    }
+  });
 
   function cellKey(row, index, type) {
     var cell = row.cells[index];
@@ -476,6 +486,18 @@ const SORT_SCRIPT = `(function () {
       th.setAttribute('aria-sort', dir > 0 ? 'ascending' : 'descending');
     });
   });
+
+  function pinTotals() {
+    var legend = table.tHead && table.tHead.rows[0];
+    if (!legend) return;
+    table.style.setProperty('--stats-legend-h', legend.getBoundingClientRect().height + 'px');
+  }
+  pinTotals();
+  var legendRow = table.tHead && table.tHead.rows[0];
+  if (legendRow && window.ResizeObserver) {
+    new ResizeObserver(pinTotals).observe(legendRow);
+  }
+  window.addEventListener('resize', pinTotals);
 })();`;
 
 const COLLAPSE_SCRIPT = `(function () {
@@ -1369,11 +1391,12 @@ ${TREND_INTERVALS.map(
 
     const headerRow = TREND_COLUMNS.map((col, i) => {
       const cls = col.type === 'num' ? ' class="n"' : '';
-      const aria = i === 0 ? ' aria-sort="ascending"' : '';
+      const aria = i === 0 ? ' aria-sort="descending"' : '';
       return `        <th${cls} data-type="${col.type}"${aria}><button type="button" class="sort">${columnHeaderMarkup(col)}</button></th>`;
     }).join('\n');
 
-    const bodyRows = trendRows
+    const tableRows = [...trendRows].reverse();
+    const bodyRows = tableRows
       .map((r) => {
         const cells = [
           dataCell(TREND_COLUMNS[0], esc(r.label), r.key),
@@ -1385,6 +1408,33 @@ ${TREND_INTERVALS.map(
         return `<tr>\n${cells}\n</tr>`;
       })
       .join('\n');
+
+    const trendSum = {
+      games: 0,
+      byGame: Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0])),
+    };
+    for (const r of trendRows) {
+      trendSum.games += Number(r.games) || 0;
+      for (const id of STATS_GAME_IDS) {
+        trendSum.byGame[id] += Number(r.byGame?.[id]) || 0;
+      }
+    }
+    const nBuckets = trendRows.length;
+    const trendTotalRow = nBuckets
+      ? `<tr class="total">
+${dataCell(TREND_COLUMNS[0], esc(`(${nBuckets} interval${nBuckets === 1 ? '' : 's'})`), '')}
+${dataCell(TREND_COLUMNS[1], esc(String(trendSum.games)), trendSum.games, ' data-col="games"')}
+${STATS_GAME_IDS.map(
+  (id, i) =>
+    dataCell(
+      TREND_COLUMNS[i + 2],
+      esc(String(trendSum.byGame[id] || 0)),
+      trendSum.byGame[id] || 0,
+      ` data-col="${esc(id)}"`
+    )
+).join('\n')}
+</tr>`
+      : '';
 
     const emptyRow = trendRows.length
       ? ''
@@ -1438,7 +1488,7 @@ ${TREND_INTERVALS.map(
   }
   btn.addEventListener('click', function () {
     var lines = [headers.map(csvEscape).join(',')];
-    for (var i = 0; i < payload.labels.length; i++) {
+    for (var i = payload.labels.length - 1; i >= 0; i--) {
       var cells = [payload.labels[i]];
       for (var s = 0; s < payload.series.length; s++) {
         cells.push(payload.series[s].values[i] || 0);
@@ -1718,6 +1768,7 @@ ${TREND_INTERVALS.map(
       <tr>
 ${headerRow}
       </tr>
+      ${trendTotalRow}
     </thead>
     <tbody>
 ${bodyRows}
