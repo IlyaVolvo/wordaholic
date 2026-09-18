@@ -13,7 +13,8 @@
     "dev": "node scripts/dev.js",
     "dev:polywordlot": "vite --config games/polywordlot/vite.config.ts",
     "dev:polyhydra": "vite --config games/polyhydra/vite.config.ts",
-    "serve": "node scripts/serve.js"
+    "serve": "node scripts/serve.js",
+    "deploy:stats": "npx wrangler deploy --config workers/stats/wrangler.toml"
   },
   "engines": {
     "node": ">=20"

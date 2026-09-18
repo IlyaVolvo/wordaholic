@@ -669,6 +669,50 @@ export function trendBucketLabel(key, interval) {
   return key;
 }
 
+function utcYmd(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Inclusive UTC From/To days covering a Trends bucket, for Totals date filters.
+ * Hours map to that UTC calendar day.
+ *
+ * @param {string} key
+ * @param {'hours' | 'days' | 'weeks' | 'months'} interval
+ * @returns {{ from: string, to: string } | null}
+ */
+export function trendBucketDateRange(key, interval) {
+  const grain = parseTrendInterval(interval);
+  if (!key) return null;
+  if (grain === 'days' && DAY_RE.test(key)) return { from: key, to: key };
+  if (grain === 'hours') {
+    const day = String(key).slice(0, 10);
+    return DAY_RE.test(day) ? { from: day, to: day } : null;
+  }
+  if (grain === 'months' && /^\d{4}-\d{2}$/.test(key)) {
+    const y = Number(key.slice(0, 4));
+    const m = Number(key.slice(5, 7));
+    if (!y || m < 1 || m > 12) return null;
+    const last = new Date(Date.UTC(y, m, 0));
+    return { from: `${key}-01`, to: utcYmd(last) };
+  }
+  if (grain === 'weeks') {
+    const match = /^(\d{4})-W(\d{2})$/.exec(key);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const week = Number(match[2]);
+    if (!year || week < 1) return null;
+    const jan4 = new Date(Date.UTC(year, 0, 4));
+    const jan4Day = jan4.getUTCDay() || 7;
+    const monday = new Date(jan4);
+    monday.setUTCDate(jan4.getUTCDate() - (jan4Day - 1) + (week - 1) * 7);
+    const sunday = new Date(monday);
+    sunday.setUTCDate(monday.getUTCDate() + 6);
+    return { from: utcYmd(monday), to: utcYmd(sunday) };
+  }
+  return null;
+}
+
 /**
  * @param {Map<string, StatsRecord>} byIp
  */

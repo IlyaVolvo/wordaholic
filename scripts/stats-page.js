@@ -6,6 +6,7 @@ import {
   parseStatsTab,
   parseTrendInterval,
   parseTrendsView,
+  trendBucketDateRange,
   TREND_INTERVALS,
 } from './stats-combine.js';
 import { STATS_GAMES, STATS_GAME_IDS } from './stats-games.js';
@@ -28,7 +29,7 @@ const STATS_HELP =
   'Clear filters also clears the From/To dates and reloads the range. Group is unchanged.\n' +
   'Use the arrow on the Totals/Trends row to hide or show the filter controls.\n' +
   'Trends shows activity by hour, day, week, or month for the From/To window (empty = all available).\n' +
-  'Under Trends, Table is newest-first with a sticky total row; Graph plots games total and each game as separate colored lines (hover for values).\n' +
+  'Under Trends, Table is newest-first with a sticky total row; click a date to open Totals for that interval grouped by city. Graph plots games total and each game as separate colored lines (hover for values).\n' +
   'GET /api/stats is the raw 24h JSON dump.';
 
 /** @typedef {{ key: string, label: string, shortLabel?: string, type: 'text' | 'num' }} StatsColumn */
@@ -384,6 +385,23 @@ function groupedColumnDisplay(col, row, index, group) {
 function dataCell(col, inner, sortValue, extra = '') {
   const cls = col.type === 'num' ? ' class="n"' : '';
   return `<td${cls} data-sort="${esc(sortValue)}"${extra}>${inner}</td>`;
+}
+
+/**
+ * @param {{ key: string, label: string }} row
+ * @param {'hours' | 'days' | 'weeks' | 'months'} interval
+ */
+function trendDateLink(row, interval) {
+  const range = trendBucketDateRange(row.key, interval);
+  const label = esc(row.label);
+  if (!range) return label;
+  const p = new URLSearchParams({
+    tab: 'totals',
+    group: 'city',
+    from: range.from,
+    to: range.to,
+  });
+  return `<a class="trend-date" href="/stats?${esc(p.toString())}">${label}</a>`;
 }
 
 /**
@@ -1298,6 +1316,12 @@ export function renderStatsHtml(opts) {
       text-underline-offset: 0.2em;
     }
     button.group-drill:hover { text-decoration-thickness: 2px; }
+    a.trend-date {
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 0.2em;
+    }
+    a.trend-date:hover { text-decoration-thickness: 2px; }
     .stats-subtabs {
       display: flex;
       align-items: center;
@@ -1401,7 +1425,7 @@ ${TREND_INTERVALS.map(
     const bodyRows = tableRows
       .map((r) => {
         const cells = [
-          dataCell(TREND_COLUMNS[0], esc(r.label), r.key),
+          dataCell(TREND_COLUMNS[0], trendDateLink(r, interval), r.key),
           dataCell(TREND_COLUMNS[1], trendCell(r.games), r.games),
           ...STATS_GAME_IDS.map((id, i) =>
             dataCell(TREND_COLUMNS[i + 2], trendCell(r.byGame?.[id] || 0), r.byGame?.[id] || 0)
