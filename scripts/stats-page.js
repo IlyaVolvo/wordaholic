@@ -27,6 +27,7 @@ const STATS_HELP =
   'City totals follow coarse IP geo (Starlink often Seattle, T-Mobile San Francisco).\n' +
   'Export CSV downloads the rows currently visible under those filters (not the totals row).\n' +
   'Clear filters also clears the From/To dates and reloads the range. Group is unchanged.\n' +
+  'On Trends, Clear Calendar empties From/To and reloads the full range (Safari’s calendar Reset does not).\n' +
   'Use the arrow on the Totals/Trends row to hide or show the filter controls.\n' +
   'Trends shows activity by hour, day, week, or month for the From/To window (empty = all available).\n' +
   'Under Trends, Table is newest-first with a sticky total row; click a date to open Totals for that interval grouped by city. Graph plots games total and each game as separate colored lines (hover for values).\n' +
@@ -1201,6 +1202,7 @@ export function renderStatsHtml(opts) {
     }
     .stats-chrome button[data-export-csv],
     .stats-chrome button[data-clear-filters],
+    .stats-chrome button[data-clear-calendar],
     .stats-chrome button[data-toggle-filters] {
       font: inherit;
       font-weight: 500;
@@ -1218,11 +1220,13 @@ export function renderStatsHtml(opts) {
     }
     .stats-chrome button[data-export-csv]:hover,
     .stats-chrome button[data-clear-filters]:hover,
+    .stats-chrome button[data-clear-calendar]:hover,
     .stats-chrome button[data-toggle-filters]:hover {
       background: color-mix(in srgb, currentColor 22%, Canvas);
     }
     .stats-chrome button[data-export-csv]:active,
     .stats-chrome button[data-clear-filters]:active,
+    .stats-chrome button[data-clear-calendar]:active,
     .stats-chrome button[data-toggle-filters]:active {
       background: color-mix(in srgb, currentColor 28%, Canvas);
     }
@@ -1537,6 +1541,8 @@ ${STATS_GAME_IDS.map(
     const TRENDS_NAV = `(function () {
   var form = document.getElementById('stats-filters');
   if (!form) return;
+  var clearBtn = form.querySelector('[data-clear-calendar]');
+  var clearTouchAt = 0;
   function go() {
     var params = new URLSearchParams();
     params.set('tab', 'trends');
@@ -1549,6 +1555,22 @@ ${STATS_GAME_IDS.map(
     if (intervalEl && intervalEl.value) params.set('interval', intervalEl.value);
     if (viewEl && viewEl.value) params.set('view', viewEl.value);
     location.href = '/stats?' + params.toString();
+  }
+  function clearCalendar(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var url = new URL(location.href);
+    url.searchParams.delete('from');
+    url.searchParams.delete('to');
+    var next = url.pathname + url.search;
+    if (next === location.pathname + location.search) {
+      var fromEl = form.querySelector('[name=from]');
+      var toEl = form.querySelector('[name=to]');
+      if (fromEl) fromEl.value = '';
+      if (toEl) toEl.value = '';
+      return;
+    }
+    location.href = next;
   }
   function onDateOrInterval(e) {
     var name = e.target && e.target.name;
@@ -1563,6 +1585,20 @@ ${STATS_GAME_IDS.map(
     e.preventDefault();
     go();
   });
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function (e) {
+      if (Date.now() - clearTouchAt < 500) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      clearCalendar(e);
+    });
+    clearBtn.addEventListener('touchend', function (e) {
+      clearTouchAt = Date.now();
+      clearCalendar(e);
+    }, { passive: false });
+  }
 })();`;
 
     const TRENDS_CHART = `(function () {
@@ -1835,6 +1871,7 @@ ${emptyRow}
       ${subtabs}
       <div id="stats-filter-body" class="stats-filter-body">
         ${sharedDates}
+        <button type="button" data-clear-calendar>Clear Calendar</button>
         ${intervalSelect}
       </div>
     </form>
