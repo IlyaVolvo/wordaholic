@@ -17,6 +17,7 @@ const LANGUAGE_MENU = new Map(languageCatalog.map((row) => [row.code, row.menu])
 const STATS_HELP =
   'Hours are UTC. Location is country · city, region (and ISP).\n' +
   'Languages is how many distinct language codes appear in games from that IP.\n' +
+  'Games is how many games were played (language + length and other settings; repeats count). Totals and Trends use the same count.\n' +
   'Hover or tap an IP for permutation keys, or a language count for those codes.\n' +
   'Click a column header to sort (numeric columns start high-to-low).\n' +
   'Numeric filters keep rows with a count greater than the value (default 0; use -1 to include zeros).\n' +

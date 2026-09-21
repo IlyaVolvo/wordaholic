@@ -441,23 +441,17 @@ export function combineBodies(inputs, range = {}) {
   const ids = [...byId.keys()].sort();
   return ids.map((ip) => {
     const { rec, addrs } = byId.get(ip) || { rec: emptyRecord(), addrs: new Set() };
-    const perms = distinctPerms(rec);
     const languageCodes = languageCodesPlayed(rec);
-    /** @type {Record<string, number>} */
-    const byGame = {};
-    for (const gameId of STATS_GAME_IDS) {
-      const counts = rec.games[gameId] || {};
-      byGame[gameId] = Object.keys(counts).filter((k) => counts[k]).length;
-    }
+    const metrics = distinctGameMetrics(rec);
     return {
       ip,
       addrs: addrs.size,
-      games: perms.length,
-      byGame,
+      games: metrics.games,
+      byGame: metrics.byGame,
       homeHits: rec.homeHits,
       languages: languageCodes.length,
       languageCodes,
-      perms: perms.join(' '),
+      perms: distinctPerms(rec).join(' '),
       location: formatLocation(rec.geo),
       geo: rec.geo,
     };
@@ -714,22 +708,24 @@ export function trendBucketDateRange(key, interval) {
 }
 
 /**
- * @param {Map<string, StatsRecord>} byIp
+ * Plays for language + other game settings (length, boards, …). Repeats count.
+ * Totals and Trends both use this so a day’s totals match.
+ * @param {StatsRecord} rec
  */
-function metricsFromHourIpMap(byIp) {
-  const collapsed = collapseHour(byIp);
-  let merged = emptyRecord();
-  for (const { rec } of collapsed.values()) {
-    merged = sumRecord(merged, rec);
-  }
-  /** @type {Record<string, number>} */
+function distinctGameMetrics(rec) {
+  return eventCountsFromRecord(rec);
+}
+
+/**
+ * @param {Map<string, { rec: StatsRecord, addrs: Set<string> }>} byId
+ */
+function distinctMetricsFromIdentities(byId) {
   const byGame = Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0]));
   let games = 0;
-  for (const id of STATS_GAME_IDS) {
-    let n = 0;
-    for (const v of Object.values(merged.games[id] || {})) n += Number(v) || 0;
-    byGame[id] = n;
-    games += n;
+  for (const { rec } of byId.values()) {
+    const m = distinctGameMetrics(rec);
+    games += m.games;
+    for (const id of STATS_GAME_IDS) byGame[id] += m.byGame[id] || 0;
   }
   return { games, byGame };
 }
@@ -796,26 +792,32 @@ export function combineTrends(inputs, range = {}, interval = 'days') {
   }
   if (!startH || !endH) return [];
 
-  /** @type {Map<string, { games: number, byGame: Record<string, number> }>} */
-  const acc = new Map();
+  /** @type {Map<string, Map<string, { rec: StatsRecord, addrs: Set<string> }>>} */
+  const byBucket = new Map();
   for (const hour of hours) {
-    const m = metricsFromHourIpMap(byHour.get(hour) || new Map());
     const key = trendBucketKey(hour, grain);
     if (!key) continue;
-    const prev = acc.get(key);
-    if (!prev) {
-      acc.set(key, { games: m.games, byGame: { ...m.byGame } });
-    } else {
-      prev.games += m.games;
-      for (const id of STATS_GAME_IDS) {
-        prev.byGame[id] = (prev.byGame[id] || 0) + (m.byGame[id] || 0);
+    let bucket = byBucket.get(key);
+    if (!bucket) {
+      bucket = new Map();
+      byBucket.set(key, bucket);
+    }
+    const collapsed = collapseHour(byHour.get(hour) || new Map());
+    for (const [id, { rec, addrs }] of collapsed) {
+      const prev = bucket.get(id);
+      if (!prev) {
+        bucket.set(id, { rec, addrs: new Set(addrs) });
+      } else {
+        prev.rec = sumRecord(prev.rec, rec);
+        for (const addr of addrs) prev.addrs.add(addr);
       }
     }
   }
 
   const emptyByGame = Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0]));
   return enumerateTrendBucketKeys(startH, endH, grain).map((key) => {
-    const m = acc.get(key) || { games: 0, byGame: { ...emptyByGame } };
+    const bucket = byBucket.get(key);
+    const m = bucket ? distinctMetricsFromIdentities(bucket) : { games: 0, byGame: { ...emptyByGame } };
     return {
       key,
       label: trendBucketLabel(key, grain),
