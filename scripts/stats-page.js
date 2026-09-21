@@ -30,8 +30,8 @@ const STATS_HELP =
   'Clear filters also clears the From/To dates and reloads the range. Group is unchanged.\n' +
   'On Trends, Clear Calendar empties From/To and reloads the full range (Safari’s calendar Reset does not).\n' +
   'Use the arrow on the Totals/Trends row to hide or show the filter controls.\n' +
-  'Trends shows activity by hour, day, week, or month for the From/To window (empty = all available).\n' +
-  'Under Trends, Table is newest-first with a sticky total row; click a date to open Totals for that interval grouped by city. Graph plots games total and each game as separate colored lines (hover for values).\n' +
+  'Trends shows activity by UTC clock hour (always 24 rows, each hour summed across days in the range), or by day, week, or month for the From/To window (empty = all available).\n' +
+  'Under Trends, Table is newest-first with a sticky total row; click a date, week, or month to open Totals for that interval grouped by city. Graph plots games total and each game as separate colored lines (hover for values).\n' +
   'GET /api/stats is the raw 24h JSON dump.';
 
 /** @typedef {{ key: string, label: string, shortLabel?: string, type: 'text' | 'num' }} StatsColumn */

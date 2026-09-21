@@ -645,7 +645,7 @@ function isoWeekKey(date) {
 export function trendBucketKey(hourIso, interval) {
   const hour = truncateHourIso(hourIso);
   if (!hour) return '';
-  if (interval === 'hours') return hour;
+  if (interval === 'hours') return hour.slice(11, 13);
   if (interval === 'days') return hour.slice(0, 10);
   if (interval === 'months') return hour.slice(0, 7);
   return isoWeekKey(new Date(hour));
@@ -657,9 +657,7 @@ export function trendBucketKey(hourIso, interval) {
  */
 export function trendBucketLabel(key, interval) {
   if (!key) return '';
-  if (interval === 'hours') {
-    return key.replace('T', ' ').replace(/:00\.000Z$/, 'Z').replace(/\.000Z$/, 'Z');
-  }
+  if (interval === 'hours') return /^\d{2}$/.test(key) ? `${key}:00` : key;
   return key;
 }
 
@@ -669,7 +667,7 @@ function utcYmd(date) {
 
 /**
  * Inclusive UTC From/To days covering a Trends bucket, for Totals date filters.
- * Hours map to that UTC calendar day.
+ * Clock-hour buckets span the whole Trends range, so they are not a date link.
  *
  * @param {string} key
  * @param {'hours' | 'days' | 'weeks' | 'months'} interval
@@ -679,10 +677,7 @@ export function trendBucketDateRange(key, interval) {
   const grain = parseTrendInterval(interval);
   if (!key) return null;
   if (grain === 'days' && DAY_RE.test(key)) return { from: key, to: key };
-  if (grain === 'hours') {
-    const day = String(key).slice(0, 10);
-    return DAY_RE.test(day) ? { from: day, to: day } : null;
-  }
+  if (grain === 'hours') return null;
   if (grain === 'months' && /^\d{4}-\d{2}$/.test(key)) {
     const y = Number(key.slice(0, 4));
     const m = Number(key.slice(5, 7));
@@ -736,6 +731,9 @@ function distinctMetricsFromIdentities(byId) {
  * @param {'hours' | 'days' | 'weeks' | 'months'} interval
  */
 function enumerateTrendBucketKeys(startHourIso, endHourIso, interval) {
+  if (interval === 'hours') {
+    return Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
+  }
   const start = truncateHourIso(startHourIso);
   const end = truncateHourIso(endHourIso);
   /** @type {string[]} */
