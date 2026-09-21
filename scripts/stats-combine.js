@@ -29,6 +29,7 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
  *   homeHits: number,
  *   languages: number,
  *   languageCodes: string[],
+ *   playsByLang: Record<string, { games: number, byGame: Record<string, number> }>,
  *   perms: string,
  *   location: string,
  *   geo: StatsGeo | null,
@@ -385,22 +386,33 @@ function distinctPerms(rec) {
 }
 
 /**
- * Distinct language codes from game permutation keys (`en,5`, `en,2,4`).
+ * Plays split by language code from permutation keys (`en,5`, `en,2,4`).
  * @param {StatsRecord} rec
- * @returns {string[]}
+ * @returns {Record<string, { games: number, byGame: Record<string, number> }>}
  */
-function languageCodesPlayed(rec) {
-  /** @type {Set<string>} */
-  const codes = new Set();
+function playsByLanguage(rec) {
+  /** @type {Record<string, { games: number, byGame: Record<string, number> }>} */
+  const byLang = {};
   for (const gameId of STATS_GAME_IDS) {
     const counts = rec.games[gameId] || {};
     for (const [perm, n] of Object.entries(counts)) {
-      if (!n) continue;
+      const count = Number(n) || 0;
+      if (!count) continue;
       const lang = perm.split(',')[0].trim();
-      if (lang) codes.add(lang);
+      if (!lang) continue;
+      let slot = byLang[lang];
+      if (!slot) {
+        slot = {
+          games: 0,
+          byGame: Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0])),
+        };
+        byLang[lang] = slot;
+      }
+      slot.games += count;
+      slot.byGame[gameId] += count;
     }
   }
-  return [...codes].sort();
+  return byLang;
 }
 
 /**
@@ -441,7 +453,8 @@ export function combineBodies(inputs, range = {}) {
   const ids = [...byId.keys()].sort();
   return ids.map((ip) => {
     const { rec, addrs } = byId.get(ip) || { rec: emptyRecord(), addrs: new Set() };
-    const languageCodes = languageCodesPlayed(rec);
+    const playsByLang = playsByLanguage(rec);
+    const languageCodes = Object.keys(playsByLang).sort();
     const metrics = distinctGameMetrics(rec);
     return {
       ip,
@@ -451,6 +464,7 @@ export function combineBodies(inputs, range = {}) {
       homeHits: rec.homeHits,
       languages: languageCodes.length,
       languageCodes,
+      playsByLang,
       perms: distinctPerms(rec).join(' '),
       location: formatLocation(rec.geo),
       geo: rec.geo,
@@ -486,15 +500,15 @@ export function combineTotals(rows) {
   return { ...acc, languages: codes.length, languageCodes: codes };
 }
 
-export const STATS_GROUPS = ['network', 'country', 'city'];
+export const STATS_GROUPS = ['network', 'country', 'city', 'language'];
 
 /**
  * @param {unknown} value
- * @returns {'network' | 'country' | 'city'}
+ * @returns {'network' | 'country' | 'city' | 'language'}
  */
 export function parseStatsGroup(value) {
   const v = String(value || '').trim().toLowerCase();
-  if (v === 'network' || v === 'city') return v;
+  if (v === 'network' || v === 'city' || v === 'language') return v;
   return 'country';
 }
 
@@ -539,15 +553,63 @@ export function groupedRowLabel(group, sample) {
  */
 
 /**
- * Roll up already-filtered network rows by country or city.
+ * @param {StatsRow[]} rows
+ * @returns {StatsGroupedRow[]}
+ */
+function groupStatsRowsByLanguage(rows) {
+  const emptyByGame = () => Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0]));
+  /** @type {Map<string, { networks: number, addrs: number, games: number, homeHits: number, byGame: Record<string, number> }>} */
+  const buckets = new Map();
+  for (const row of rows || []) {
+    const plays = row.playsByLang || {};
+    for (const [code, metrics] of Object.entries(plays)) {
+      if (!code || !metrics || !metrics.games) continue;
+      let bucket = buckets.get(code);
+      if (!bucket) {
+        bucket = { networks: 0, addrs: 0, games: 0, homeHits: 0, byGame: emptyByGame() };
+        buckets.set(code, bucket);
+      }
+      bucket.networks += 1;
+      bucket.addrs += row.addrs || 0;
+      bucket.homeHits += row.homeHits || 0;
+      bucket.games += metrics.games || 0;
+      for (const id of STATS_GAME_IDS) {
+        bucket.byGame[id] += metrics.byGame?.[id] || 0;
+      }
+    }
+  }
+  return [...buckets.keys()].sort().map((code) => {
+    const bucket = buckets.get(code);
+    const byGame = bucket?.byGame || emptyByGame();
+    return {
+      key: code,
+      label: code,
+      networks: bucket?.networks || 0,
+      addrs: bucket?.addrs || 0,
+      games: bucket?.games || 0,
+      byGame,
+      homeHits: bucket?.homeHits || 0,
+      languages: 1,
+      languageCodes: [code],
+      country: '',
+      city: '',
+    };
+  });
+}
+
+/**
+ * Roll up already-filtered network rows by country, city, or language.
  * City key is country+city. Missing city stays in that country as city unknown.
  * Unknown geo is one Unknown bucket, not dropped.
+ * Language splits plays by the language in each puzzle key; a network that
+ * played two languages appears in both rows.
  *
  * @param {StatsRow[]} rows
- * @param {'country' | 'city'} group
+ * @param {'country' | 'city' | 'language'} group
  * @returns {StatsGroupedRow[]}
  */
 export function groupStatsRows(rows, group) {
+  if (group === 'language') return groupStatsRowsByLanguage(rows);
   const g = group === 'city' ? 'city' : 'country';
   /** @type {Map<string, StatsRow[]>} */
   const buckets = new Map();

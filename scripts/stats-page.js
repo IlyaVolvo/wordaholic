@@ -14,6 +14,13 @@ import languageCatalog from '../word-data/languages.json' with { type: 'json' };
 
 const LANGUAGE_MENU = new Map(languageCatalog.map((row) => [row.code, row.menu]));
 
+/**
+ * @param {string} code
+ */
+function languageDisplayName(code) {
+  return LANGUAGE_MENU.get(code) || code || 'Unknown';
+}
+
 const STATS_HELP =
   'Hours are UTC. Location is country · city, region (and ISP).\n' +
   'Languages is how many distinct language codes appear in games from that IP.\n' +
@@ -23,8 +30,8 @@ const STATS_HELP =
   'Numeric filters keep rows with a count greater than the value (default 0; use -1 to include zeros).\n' +
   'Homehits only keeps networks with home hits and no games, including polywordlot, transword, and polyhydra. Those count filters are disabled while it is checked. Unchecked, it has no effect. Country, place, and ISP still apply.\n' +
   'Place and ISP match any part of the name; multiple words all have to match. Filters apply as you change them.\n' +
-  'Group on Totals defaults to country and can roll the same filtered networks up by country or city. City is country plus city; a missing city stays in that country as city unknown. Unknown geo is one Unknown row.\n' +
-  'Grouped languages are the union of codes, not a sum of counts. Click a country or city to filter to it and return to Network.\n' +
+  'Group on Totals defaults to country and can roll the same filtered networks up by country, city, or language. City is country plus city; a missing city stays in that country as city unknown. Unknown geo is one Unknown row.\n' +
+  'Grouped languages are the union of codes, not a sum of counts. Language grouping splits plays by the language in each puzzle key; a network that played two languages appears in both, and the languages count column is hidden. Click a country or city to filter to it and return to Network.\n' +
   'City totals follow coarse IP geo (Starlink often Seattle, T-Mobile San Francisco).\n' +
   'Export CSV downloads the rows currently visible under those filters (not the totals row).\n' +
   'Clear filters also clears the From/To dates and reloads the range. Group is unchanged.\n' +
@@ -80,16 +87,18 @@ const GROUP_OPTIONS = [
   { id: 'network', label: 'Network' },
   { id: 'country', label: 'Country' },
   { id: 'city', label: 'City' },
+  { id: 'language', label: 'Language' },
 ];
 
 /**
- * @param {'network' | 'country' | 'city'} group
+ * @param {'network' | 'country' | 'city' | 'language'} group
  * @returns {StatsColumn[]}
  */
 function totalsColumns(group) {
   if (group === 'network') return COLUMNS;
+  const first = group === 'city' ? 'city' : group === 'language' ? 'language' : 'country';
   return [
-    { key: 'label', label: group === 'country' ? 'country' : 'city', type: 'text' },
+    { key: 'label', label: first, type: 'text' },
     { key: 'networks', label: 'networks', type: 'num' },
     ...COLUMNS.slice(2),
   ];
@@ -312,14 +321,25 @@ function columnDisplay(col, row, index) {
  * @param {StatsColumn} col
  * @param {ReturnType<typeof combineTotals>} totals
  * @param {number} networkCount
- * @param {'network' | 'country' | 'city'} [group]
+ * @param {'network' | 'country' | 'city' | 'language'} [group]
  * @param {number} [groupCount]
  */
 function totalDisplay(col, totals, networkCount, group = 'network', groupCount = 0) {
   const totalLangTip = (totals.languageCodes || []).map((code) => LANGUAGE_MENU.get(code) || code).join('\n');
   if (col.key === 'ip') return esc(`(${networkCount} network${networkCount === 1 ? '' : 's'})`);
   if (col.key === 'label') {
-    const unit = group === 'city' ? (groupCount === 1 ? 'city' : 'cities') : groupCount === 1 ? 'country' : 'countries';
+    const unit =
+      group === 'city'
+        ? groupCount === 1
+          ? 'city'
+          : 'cities'
+        : group === 'language'
+          ? groupCount === 1
+            ? 'language'
+            : 'languages'
+          : groupCount === 1
+            ? 'country'
+            : 'countries';
     return esc(`(${groupCount} ${unit})`);
   }
   if (col.key === 'location') return '';
@@ -365,12 +385,15 @@ function drillCell(label, group, country, city) {
  * @param {StatsColumn} col
  * @param {import('./stats-combine.js').StatsGroupedRow} row
  * @param {number} index
- * @param {'country' | 'city'} group
+ * @param {'country' | 'city' | 'language'} group
  */
 function groupedColumnDisplay(col, row, index, group) {
   const langCodes = row.languageCodes || [];
   const langTip = langCodes.map((code) => LANGUAGE_MENU.get(code) || code).join('\n');
-  if (col.key === 'label') return drillCell(row.label, group, row.country, row.city);
+  if (col.key === 'label') {
+    if (group === 'language') return esc(row.label);
+    return drillCell(row.label, group, row.country, row.city);
+  }
   if (col.key === 'networks') return esc(row.networks);
   if (col.key === 'languages') return tipCell(String(row.languages), langTip, `glang-${index}`);
   if (col.key === 'addrs') return esc(row.addrs);
@@ -386,7 +409,7 @@ function groupedColumnDisplay(col, row, index, group) {
  */
 function dataCell(col, inner, sortValue, extra = '') {
   const cls = col.type === 'num' ? ' class="n"' : '';
-  return `<td${cls} data-sort="${esc(sortValue)}"${extra}>${inner}</td>`;
+  return `<td${cls} data-sort="${esc(sortValue)}" data-col="${esc(col.key)}"${extra}>${inner}</td>`;
 }
 
 /**
@@ -404,6 +427,23 @@ function trendDateLink(row, interval) {
     to: range.to,
   });
   return `<a class="trend-date" href="/stats?${esc(p.toString())}">${label}</a>`;
+}
+
+/**
+ * Compact per-language play counts for client rollup: `ru:polywordlot=1,polyhydra=3 en:polywordlot=2`.
+ * @param {import('./stats-combine.js').StatsRow['playsByLang']} [playsByLang]
+ */
+function encodeLangPlays(playsByLang) {
+  if (!playsByLang) return '';
+  return Object.keys(playsByLang)
+    .sort()
+    .map((code) => {
+      const m = playsByLang[code];
+      const parts = STATS_GAME_IDS.filter((id) => m?.byGame?.[id]).map((id) => `${id}=${m.byGame[id]}`);
+      return parts.length ? `${code}:${parts.join(',')}` : '';
+    })
+    .filter(Boolean)
+    .join(' ');
 }
 
 /**
@@ -428,6 +468,8 @@ function rowDataAttrs(row) {
     `data-location="${esc(row.location || '')}"`,
     `data-perms="${esc(row.perms || '')}"`,
   ];
+  const langPlays = encodeLangPlays(row.playsByLang);
+  if (langPlays) parts.push(`data-lang-plays="${esc(langPlays)}"`);
   for (const g of STATS_GAMES) {
     parts.push(`data-game-${esc(g.id)}="${esc(row.byGame?.[g.id] ?? 0)}"`);
   }
@@ -600,11 +642,11 @@ const FILTER_SCRIPT = `(function () {
   function currentGroup() {
     var el = form.querySelector('[name=group]');
     var v = el ? String(el.value || '') : 'country';
-    if (v === 'network' || v === 'city') return v;
+    if (v === 'network' || v === 'city' || v === 'language') return v;
     return 'country';
   }
   function setHeaders(group) {
-    var labels = group === 'country' ? ['country', 'networks'] : group === 'city' ? ['city', 'networks'] : ['IP', 'location'];
+    var labels = group === 'country' ? ['country', 'networks'] : group === 'city' ? ['city', 'networks'] : group === 'language' ? ['language', 'networks'] : ['IP', 'location'];
     var types = group === 'network' ? ['text', 'text'] : ['text', 'num'];
     var ths = table.tHead && table.tHead.rows[0] ? table.tHead.rows[0].cells : [];
     for (var i = 0; i < 2 && i < ths.length; i++) {
@@ -617,10 +659,98 @@ const FILTER_SCRIPT = `(function () {
     }
     if (ths[0]) ths[0].setAttribute('aria-sort', 'ascending');
   }
-  function numTd(value) {
-    return '<td class="n" data-sort="' + escHtml(value) + '">' + escHtml(value) + '</td>';
+  function numTd(value, col) {
+    return '<td class="n" data-sort="' + escHtml(value) + '" data-col="' + escHtml(col || '') + '">' + escHtml(value) + '</td>';
+  }
+  function langLabel(code) {
+    return langNames[code] || code || 'Unknown';
+  }
+  function parseLangPlays(row) {
+    var raw = String(row.getAttribute('data-lang-plays') || '');
+    var out = {};
+    if (!raw) return out;
+    var packs = raw.split(/\\s+/);
+    for (var i = 0; i < packs.length; i++) {
+      var p = packs[i];
+      if (!p) continue;
+      var colon = p.indexOf(':');
+      if (colon < 1) continue;
+      var code = p.slice(0, colon);
+      var rest = p.slice(colon + 1);
+      var byGame = {};
+      var games = 0;
+      var j;
+      for (j = 0; j < gameIds.length; j++) byGame[gameIds[j]] = 0;
+      var parts = rest.split(',');
+      for (var k = 0; k < parts.length; k++) {
+        var eq = parts[k].indexOf('=');
+        if (eq < 1) continue;
+        var id = parts[k].slice(0, eq);
+        var n = Number(parts[k].slice(eq + 1)) || 0;
+        if (gameIds.indexOf(id) === -1) continue;
+        byGame[id] = n;
+        games += n;
+      }
+      if (games) out[code] = { games: games, byGame: byGame };
+    }
+    return out;
+  }
+  function rollupLanguages(visible) {
+    var buckets = {};
+    var order = [];
+    var i;
+    var j;
+    for (i = 0; i < visible.length; i++) {
+      var row = visible[i];
+      var plays = parseLangPlays(row);
+      var codes = Object.keys(plays);
+      for (var c = 0; c < codes.length; c++) {
+        var code = codes[c];
+        if (!buckets[code]) {
+          buckets[code] = {
+            networks: 0,
+            addrs: 0,
+            games: 0,
+            homeHits: 0,
+            byGame: {}
+          };
+          for (j = 0; j < gameIds.length; j++) buckets[code].byGame[gameIds[j]] = 0;
+          order.push(code);
+        }
+        var b = buckets[code];
+        var m = plays[code];
+        b.networks += 1;
+        b.addrs += numAttr(row, 'data-addrs');
+        b.homeHits += numAttr(row, 'data-homehits');
+        b.games += m.games;
+        for (j = 0; j < gameIds.length; j++) {
+          b.byGame[gameIds[j]] += m.byGame[gameIds[j]] || 0;
+        }
+      }
+    }
+    var items = order.map(function (key) {
+      var bucket = buckets[key];
+      return {
+        key: key,
+        label: langLabel(key),
+        country: '',
+        city: '',
+        networks: bucket.networks,
+        addrs: bucket.addrs,
+        games: bucket.games,
+        homeHits: bucket.homeHits,
+        byGame: bucket.byGame,
+        languages: 1,
+        langCodes: [key]
+      };
+    });
+    items.sort(function (a, b) {
+      return a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' });
+    });
+    return items;
   }
   function rollup(visible, group) {
+    if (group === 'language') return rollupLanguages(visible);
     var buckets = {};
     var order = [];
     var i;
@@ -699,7 +829,9 @@ const FILTER_SCRIPT = `(function () {
     }
     var langTip = item.langCodes.map(function (code) { return langNames[code] || code; }).join('\\n');
     var labelInner;
-    if (item.country) {
+    if (group === 'language') {
+      labelInner = escHtml(item.label);
+    } else if (item.country) {
       labelInner = '<button type="button" class="group-drill" data-drill="' + escHtml(group) +
         '" data-drill-country="' + escHtml(item.country) + '"' +
         (group === 'city' ? ' data-drill-city="' + escHtml(item.city) + '"' : '') +
@@ -710,12 +842,12 @@ const FILTER_SCRIPT = `(function () {
     var langInner = '<span class="tip-cell"><button type="button" class="tip-trigger" title="' +
       escHtml(langTip) + '">' + escHtml(item.languages) + '</button><span class="tip" role="tooltip">' +
       escHtml(langTip) + '</span></span>';
-    var html = '<td data-sort="' + escHtml(item.label) + '">' + labelInner + '</td>' +
-      numTd(item.networks) + numTd(item.addrs) +
-      '<td class="n" data-sort="' + escHtml(item.languages) + '">' + langInner + '</td>' +
-      numTd(item.games);
-    for (j = 0; j < gameIds.length; j++) html += numTd(item.byGame[gameIds[j]] || 0);
-    html += numTd(item.homeHits);
+    var html = '<td data-sort="' + escHtml(item.label) + '" data-col="label">' + labelInner + '</td>' +
+      numTd(item.networks, 'networks') + numTd(item.addrs, 'addrs') +
+      '<td class="n" data-sort="' + escHtml(item.languages) + '" data-col="languages">' + langInner + '</td>' +
+      numTd(item.games, 'games');
+    for (j = 0; j < gameIds.length; j++) html += numTd(item.byGame[gameIds[j]] || 0, gameIds[j]);
+    html += numTd(item.homeHits, 'homeHits');
     tr.innerHTML = html;
     return tr;
   }
@@ -780,9 +912,9 @@ const FILTER_SCRIPT = `(function () {
     var langTip = langList.map(function (code) { return langNames[code] || code; }).join('\\n');
     var first = totalsRow.cells[0];
     var second = totalsRow.cells[1];
-    if (group === 'country' || group === 'city') {
-      var one = group === 'city' ? 'city' : 'country';
-      var many = group === 'city' ? 'cities' : 'countries';
+    if (group === 'country' || group === 'city' || group === 'language') {
+      var one = group === 'city' ? 'city' : group === 'language' ? 'language' : 'country';
+      var many = group === 'city' ? 'cities' : group === 'language' ? 'languages' : 'countries';
       if (first) {
         first.classList.remove('n');
         first.textContent = '(' + groupCount + ' ' + (groupCount === 1 ? one : many) + ')';
@@ -817,6 +949,7 @@ const FILTER_SCRIPT = `(function () {
   function apply() {
     syncDisabled();
     var group = currentGroup();
+    table.classList.toggle('group-language', group === 'language');
     var country = String((form.querySelector('[name=country]') || {}).value || '').trim().toUpperCase();
     var place = String((form.querySelector('[name=place]') || {}).value || '').trim();
     var isp = String((form.querySelector('[name=isp]') || {}).value || '').trim();
@@ -999,15 +1132,22 @@ const CSV_SCRIPT = `(function () {
   function currentGroup() {
     var el = form.querySelector('[name=group]');
     var v = el ? String(el.value || '') : 'country';
-    if (v === 'network' || v === 'city') return v;
+    if (v === 'network' || v === 'city' || v === 'language') return v;
     return 'country';
   }
   function columns() {
     var group = currentGroup();
     if (group === 'network') return { headers: networkHeaders, keys: networkKeys };
+    var restH = restHeaders;
+    var restK = restKeys;
+    if (group === 'language') {
+      restH = restHeaders.filter(function (h, i) { return restKeys[i] !== 'languages'; });
+      restK = restKeys.filter(function (k) { return k !== 'languages'; });
+    }
+    var first = group === 'country' ? 'country' : group === 'city' ? 'city' : 'language';
     return {
-      headers: [group === 'country' ? 'country' : 'city', 'networks'].concat(restHeaders),
-      keys: ['label', 'networks'].concat(restKeys)
+      headers: [first, 'networks'].concat(restH),
+      keys: ['label', 'networks'].concat(restK)
     };
   }
   function csvEscape(value) {
@@ -1242,6 +1382,8 @@ export function renderStatsHtml(opts) {
     }
     .gt-field { display: flex; align-items: center; gap: 0.2rem; }
     table { border-collapse: separate; border-spacing: 0; width: 100%; }
+    #stats-table.group-language th[data-col="languages"],
+    #stats-table.group-language td[data-col="languages"] { display: none; }
     th, td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent); vertical-align: top; }
     th { font-size: 12px; }
     thead th {
@@ -1886,7 +2028,13 @@ ${emptyRow}
   }
 
   const columns = totalsColumns(group);
-  const grouped = group === 'network' ? [] : groupStatsRows(filtered, group);
+  const groupedRaw = group === 'network' ? [] : groupStatsRows(filtered, group);
+  const grouped =
+    group === 'language'
+      ? groupedRaw
+          .map((r) => ({ ...r, label: languageDisplayName(r.key) }))
+          .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }))
+      : groupedRaw;
   const networkRows = allRows
     .map((r, i) => {
       const match = rowMatchesFilters(r, filters);
@@ -1899,9 +2047,8 @@ ${emptyRow}
     .join('\n');
   const groupedRows = grouped
     .map((r, i) => {
-      const grain = group === 'city' ? 'city' : 'country';
       const cells = columns
-        .map((col) => dataCell(col, groupedColumnDisplay(col, r, i, grain), groupedColumnSortValue(col, r)))
+        .map((col) => dataCell(col, groupedColumnDisplay(col, r, i, group), groupedColumnSortValue(col, r)))
         .join('\n');
       const attrs = [
         `data-grouped="1"`,
@@ -1930,8 +2077,7 @@ ${columns
     dataCell(
       col,
       totalDisplay(col, totals, filtered.length, group, grouped.length),
-      '',
-      ` data-col="${esc(col.key)}"`
+      ''
     )
   )
   .join('\n')}
@@ -1941,7 +2087,7 @@ ${columns
   const headerRow = columns.map((col, i) => {
     const cls = col.type === 'num' ? ' class="n"' : '';
     const aria = i === 0 ? ' aria-sort="ascending"' : '';
-    return `        <th${cls} data-type="${col.type}"${aria}><button type="button" class="sort">${columnHeaderMarkup(col)}</button></th>`;
+    return `        <th${cls} data-type="${col.type}" data-col="${esc(col.key)}"${aria}><button type="button" class="sort">${columnHeaderMarkup(col)}</button></th>`;
   }).join('\n');
 
   const groupSelect = `<label>Group<select name="group">
@@ -2003,7 +2149,7 @@ ${countryOptions
     ${notice}
   </div>
   <div class="stats-table-wrap">
-  <table id="stats-table">
+  <table id="stats-table"${group === 'language' ? ' class="group-language"' : ''}>
     <thead>
       <tr>
 ${headerRow}
