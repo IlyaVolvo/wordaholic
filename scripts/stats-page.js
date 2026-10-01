@@ -28,17 +28,18 @@ const STATS_HELP =
   'Hover or tap an IP for permutation keys, or a language count for those codes.\n' +
   'Click a column header to sort (numeric columns start high-to-low).\n' +
   'Numeric filters keep rows with a count greater than the value (default 0; use -1 to include zeros).\n' +
-  'Homehits only keeps networks with home hits and no games, including polywordlot, transword, and polyhydra. Those count filters are disabled while it is checked. Unchecked, it has no effect. Country, place, and ISP still apply.\n' +
+  'Homehits only keeps networks with home hits and no games, including polywordlot, transword, and polyhydra. Those count filters are disabled while it is checked. Unchecked, it has no effect. Country, place, ISP, and language still apply.\n' +
   'Place and ISP match any part of the name; multiple words all have to match. Filters apply as you change them.\n' +
   'Country can be several at once; none selected means all. Search matches country names and codes the same way Place and ISP do. Select all and Deselect all apply to the countries currently shown in that list.\n' +
+  'Language works the same way: none selected means all; only games played in the selected languages are counted, for the games total and each game. Search matches language names and codes. Select all and Deselect all apply to the languages currently shown in that list.\n' +
   'Group on Totals defaults to country and can roll the same filtered networks up by country, city, or language. City is country plus city; a missing city stays in that country as city unknown. Unknown geo is one Unknown row.\n' +
   'Grouped languages are the union of codes, not a sum of counts. Language grouping splits plays by the language in each puzzle key; a network that played two languages appears in both, and the languages count column is hidden. Click a country or city to filter to it and return to Network.\n' +
   'City totals follow coarse IP geo (Starlink often Seattle, T-Mobile San Francisco).\n' +
   'Export CSV downloads the rows currently visible under those filters (not the totals row).\n' +
-  'Clear filters resets Country, Place, ISP, Homehits, and count filters. Group and the date range stay as they are.\n' +
+  'Clear filters resets Country, Language, Place, ISP, Homehits, and count filters. Group and the date range stay as they are.\n' +
   'Clear Calendar empties From/To and reloads the full range (Safari’s calendar Reset does not).\n' +
-  'Use the arrow on the Totals/Trends row to hide or show Country, Place, ISP, and the count filters. From/To dates and Group (or Interval on Trends) stay visible.\n' +
-  'Trends uses the same filters: only events from matching networks are counted.\n' +
+  'Use the arrow on the Totals/Trends row to hide or show Country, Language, Place, ISP, and the count filters. From/To dates and Group (or Interval on Trends) stay visible.\n' +
+  'Trends uses the same filters: only events from matching networks are counted. Language limits those counts to games in the selected languages.\n' +
   'Trends shows activity by UTC clock hour (always 24 rows, each hour summed across days in the range), or by day, week, or month for the From/To window (empty = all available).\n' +
   'Under Trends, Table is newest-first with a sticky total row; click a date, week, or month to open Totals for that interval grouped by city. Graph plots games total and each game as separate colored lines (hover for values).\n' +
   'GET /api/stats is the raw 24h JSON dump.';
@@ -193,6 +194,40 @@ function gtValue(row, key) {
 }
 
 /**
+ * Count only plays in `languages`. Empty list leaves the row unchanged.
+ * @param {import('./stats-combine.js').StatsRow} row
+ * @param {string[]} languages
+ */
+function sliceRowPlays(row, languages) {
+  if (!row || !languages || !languages.length) return row;
+  const want = new Set(languages.map((c) => String(c || '').toLowerCase()));
+  /** @type {Record<string, { games: number, byGame: Record<string, number> }>} */
+  const playsByLang = {};
+  /** @type {Record<string, number>} */
+  const byGame = Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0]));
+  let games = 0;
+  /** @type {string[]} */
+  const languageCodes = [];
+  for (const [code, metrics] of Object.entries(row.playsByLang || {})) {
+    const key = String(code || '').toLowerCase();
+    if (!want.has(key) || !metrics) continue;
+    languageCodes.push(code);
+    playsByLang[code] = metrics;
+    games += metrics.games || 0;
+    for (const id of STATS_GAME_IDS) byGame[id] += metrics.byGame?.[id] || 0;
+  }
+  languageCodes.sort();
+  return {
+    ...row,
+    games,
+    byGame,
+    languages: languageCodes.length,
+    languageCodes,
+    playsByLang,
+  };
+}
+
+/**
  * @param {URLSearchParams | { get?: Function, getAll?: Function, has?: Function } | null | undefined} params
  * @returns {string[]}
  */
@@ -220,6 +255,33 @@ function parseCountryCodes(params) {
 }
 
 /**
+ * @param {URLSearchParams | { get?: Function, getAll?: Function, has?: Function } | null | undefined} params
+ * @returns {string[]}
+ */
+function parseLanguageCodes(params) {
+  /** @type {string[]} */
+  const raw = [];
+  if (params && typeof params.getAll === 'function') {
+    for (const v of params.getAll('language')) raw.push(String(v || ''));
+  } else if (params && typeof params.get === 'function') {
+    const v = params.get('language');
+    if (v) raw.push(String(v));
+  }
+  /** @type {string[]} */
+  const codes = [];
+  const seen = new Set();
+  for (const part of raw) {
+    for (const token of part.split(/[,\s]+/)) {
+      const code = token.trim().toLowerCase();
+      if (!code || seen.has(code)) continue;
+      seen.add(code);
+      codes.push(code);
+    }
+  }
+  return codes;
+}
+
+/**
  * @param {URLSearchParams | { get?: Function, has?: Function } | null | undefined} params
  */
 export function parseStatsFilters(params) {
@@ -231,6 +293,7 @@ export function parseStatsFilters(params) {
   }
   return {
     countries: parseCountryCodes(params),
+    languages: parseLanguageCodes(params),
     place: String(params?.get?.('place') || '').trim(),
     isp: String(params?.get?.('isp') || '').trim(),
     homeHitsOnly: Boolean(params?.get?.('homeHitsOnly')),
@@ -253,6 +316,22 @@ export function countriesFromRows(rows) {
 }
 
 /**
+ * @param {import('./stats-combine.js').StatsRow[]} rows
+ */
+export function languagesFromRows(rows) {
+  /** @type {Map<string, string>} */
+  const byCode = new Map();
+  for (const row of rows || []) {
+    for (const raw of row.languageCodes || []) {
+      const code = String(raw || '').trim().toLowerCase();
+      if (!code || byCode.has(code)) continue;
+      byCode.set(code, languageDisplayName(code));
+    }
+  }
+  return [...byCode.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+}
+
+/**
  * @param {import('./stats-combine.js').StatsRow} row
  * @param {ReturnType<typeof parseStatsFilters>} filters
  */
@@ -260,6 +339,10 @@ function rowMatchesFilters(row, filters) {
   if (filters.countries.length) {
     const code = (row.geo?.country || '').toUpperCase();
     if (!filters.countries.includes(code)) return false;
+  }
+  if (filters.languages.length) {
+    const have = new Set((row.languageCodes || []).map((c) => String(c || '').toLowerCase()));
+    if (!filters.languages.some((code) => have.has(code))) return false;
   }
   if (filters.place) {
     const geo = row.geo;
@@ -277,10 +360,11 @@ function rowMatchesFilters(row, filters) {
     }
     return true;
   }
+  const view = sliceRowPlays(row, filters.languages);
   for (const key of GT_KEYS) {
     const min = filters.gt[key];
     if (min == null) continue;
-    if (!(gtValue(row, key) > min)) return false;
+    if (!(gtValue(view, key) > min)) return false;
   }
   return true;
 }
@@ -290,7 +374,9 @@ function rowMatchesFilters(row, filters) {
  * @param {ReturnType<typeof parseStatsFilters>} filters
  */
 export function applyStatsFilters(rows, filters) {
-  return (rows || []).filter((row) => rowMatchesFilters(row, filters));
+  return (rows || [])
+    .filter((row) => rowMatchesFilters(row, filters))
+    .map((row) => sliceRowPlays(row, filters.languages));
 }
 
 /**
@@ -303,11 +389,21 @@ export function trendIdentityAllowIds(rows, params) {
 }
 
 /**
+ * Language codes to count on Trends. Empty selection means all languages.
+ * @param {URLSearchParams | { get?: Function, getAll?: Function, has?: Function } | null | undefined} params
+ */
+export function trendLanguageAllow(params) {
+  const codes = parseLanguageCodes(params);
+  return codes.length ? new Set(codes) : null;
+}
+
+/**
  * @param {URLSearchParams} params
  * @param {ReturnType<typeof parseStatsFilters>} filters
  */
 function writeStatsFilterParams(params, filters) {
   if (filters.countries.length) params.set('country', filters.countries.join(','));
+  if (filters.languages.length) params.set('language', filters.languages.join(','));
   if (filters.place) params.set('place', filters.place);
   if (filters.isp) params.set('isp', filters.isp);
   if (filters.homeHitsOnly) params.set('homeHitsOnly', '1');
@@ -751,6 +847,52 @@ const FILTER_SCRIPT = `(function () {
     }
     return out;
   }
+  function slicedPlayMetrics(row, languages) {
+    var byGame = {};
+    var j;
+    for (j = 0; j < gameIds.length; j++) byGame[gameIds[j]] = 0;
+    if (!languages || !languages.length) {
+      for (j = 0; j < gameIds.length; j++) byGame[gameIds[j]] = numAttr(row, 'data-game-' + gameIds[j]);
+      var allCodes = String(row.getAttribute('data-langs') || '').split(/\\s+/).filter(Boolean);
+      return { games: numAttr(row, 'data-games'), byGame: byGame, langs: allCodes };
+    }
+    var want = {};
+    for (j = 0; j < languages.length; j++) want[String(languages[j] || '').toLowerCase()] = true;
+    var plays = parseLangPlays(row);
+    var langs = [];
+    var games = 0;
+    var codes = Object.keys(plays);
+    for (var i = 0; i < codes.length; i++) {
+      var code = codes[i];
+      if (!want[String(code || '').toLowerCase()]) continue;
+      langs.push(code);
+      games += plays[code].games;
+      for (j = 0; j < gameIds.length; j++) {
+        byGame[gameIds[j]] += plays[code].byGame[gameIds[j]] || 0;
+      }
+    }
+    langs.sort();
+    return { games: games, byGame: byGame, langs: langs };
+  }
+  function paintPlayCells(row, metrics) {
+    var gamesTd = row.querySelector('[data-col="games"]');
+    if (gamesTd) {
+      gamesTd.setAttribute('data-sort', String(metrics.games));
+      gamesTd.textContent = String(metrics.games);
+    }
+    for (var j = 0; j < gameIds.length; j++) {
+      var id = gameIds[j];
+      var td = row.querySelector('[data-col="' + id + '"]');
+      if (!td) continue;
+      var n = metrics.byGame[id] || 0;
+      td.setAttribute('data-sort', String(n));
+      td.textContent = String(n);
+    }
+    var langTd = row.querySelector('[data-col="languages"]');
+    var langTip = metrics.langs.map(function (code) { return langNames[code] || code; }).join('\\n');
+    setTipCell(langTd, metrics.langs.length, langTip);
+    if (langTd) langTd.setAttribute('data-sort', String(metrics.langs.length));
+  }
   function rollupLanguages(visible) {
     var buckets = {};
     var order = [];
@@ -760,8 +902,10 @@ const FILTER_SCRIPT = `(function () {
       var row = visible[i];
       var plays = parseLangPlays(row);
       var codes = Object.keys(plays);
+      var langFilter = selectedLanguageCodes();
       for (var c = 0; c < codes.length; c++) {
         var code = codes[c];
+        if (langFilter.length && langFilter.indexOf(String(code || '').toLowerCase()) === -1) continue;
         if (!buckets[code]) {
           buckets[code] = {
             networks: 0,
@@ -831,16 +975,16 @@ const FILTER_SCRIPT = `(function () {
         order.push(key);
       }
       var b = buckets[key];
+      var metrics = slicedPlayMetrics(row, selectedLanguageCodes());
       b.networks += 1;
       b.addrs += numAttr(row, 'data-addrs');
-      b.games += numAttr(row, 'data-games');
+      b.games += metrics.games;
       b.homeHits += numAttr(row, 'data-homehits');
       for (j = 0; j < gameIds.length; j++) {
-        b.byGame[gameIds[j]] += numAttr(row, 'data-game-' + gameIds[j]);
+        b.byGame[gameIds[j]] += metrics.byGame[gameIds[j]] || 0;
       }
-      var codes = String(row.getAttribute('data-langs') || '').split(/\\s+/);
-      for (var c = 0; c < codes.length; c++) {
-        if (codes[c]) b.langs[codes[c]] = true;
+      for (var c = 0; c < metrics.langs.length; c++) {
+        if (metrics.langs[c]) b.langs[metrics.langs[c]] = true;
       }
     }
     var unknownKey = group === 'country' ? '' : '\\n';
@@ -951,17 +1095,18 @@ const FILTER_SCRIPT = `(function () {
     var i;
     var j;
     for (j = 0; j < gameIds.length; j++) byGame[gameIds[j]] = 0;
+    var langFilter = selectedLanguageCodes();
     for (i = 0; i < visible.length; i++) {
       var row = visible[i];
+      var metrics = slicedPlayMetrics(row, langFilter);
       addrs += numAttr(row, 'data-addrs');
-      games += numAttr(row, 'data-games');
+      games += metrics.games;
       homeHits += numAttr(row, 'data-homehits');
       for (j = 0; j < gameIds.length; j++) {
-        byGame[gameIds[j]] += numAttr(row, 'data-game-' + gameIds[j]);
+        byGame[gameIds[j]] += metrics.byGame[gameIds[j]] || 0;
       }
-      var codes = String(row.getAttribute('data-langs') || '').split(/\\s+/);
-      for (var c = 0; c < codes.length; c++) {
-        if (codes[c]) langs[codes[c]] = true;
+      for (var c = 0; c < metrics.langs.length; c++) {
+        if (metrics.langs[c]) langs[metrics.langs[c]] = true;
       }
     }
     var langList = Object.keys(langs).sort();
@@ -1085,11 +1230,104 @@ const FILTER_SCRIPT = `(function () {
       details.open = false;
     }, true);
   }
+  function languageBoxes() {
+    return form.querySelectorAll('input[name=language][type=checkbox]');
+  }
+  function selectedLanguageCodes() {
+    var codes = [];
+    var boxes = languageBoxes();
+    for (var i = 0; i < boxes.length; i++) {
+      if (boxes[i].checked) codes.push(String(boxes[i].value || '').toLowerCase());
+    }
+    return codes;
+  }
+  function setLanguageSelection(codes) {
+    var want = {};
+    for (var i = 0; i < codes.length; i++) {
+      var code = String(codes[i] || '').toLowerCase();
+      if (code) want[code] = true;
+    }
+    var boxes = languageBoxes();
+    for (var j = 0; j < boxes.length; j++) {
+      boxes[j].checked = !!want[String(boxes[j].value || '').toLowerCase()];
+    }
+    updateLanguageSummary();
+  }
+  function updateLanguageSummary() {
+    var el = form.querySelector('[data-language-summary]');
+    if (!el) return;
+    var boxes = languageBoxes();
+    var names = [];
+    for (var i = 0; i < boxes.length; i++) {
+      if (!boxes[i].checked) continue;
+      var lab = boxes[i].closest ? boxes[i].closest('label') : boxes[i].parentNode;
+      names.push(lab ? String(lab.textContent || '').trim() : String(boxes[i].value || ''));
+    }
+    if (!names.length) el.textContent = 'Select languages';
+    else if (names.length === boxes.length) el.textContent = 'All';
+    else if (names.length <= 2) el.textContent = names.join(', ');
+    else el.textContent = names.length + ' languages';
+  }
+  function languageOptionLabels() {
+    return form.querySelectorAll('.language-filter-options label.check');
+  }
+  function filterLanguageList() {
+    var input = form.querySelector('[data-language-search]');
+    var q = input ? String(input.value || '') : '';
+    var labels = languageOptionLabels();
+    var shown = 0;
+    for (var i = 0; i < labels.length; i++) {
+      var hay = labels[i].getAttribute('data-language-hay') || labels[i].textContent || '';
+      var ok = smartMatch(hay, q);
+      labels[i].hidden = !ok;
+      if (ok) shown += 1;
+    }
+    var empty = form.querySelector('[data-language-empty]');
+    if (empty) {
+      if (shown) empty.classList.remove('is-on');
+      else empty.classList.add('is-on');
+    }
+  }
+  function visibleLanguageBoxes() {
+    var out = [];
+    var labels = languageOptionLabels();
+    for (var i = 0; i < labels.length; i++) {
+      if (labels[i].hidden) continue;
+      var box = labels[i].querySelector('input[name=language]');
+      if (box) out.push(box);
+    }
+    return out;
+  }
+  function setVisibleLanguages(on) {
+    var boxes = visibleLanguageBoxes();
+    for (var i = 0; i < boxes.length; i++) boxes[i].checked = !!on;
+    updateLanguageSummary();
+    apply();
+  }
+  function bindLanguageFilterDismiss() {
+    var details = form.querySelector('.language-filter');
+    if (!details) return;
+    document.addEventListener('pointerdown', function (e) {
+      if (!details.open) return;
+      if (details.contains(e.target)) return;
+      details.open = false;
+    }, true);
+  }
+  function rowHasLanguage(row, languages) {
+    if (!languages.length) return true;
+    var raw = String(row.getAttribute('data-langs') || '').split(/\\s+/);
+    for (var i = 0; i < raw.length; i++) {
+      var code = String(raw[i] || '').toLowerCase();
+      if (code && languages.indexOf(code) !== -1) return true;
+    }
+    return false;
+  }
   function apply() {
     syncDisabled();
     var group = currentGroup();
     table.classList.toggle('group-language', group === 'language');
     var countries = selectedCountryCodes();
+    var languages = selectedLanguageCodes();
     var place = String((form.querySelector('[name=place]') || {}).value || '').trim();
     var isp = String((form.querySelector('[name=isp]') || {}).value || '').trim();
     var homeOnly = !!(home && home.checked);
@@ -1110,8 +1348,10 @@ const FILTER_SCRIPT = `(function () {
         var rowCountry = String(row.getAttribute('data-country') || '').toUpperCase();
         if (countries.indexOf(rowCountry) === -1) ok = false;
       }
+      if (ok && !rowHasLanguage(row, languages)) ok = false;
       if (ok && place && !smartMatch(row.getAttribute('data-place') || '', place)) ok = false;
       if (ok && isp && !smartMatch(row.getAttribute('data-isp') || '', isp)) ok = false;
+      var metrics = slicedPlayMetrics(row, languages);
       if (ok && homeOnly) {
         if (!(numAttr(row, 'data-homehits') > 0 && numAttr(row, 'data-games') === 0)) ok = false;
         for (var g = 0; g < gameIds.length && ok; g++) {
@@ -1122,13 +1362,14 @@ const FILTER_SCRIPT = `(function () {
           var key = gtKeys[k];
           var min = parseGtField(key);
           if (min == null) continue;
-          var cur = key === 'languages' || key === 'games' ? numAttr(row, 'data-' + key) : numAttr(row, 'data-game-' + key);
+          var cur = key === 'languages' ? metrics.langs.length : key === 'games' ? metrics.games : (metrics.byGame[key] || 0);
           if (!(cur > min)) {
             ok = false;
             break;
           }
         }
       }
+      paintPlayCells(row, metrics);
       if (ok) visible.push(row);
       row.hidden = group === 'network' ? !ok : true;
     }
@@ -1145,6 +1386,7 @@ const FILTER_SCRIPT = `(function () {
     updateTotals(visible, group, groupCount);
     pinTotals();
     updateCountrySummary();
+    updateLanguageSummary();
     syncUrl();
   }
   function syncUrl() {
@@ -1155,9 +1397,11 @@ const FILTER_SCRIPT = `(function () {
     if (from) params.set('from', from);
     if (to) params.set('to', to);
     var countries = selectedCountryCodes();
+    var languages = selectedLanguageCodes();
     var placeEl = form.querySelector('[name=place]');
     var ispEl = form.querySelector('[name=isp]');
     if (countries.length) params.set('country', countries.join(','));
+    if (languages.length) params.set('language', languages.join(','));
     if (placeEl && placeEl.value) params.set('place', placeEl.value);
     if (ispEl && ispEl.value) params.set('isp', ispEl.value);
     var groupEl = form.querySelector('[name=group]');
@@ -1209,6 +1453,10 @@ const FILTER_SCRIPT = `(function () {
       filterCountryList();
       return;
     }
+    if (t && t.getAttribute && t.getAttribute('data-language-search') != null) {
+      filterLanguageList();
+      return;
+    }
     var name = t && t.name;
     if (name === 'from' || name === 'to') {
       if (datesChanged()) goWithDates();
@@ -1224,7 +1472,7 @@ const FILTER_SCRIPT = `(function () {
   });
   form.addEventListener('change', function (e) {
     var t = e.target;
-    if (t && t.getAttribute && t.getAttribute('data-country-search') != null) return;
+    if (t && t.getAttribute && (t.getAttribute('data-country-search') != null || t.getAttribute('data-language-search') != null)) return;
     var name = t && t.name;
     if (name === 'from' || name === 'to') {
       if (datesChanged()) goWithDates();
@@ -1239,9 +1487,13 @@ const FILTER_SCRIPT = `(function () {
       var placeEl = form.querySelector('[name=place]');
       var ispEl = form.querySelector('[name=isp]');
       setCountrySelection([]);
+      setLanguageSelection([]);
       var searchEl = form.querySelector('[data-country-search]');
       if (searchEl) searchEl.value = '';
       filterCountryList();
+      var langSearchEl = form.querySelector('[data-language-search]');
+      if (langSearchEl) langSearchEl.value = '';
+      filterLanguageList();
       if (placeEl) placeEl.value = '';
       if (ispEl) ispEl.value = '';
       if (home) home.checked = false;
@@ -1297,6 +1549,20 @@ const FILTER_SCRIPT = `(function () {
       setVisibleCountries(false);
     });
   }
+  var languageAll = form.querySelector('[data-language-all]');
+  var languageNone = form.querySelector('[data-language-none]');
+  if (languageAll) {
+    languageAll.addEventListener('click', function (e) {
+      e.preventDefault();
+      setVisibleLanguages(true);
+    });
+  }
+  if (languageNone) {
+    languageNone.addEventListener('click', function (e) {
+      e.preventDefault();
+      setVisibleLanguages(false);
+    });
+  }
   tbody.addEventListener('click', function (e) {
     var t = e.target;
     var btn = t && t.closest ? t.closest('[data-drill]') : null;
@@ -1318,6 +1584,7 @@ const FILTER_SCRIPT = `(function () {
   }
   window.addEventListener('resize', pinTotals);
   bindCountryFilterDismiss();
+  bindLanguageFilterDismiss();
   var tabsNav = document.querySelector('.stats-tabs');
   if (tabsNav) {
     tabsNav.addEventListener('pointerdown', function (e) {
@@ -1459,6 +1726,12 @@ export function renderStatsHtml(opts) {
       countryOptions.unshift([code, formatCountry(code) || code]);
     }
   }
+  const languageOptions = languagesFromRows(allRows);
+  for (const code of filters.languages) {
+    if (!languageOptions.some(([c]) => c === code)) {
+      languageOptions.unshift([code, languageDisplayName(code)]);
+    }
+  }
   const homeHitsOnly = filters.homeHitsOnly;
   const isTrends = tab === 'trends';
 
@@ -1496,6 +1769,40 @@ ${countryOptions
         </div>
       </details>`;
 
+  const languageSummaryText = !filters.languages.length
+    ? 'Select languages'
+    : languageOptions.length && filters.languages.length === languageOptions.length
+      ? 'All'
+      : filters.languages.length <= 2
+        ? filters.languages
+            .map((code) => {
+              const hit = languageOptions.find(([c]) => c === code);
+              return hit ? hit[1] : languageDisplayName(code);
+            })
+            .join(', ')
+        : `${filters.languages.length} languages`;
+  const languageFilter = `<details class="language-filter">
+        <summary><span>Language</span><span data-language-summary>${esc(languageSummaryText)}</span></summary>
+        <div class="language-filter-list">
+          <input type="search" data-language-search placeholder="Search languages" autocomplete="off"/>
+          <div class="language-filter-actions">
+            <button type="button" data-language-all>Select all</button>
+            <button type="button" data-language-none>Deselect all</button>
+          </div>
+          <div class="language-filter-options">
+${languageOptions
+  .map(
+    ([code, label]) =>
+      `          <label class="check" data-language-hay="${esc(`${code} ${label}`)}"><input type="checkbox" name="language" value="${esc(
+        code
+      )}"${filters.languages.includes(code) ? ' checked' : ''}/>${esc(label)}</label>`
+  )
+  .join('\n')}
+          </div>
+          <p class="language-filter-empty" data-language-empty>No matching languages</p>
+        </div>
+      </details>`;
+
   const gtFields = GT_KEYS.map((key) => {
     const disabled = homeHitsOnly && HOME_GT_OFF.includes(key) ? ' disabled' : '';
     const shown = gtInputValue(filters, key);
@@ -1506,6 +1813,7 @@ ${countryOptions
 
   const filterEntries = `<div id="stats-filter-entries" class="stats-filter-entries">
           ${countryFilter}
+          ${languageFilter}
           <label>Place<input type="text" name="place" value="${esc(filters.place)}" autocomplete="off"/></label>
           <label>ISP<input type="text" name="isp" value="${esc(filters.isp)}" autocomplete="off"/></label>
           ${gtFields}
@@ -1659,14 +1967,16 @@ ${countryOptions
       background: color-mix(in srgb, currentColor 28%, Canvas);
     }
     input[type="text"], input[type="date"], select { font: inherit; min-width: 7rem; }
-    .country-filter {
+    .country-filter,
+    .language-filter {
       position: relative;
       display: flex;
       flex-direction: column;
       gap: 0.2rem;
       font-size: 12px;
     }
-    .country-filter > summary {
+    .country-filter > summary,
+    .language-filter > summary {
       list-style: none;
       cursor: pointer;
       display: flex;
@@ -1674,8 +1984,11 @@ ${countryOptions
       gap: 0.2rem;
     }
     .country-filter > summary::-webkit-details-marker,
-    .country-filter > summary::marker { display: none; content: none; }
-    .country-filter [data-country-summary] {
+    .country-filter > summary::marker,
+    .language-filter > summary::-webkit-details-marker,
+    .language-filter > summary::marker { display: none; content: none; }
+    .country-filter [data-country-summary],
+    .language-filter [data-language-summary] {
       font: inherit;
       font-size: 14px;
       min-width: 7rem;
@@ -1688,7 +2001,8 @@ ${countryOptions
       border-radius: 0.2rem;
       background: Canvas;
     }
-    .country-filter-list {
+    .country-filter-list,
+    .language-filter-list {
       position: absolute;
       left: 0;
       top: 100%;
@@ -1704,18 +2018,21 @@ ${countryOptions
       border: 1px solid color-mix(in srgb, currentColor 30%, transparent);
       box-shadow: 0 4px 16px color-mix(in srgb, currentColor 18%, transparent);
     }
-    .country-filter [data-country-search] {
+    .country-filter [data-country-search],
+    .language-filter [data-language-search] {
       width: 100%;
       min-width: 0;
       box-sizing: border-box;
       font-size: 13px;
     }
-    .country-filter-actions {
+    .country-filter-actions,
+    .language-filter-actions {
       display: flex;
       gap: 0.35rem;
       margin: 0.35rem 0;
     }
-    .country-filter-actions button {
+    .country-filter-actions button,
+    .language-filter-actions button {
       font: inherit;
       font-size: 12px;
       padding: 0.15rem 0.4rem;
@@ -1725,20 +2042,25 @@ ${countryOptions
       border-radius: 0.25rem;
       background: color-mix(in srgb, currentColor 10%, Canvas);
     }
-    .country-filter-options {
+    .country-filter-options,
+    .language-filter-options {
       overflow: auto;
       min-height: 0;
       max-height: 11rem;
     }
-    .country-filter-list .check { padding-bottom: 0.2rem; white-space: nowrap; }
-    .country-filter-options .check[hidden] { display: none; }
-    .country-filter-empty {
+    .country-filter-list .check,
+    .language-filter-list .check { padding-bottom: 0.2rem; white-space: nowrap; }
+    .country-filter-options .check[hidden],
+    .language-filter-options .check[hidden] { display: none; }
+    .country-filter-empty,
+    .language-filter-empty {
       display: none;
       margin: 0.35rem 0 0;
       font-size: 12px;
       color: color-mix(in srgb, currentColor 70%, transparent);
     }
-    .country-filter-empty.is-on { display: block; }
+    .country-filter-empty.is-on,
+    .language-filter-empty.is-on { display: block; }
     input[type="number"] {
       font: inherit;
       box-sizing: border-box;
@@ -2169,6 +2491,89 @@ ${STATS_GAME_IDS.map(
       details.open = false;
     }, true);
   }
+  function languageBoxes() {
+    return form.querySelectorAll('.language-filter-options input[name=language]');
+  }
+  function selectedLanguageCodes() {
+    var codes = [];
+    var boxes = languageBoxes();
+    for (var i = 0; i < boxes.length; i++) {
+      if (boxes[i].checked) codes.push(String(boxes[i].value || '').toLowerCase());
+    }
+    return codes;
+  }
+  function setLanguageSelection(codes) {
+    var want = {};
+    for (var i = 0; i < codes.length; i++) {
+      var code = String(codes[i] || '').toLowerCase();
+      if (code) want[code] = true;
+    }
+    var boxes = languageBoxes();
+    for (var j = 0; j < boxes.length; j++) {
+      boxes[j].checked = !!want[String(boxes[j].value || '').toLowerCase()];
+    }
+    updateLanguageSummary();
+  }
+  function updateLanguageSummary() {
+    var el = form.querySelector('[data-language-summary]');
+    if (!el) return;
+    var boxes = languageBoxes();
+    var names = [];
+    for (var i = 0; i < boxes.length; i++) {
+      if (!boxes[i].checked) continue;
+      var lab = boxes[i].closest ? boxes[i].closest('label') : boxes[i].parentNode;
+      names.push(lab ? String(lab.textContent || '').trim() : String(boxes[i].value || ''));
+    }
+    if (!names.length) el.textContent = 'Select languages';
+    else if (names.length === boxes.length) el.textContent = 'All';
+    else if (names.length <= 2) el.textContent = names.join(', ');
+    else el.textContent = names.length + ' languages';
+  }
+  function languageOptionLabels() {
+    return form.querySelectorAll('.language-filter-options label.check');
+  }
+  function filterLanguageList() {
+    var input = form.querySelector('[data-language-search]');
+    var q = input ? String(input.value || '') : '';
+    var labels = languageOptionLabels();
+    var shown = 0;
+    for (var i = 0; i < labels.length; i++) {
+      var hay = labels[i].getAttribute('data-language-hay') || labels[i].textContent || '';
+      var ok = smartMatch(hay, q);
+      labels[i].hidden = !ok;
+      if (ok) shown += 1;
+    }
+    var empty = form.querySelector('[data-language-empty]');
+    if (empty) {
+      if (shown) empty.classList.remove('is-on');
+      else empty.classList.add('is-on');
+    }
+  }
+  function visibleLanguageBoxes() {
+    var out = [];
+    var labels = languageOptionLabels();
+    for (var i = 0; i < labels.length; i++) {
+      if (labels[i].hidden) continue;
+      var box = labels[i].querySelector('input[name=language]');
+      if (box) out.push(box);
+    }
+    return out;
+  }
+  function setVisibleLanguages(on) {
+    var boxes = visibleLanguageBoxes();
+    for (var i = 0; i < boxes.length; i++) boxes[i].checked = !!on;
+    updateLanguageSummary();
+    go();
+  }
+  function bindLanguageFilterDismiss() {
+    var details = form.querySelector('.language-filter');
+    if (!details) return;
+    document.addEventListener('pointerdown', function (e) {
+      if (!details.open) return;
+      if (details.contains(e.target)) return;
+      details.open = false;
+    }, true);
+  }
   function navParams() {
     var params = new URLSearchParams();
     params.set('tab', 'trends');
@@ -2183,7 +2588,9 @@ ${STATS_GAME_IDS.map(
     if (intervalEl && intervalEl.value) params.set('interval', intervalEl.value);
     if (viewEl && viewEl.value) params.set('view', viewEl.value);
     var countries = selectedCountryCodes();
+    var languages = selectedLanguageCodes();
     if (countries.length) params.set('country', countries.join(','));
+    if (languages.length) params.set('language', languages.join(','));
     if (placeEl && placeEl.value) params.set('place', placeEl.value);
     if (ispEl && ispEl.value) params.set('isp', ispEl.value);
     for (var i = 0; i < gtKeys.length; i++) {
@@ -2234,9 +2641,13 @@ ${STATS_GAME_IDS.map(
     var placeEl = form.querySelector('[name=place]');
     var ispEl = form.querySelector('[name=isp]');
     setCountrySelection([]);
+    setLanguageSelection([]);
     var searchEl = form.querySelector('[data-country-search]');
     if (searchEl) searchEl.value = '';
     filterCountryList();
+    var langSearchEl = form.querySelector('[data-language-search]');
+    if (langSearchEl) langSearchEl.value = '';
+    filterLanguageList();
     if (placeEl) placeEl.value = '';
     if (ispEl) ispEl.value = '';
     if (home) home.checked = false;
@@ -2249,7 +2660,7 @@ ${STATS_GAME_IDS.map(
   }
   form.addEventListener('change', function (e) {
     var t = e.target;
-    if (t && t.getAttribute && t.getAttribute('data-country-search') != null) return;
+    if (t && t.getAttribute && (t.getAttribute('data-country-search') != null || t.getAttribute('data-language-search') != null)) return;
     var name = t && t.name;
     if (!name) return;
     go();
@@ -2258,6 +2669,10 @@ ${STATS_GAME_IDS.map(
     var t = e.target;
     if (t && t.getAttribute && t.getAttribute('data-country-search') != null) {
       filterCountryList();
+      return;
+    }
+    if (t && t.getAttribute && t.getAttribute('data-language-search') != null) {
+      filterLanguageList();
       return;
     }
     var name = t && t.name;
@@ -2304,9 +2719,25 @@ ${STATS_GAME_IDS.map(
       setVisibleCountries(false);
     });
   }
+  var languageAll = form.querySelector('[data-language-all]');
+  var languageNone = form.querySelector('[data-language-none]');
+  if (languageAll) {
+    languageAll.addEventListener('click', function (e) {
+      e.preventDefault();
+      setVisibleLanguages(true);
+    });
+  }
+  if (languageNone) {
+    languageNone.addEventListener('click', function (e) {
+      e.preventDefault();
+      setVisibleLanguages(false);
+    });
+  }
   syncDisabled();
   bindCountryFilterDismiss();
+  bindLanguageFilterDismiss();
   updateCountrySummary();
+  updateLanguageSummary();
   var tabsNav = document.querySelector('.stats-tabs');
   if (tabsNav) {
     tabsNav.addEventListener('pointerdown', function (e) {
@@ -2609,6 +3040,7 @@ ${emptyRow}
   const grouped =
     group === 'language'
       ? groupedRaw
+          .filter((r) => !filters.languages.length || filters.languages.includes(String(r.key || '').toLowerCase()))
           .map((r) => ({ ...r, label: languageDisplayName(r.key) }))
           .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true, sensitivity: 'base' }))
       : groupedRaw;
@@ -2616,7 +3048,8 @@ ${emptyRow}
     .map((r, i) => {
       const match = rowMatchesFilters(r, filters);
       const hide = group !== 'network' || !match;
-      const cells = COLUMNS.map((col) => dataCell(col, columnDisplay(col, r, i), columnSortValue(col, r))).join(
+      const view = sliceRowPlays(r, filters.languages);
+      const cells = COLUMNS.map((col) => dataCell(col, columnDisplay(col, view, i), columnSortValue(col, view))).join(
         '\n'
       );
       return `<tr ${rowDataAttrs(r)}${hide ? ' hidden' : ''}>\n${cells}\n</tr>`;

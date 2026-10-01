@@ -769,18 +769,19 @@ export function trendBucketDateRange(key, interval) {
  * Totals and Trends both use this so a day’s totals match.
  * @param {StatsRecord} rec
  */
-function distinctGameMetrics(rec) {
-  return eventCountsFromRecord(rec);
+function distinctGameMetrics(rec, allowLanguages) {
+  return eventCountsFromRecord(rec, allowLanguages);
 }
 
 /**
  * @param {Map<string, { rec: StatsRecord, addrs: Set<string> }>} byId
+ * @param {Set<string> | null} [allowLanguages]
  */
-function distinctMetricsFromIdentities(byId) {
+function distinctMetricsFromIdentities(byId, allowLanguages) {
   const byGame = Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0]));
   let games = 0;
   for (const { rec } of byId.values()) {
-    const m = distinctGameMetrics(rec);
+    const m = distinctGameMetrics(rec, allowLanguages);
     games += m.games;
     for (const id of STATS_GAME_IDS) byGame[id] += m.byGame[id] || 0;
   }
@@ -823,12 +824,13 @@ function enumerateTrendBucketKeys(startHourIso, endHourIso, interval) {
  * @param {{ source: string, body: unknown }[]} inputs
  * @param {{ from?: string | null, toExclusive?: string | null }} [range]
  * @param {'hours' | 'days' | 'weeks' | 'months'} [interval]
- * @param {{ allowIds?: Set<string> | null }} [opts]
+ * @param {{ allowIds?: Set<string> | null, allowLanguages?: Set<string> | null }} [opts]
  * @returns {{ key: string, label: string, games: number, byGame: Record<string, number> }[]}
  */
 export function combineTrends(inputs, range = {}, interval = 'days', opts = {}) {
   const grain = parseTrendInterval(interval);
   const allowIds = opts.allowIds instanceof Set ? opts.allowIds : null;
+  const allowLanguages = opts.allowLanguages instanceof Set && opts.allowLanguages.size ? opts.allowLanguages : null;
   /** @type {Map<string, Map<string, StatsRecord>>} */
   const byHour = new Map();
   for (const { source, body } of inputs) {
@@ -880,7 +882,7 @@ export function combineTrends(inputs, range = {}, interval = 'days', opts = {}) 
   const emptyByGame = Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0]));
   return enumerateTrendBucketKeys(startH, endH, grain).map((key) => {
     const bucket = byBucket.get(key);
-    const m = bucket ? distinctMetricsFromIdentities(bucket) : { games: 0, byGame: { ...emptyByGame } };
+    const m = bucket ? distinctMetricsFromIdentities(bucket, allowLanguages) : { games: 0, byGame: { ...emptyByGame } };
     return {
       key,
       label: trendBucketLabel(key, grain),
@@ -893,14 +895,22 @@ export function combineTrends(inputs, range = {}, interval = 'days', opts = {}) 
 
 /**
  * @param {ReturnType<typeof emptyRecord>} rec
+ * @param {Set<string> | null} [allowLanguages]
  */
-function eventCountsFromRecord(rec) {
+function eventCountsFromRecord(rec, allowLanguages) {
+  const allow = allowLanguages instanceof Set && allowLanguages.size ? allowLanguages : null;
   /** @type {Record<string, number>} */
   const byGame = Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0]));
   let games = 0;
   for (const id of STATS_GAME_IDS) {
     let n = 0;
-    for (const v of Object.values(rec.games[id] || {})) n += Number(v) || 0;
+    for (const [perm, v] of Object.entries(rec.games[id] || {})) {
+      if (allow) {
+        const lang = String(perm.split(',')[0] || '').trim().toLowerCase();
+        if (!allow.has(lang)) continue;
+      }
+      n += Number(v) || 0;
+    }
     byGame[id] = n;
     games += n;
   }
