@@ -4,7 +4,7 @@ import { gcsConfigured, getGcsObject, listGcsKeys } from '../../../scripts/gcs-x
 import { createStatsStore, PRUNE_INTERVAL_MS } from '../../../scripts/stats-store.js';
 import { combineBodies, combineTrends, normalizeGeo, parseDateRange, parseTrendInterval } from '../../../scripts/stats-combine.js';
 import { isStatsApiPath, isStatsGeoApiPath, isStatsPagePath } from '../../../scripts/stats-path.js';
-import { renderStatsHtml } from '../../../scripts/stats-page.js';
+import { renderStatsHtml, trendIdentityAllowIds } from '../../../scripts/stats-page.js';
 import { buildStatsGeoPayload } from '../../../scripts/stats-geo-api.js';
 import { HOUR_PULL_BATCH, HOUR_STORAGE_GET_BATCH, hourFromObjectKey } from '../../../scripts/stats-hour-cache.js';
 import { lookupMissingGeos } from '../../../scripts/stats-geo-lookup.js';
@@ -228,10 +228,12 @@ export class StatsStore {
         inputs.push({ source: `hour:${hour}`, body });
       }
       const rows = combineBodies(inputs, range);
-      const trends = combineTrends(inputs, range, parseTrendInterval(url.searchParams.get('interval')));
       const found = await lookupMissingGeos(rows);
       for (const [ip, geo] of found) this.store.rememberGeo(ip, geo);
       if (found.size) await this.persist();
+      const trends = combineTrends(inputs, range, parseTrendInterval(url.searchParams.get('interval')), {
+        allowIds: trendIdentityAllowIds(rows, url.searchParams),
+      });
       const html = renderStatsHtml({
         rows,
         trends,

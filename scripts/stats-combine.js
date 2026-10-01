@@ -823,10 +823,12 @@ function enumerateTrendBucketKeys(startHourIso, endHourIso, interval) {
  * @param {{ source: string, body: unknown }[]} inputs
  * @param {{ from?: string | null, toExclusive?: string | null }} [range]
  * @param {'hours' | 'days' | 'weeks' | 'months'} [interval]
+ * @param {{ allowIds?: Set<string> | null }} [opts]
  * @returns {{ key: string, label: string, games: number, byGame: Record<string, number> }[]}
  */
-export function combineTrends(inputs, range = {}, interval = 'days') {
+export function combineTrends(inputs, range = {}, interval = 'days', opts = {}) {
   const grain = parseTrendInterval(interval);
+  const allowIds = opts.allowIds instanceof Set ? opts.allowIds : null;
   /** @type {Map<string, Map<string, StatsRecord>>} */
   const byHour = new Map();
   for (const { source, body } of inputs) {
@@ -864,6 +866,7 @@ export function combineTrends(inputs, range = {}, interval = 'days') {
     }
     const collapsed = collapseHour(byHour.get(hour) || new Map());
     for (const [id, { rec, addrs }] of collapsed) {
+      if (allowIds && !allowIds.has(id)) continue;
       const prev = bucket.get(id);
       if (!prev) {
         bucket.set(id, { rec, addrs: new Set(addrs) });

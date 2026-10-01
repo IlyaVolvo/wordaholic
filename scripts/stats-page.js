@@ -35,9 +35,10 @@ const STATS_HELP =
   'Grouped languages are the union of codes, not a sum of counts. Language grouping splits plays by the language in each puzzle key; a network that played two languages appears in both, and the languages count column is hidden. Click a country or city to filter to it and return to Network.\n' +
   'City totals follow coarse IP geo (Starlink often Seattle, T-Mobile San Francisco).\n' +
   'Export CSV downloads the rows currently visible under those filters (not the totals row).\n' +
-  'Clear filters also clears the From/To dates and reloads the range. Group is unchanged.\n' +
-  'On Trends, Clear Calendar empties From/To and reloads the full range (Safari’s calendar Reset does not).\n' +
-  'Use the arrow on the Totals/Trends row to hide or show Country, Place, ISP, and the count filters. From/To dates and Group stay visible.\n' +
+  'Clear filters resets Country, Place, ISP, Homehits, and count filters. Group and the date range stay as they are.\n' +
+  'Clear Calendar empties From/To and reloads the full range (Safari’s calendar Reset does not).\n' +
+  'Use the arrow on the Totals/Trends row to hide or show Country, Place, ISP, and the count filters. From/To dates and Group (or Interval on Trends) stay visible.\n' +
+  'Trends uses the same filters: only events from matching networks are counted.\n' +
   'Trends shows activity by UTC clock hour (always 24 rows, each hour summed across days in the range), or by day, week, or month for the From/To window (empty = all available).\n' +
   'Under Trends, Table is newest-first with a sticky total row; click a date, week, or month to open Totals for that interval grouped by city. Graph plots games total and each game as separate colored lines (hover for values).\n' +
   'GET /api/stats is the raw 24h JSON dump.';
@@ -293,6 +294,31 @@ export function applyStatsFilters(rows, filters) {
 }
 
 /**
+ * Network identity keys that pass the Totals/Trends filter.
+ * @param {import('./stats-combine.js').StatsRow[]} rows
+ * @param {URLSearchParams | { get?: Function, getAll?: Function, has?: Function } | null | undefined} params
+ */
+export function trendIdentityAllowIds(rows, params) {
+  return new Set(applyStatsFilters(rows, parseStatsFilters(params)).map((row) => row.ip));
+}
+
+/**
+ * @param {URLSearchParams} params
+ * @param {ReturnType<typeof parseStatsFilters>} filters
+ */
+function writeStatsFilterParams(params, filters) {
+  if (filters.countries.length) params.set('country', filters.countries.join(','));
+  if (filters.place) params.set('place', filters.place);
+  if (filters.isp) params.set('isp', filters.isp);
+  if (filters.homeHitsOnly) params.set('homeHitsOnly', '1');
+  for (const key of GT_KEYS) {
+    const n = filters.gt[key];
+    if (n == null) continue;
+    params.set(`gt_${key}`, String(n));
+  }
+}
+
+/**
  * @param {string} value
  */
 function esc(value) {
@@ -445,7 +471,7 @@ function dataCell(col, inner, sortValue, extra = '') {
  * @param {{ key: string, label: string }} row
  * @param {'hours' | 'days' | 'weeks' | 'months'} interval
  */
-function trendDateLink(row, interval) {
+function trendDateLink(row, interval, filters) {
   const range = trendBucketDateRange(row.key, interval);
   const label = esc(row.label);
   if (!range) return label;
@@ -455,6 +481,7 @@ function trendDateLink(row, interval) {
     from: range.from,
     to: range.to,
   });
+  writeStatsFilterParams(p, filters);
   return `<a class="trend-date" href="/stats?${esc(p.toString())}">${label}</a>`;
 }
 
@@ -1008,7 +1035,8 @@ const FILTER_SCRIPT = `(function () {
       var lab = boxes[i].closest ? boxes[i].closest('label') : boxes[i].parentNode;
       names.push(lab ? String(lab.textContent || '').trim() : String(boxes[i].value || ''));
     }
-    if (!names.length) el.textContent = 'All';
+    if (!names.length) el.textContent = 'Select countries';
+    else if (names.length === boxes.length) el.textContent = 'All';
     else if (names.length <= 2) el.textContent = names.join(', ');
     else el.textContent = names.length + ' countries';
   }
@@ -1047,6 +1075,15 @@ const FILTER_SCRIPT = `(function () {
     for (var i = 0; i < boxes.length; i++) boxes[i].checked = !!on;
     updateCountrySummary();
     apply();
+  }
+  function bindCountryFilterDismiss() {
+    var details = form.querySelector('.country-filter');
+    if (!details) return;
+    document.addEventListener('pointerdown', function (e) {
+      if (!details.open) return;
+      if (details.contains(e.target)) return;
+      details.open = false;
+    }, true);
   }
   function apply() {
     syncDisabled();
@@ -1135,6 +1172,21 @@ const FILTER_SCRIPT = `(function () {
     var qs = params.toString();
     var next = '/stats' + (qs ? '?' + qs : '');
     if (next !== location.pathname + location.search) history.replaceState(null, '', next);
+    syncTabHrefs(params);
+  }
+  function syncTabHrefs(params) {
+    var links = document.querySelectorAll('.stats-tabs > a');
+    if (!links.length) return;
+    var tot = new URLSearchParams(params);
+    tot.set('tab', 'totals');
+    tot.delete('interval');
+    tot.delete('view');
+    if (links[0]) links[0].setAttribute('href', '/stats?' + tot.toString());
+    var tr = new URLSearchParams(params);
+    tr.set('tab', 'trends');
+    tr.delete('group');
+    if (!tr.get('interval')) tr.set('interval', 'days');
+    if (links[1]) links[1].setAttribute('href', '/stats?' + tr.toString());
   }
   function datesChanged() {
     var url = new URL(location.href);
@@ -1184,9 +1236,6 @@ const FILTER_SCRIPT = `(function () {
   if (clearBtn) {
     clearBtn.addEventListener('click', function (e) {
       e.preventDefault();
-      var hadDates = !!(fromEl && fromEl.value) || !!(toEl && toEl.value);
-      if (fromEl) fromEl.value = '';
-      if (toEl) toEl.value = '';
       var placeEl = form.querySelector('[name=place]');
       var ispEl = form.querySelector('[name=isp]');
       setCountrySelection([]);
@@ -1201,12 +1250,38 @@ const FILTER_SCRIPT = `(function () {
         if (!el) continue;
         el.value = gtKeys[i] === 'languages' || gtKeys[i] === 'games' ? '0' : '';
       }
-      if (hadDates) {
-        goWithDates();
-        return;
-      }
       apply();
     });
+  }
+  var clearCal = form.querySelector('[data-clear-calendar]');
+  var clearCalTouchAt = 0;
+  function clearCalendar(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var url = new URL(location.href);
+    url.searchParams.delete('from');
+    url.searchParams.delete('to');
+    var next = url.pathname + url.search;
+    if (next === location.pathname + location.search) {
+      if (fromEl) fromEl.value = '';
+      if (toEl) toEl.value = '';
+      return;
+    }
+    location.href = next;
+  }
+  if (clearCal) {
+    clearCal.addEventListener('click', function (e) {
+      if (Date.now() - clearCalTouchAt < 500) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      clearCalendar(e);
+    });
+    clearCal.addEventListener('touchend', function (e) {
+      clearCalTouchAt = Date.now();
+      clearCalendar(e);
+    }, { passive: false });
   }
   var countryAll = form.querySelector('[data-country-all]');
   var countryNone = form.querySelector('[data-country-none]');
@@ -1242,6 +1317,15 @@ const FILTER_SCRIPT = `(function () {
     new ResizeObserver(pinTotals).observe(legendRow);
   }
   window.addEventListener('resize', pinTotals);
+  bindCountryFilterDismiss();
+  var tabsNav = document.querySelector('.stats-tabs');
+  if (tabsNav) {
+    tabsNav.addEventListener('pointerdown', function (e) {
+      var a = e.target && e.target.closest ? e.target.closest('a') : null;
+      if (!a || !tabsNav.contains(a)) return;
+      syncUrl();
+    }, true);
+  }
   apply();
 })();`;
 
@@ -1378,10 +1462,63 @@ export function renderStatsHtml(opts) {
   const homeHitsOnly = filters.homeHitsOnly;
   const isTrends = tab === 'trends';
 
+  const countrySummaryText = !filters.countries.length
+    ? 'Select countries'
+    : countryOptions.length && filters.countries.length === countryOptions.length
+      ? 'All'
+      : filters.countries.length <= 2
+        ? filters.countries
+            .map((code) => {
+              const hit = countryOptions.find(([c]) => c === code);
+              return hit ? hit[1] : formatCountry(code) || code;
+            })
+            .join(', ')
+        : `${filters.countries.length} countries`;
+  const countryFilter = `<details class="country-filter">
+        <summary><span>Country</span><span data-country-summary>${esc(countrySummaryText)}</span></summary>
+        <div class="country-filter-list">
+          <input type="search" data-country-search placeholder="Search countries" autocomplete="off"/>
+          <div class="country-filter-actions">
+            <button type="button" data-country-all>Select all</button>
+            <button type="button" data-country-none>Deselect all</button>
+          </div>
+          <div class="country-filter-options">
+${countryOptions
+  .map(
+    ([code, label]) =>
+      `          <label class="check" data-country-hay="${esc(`${code} ${label}`)}"><input type="checkbox" name="country" value="${esc(
+        code
+      )}"${filters.countries.includes(code) ? ' checked' : ''}/>${esc(label)}</label>`
+  )
+  .join('\n')}
+          </div>
+          <p class="country-filter-empty" data-country-empty>No matching countries</p>
+        </div>
+      </details>`;
+
+  const gtFields = GT_KEYS.map((key) => {
+    const disabled = homeHitsOnly && HOME_GT_OFF.includes(key) ? ' disabled' : '';
+    const shown = gtInputValue(filters, key);
+    return `<label>${esc(key)}<span class="gt-field"><span aria-hidden="true">&gt;</span><input type="number" name="gt_${esc(
+      key
+    )}" value="${esc(shown)}" placeholder="0" min="${GT_MIN}" max="${GT_MAX}" step="1"${disabled}/></span></label>`;
+  }).join('\n      ');
+
+  const filterEntries = `<div id="stats-filter-entries" class="stats-filter-entries">
+          ${countryFilter}
+          <label>Place<input type="text" name="place" value="${esc(filters.place)}" autocomplete="off"/></label>
+          <label>ISP<input type="text" name="isp" value="${esc(filters.isp)}" autocomplete="off"/></label>
+          ${gtFields}
+          <span class="stats-filter-end">
+            <label class="check"><input type="checkbox" name="homeHitsOnly" value="1"${homeHitsOnly ? ' checked' : ''}/> Homehits only</label>
+          </span>
+        </div>`;
+
   const qsBase = (extra = {}) => {
     const p = new URLSearchParams();
     if (from) p.set('from', from);
     if (to) p.set('to', to);
+    writeStatsFilterParams(p, filters);
     for (const [k, v] of Object.entries(extra)) {
       if (v) p.set(k, String(v));
     }
@@ -1393,7 +1530,7 @@ export function renderStatsHtml(opts) {
       <a href="/stats${qsBase({ tab: 'totals' })}"${isTrends ? '' : ' aria-current="page"'}>Totals</a>
       <a href="/stats${qsBase({ tab: 'trends', interval })}"${isTrends ? ' aria-current="page"' : ''}>Trends</a>
       <span class="stats-tabs-end">
-        ${isTrends ? '' : '<button type="button" data-clear-filters>Clear filters</button>'}
+        <button type="button" data-clear-filters>Clear filters</button>
         <button type="button" data-toggle-filters aria-expanded="true" aria-controls="stats-filter-entries" title="Hide filters">▾</button>
       </span>
     </nav>`;
@@ -1802,7 +1939,7 @@ ${TREND_INTERVALS.map(
     const bodyRows = tableRows
       .map((r) => {
         const cells = [
-          dataCell(TREND_COLUMNS[0], trendDateLink(r, interval), r.key),
+          dataCell(TREND_COLUMNS[0], trendDateLink(r, interval, filters), r.key),
           dataCell(TREND_COLUMNS[1], trendCell(r.games), r.games),
           ...STATS_GAME_IDS.map((id, i) =>
             dataCell(TREND_COLUMNS[i + 2], trendCell(r.byGame?.[id] || 0), r.byGame?.[id] || 0)
@@ -1914,20 +2051,167 @@ ${STATS_GAME_IDS.map(
     const TRENDS_NAV = `(function () {
   var form = document.getElementById('stats-filters');
   if (!form) return;
+  var home = form.querySelector('[name=homeHitsOnly]');
+  var off = ${JSON.stringify(HOME_GT_OFF)};
+  var gtKeys = ${JSON.stringify(GT_KEYS)};
+  var debounceTimer = null;
   var clearBtn = form.querySelector('[data-clear-calendar]');
   var clearTouchAt = 0;
-  function go() {
+  function fold(s) {
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+  }
+  function compact(s) {
+    return fold(s).replace(/[^a-z0-9]+/g, '');
+  }
+  function smartMatch(hay, query) {
+    var q = fold(query).trim();
+    if (!q) return true;
+    var hayFold = fold(hay);
+    var hayComp = compact(hay);
+    var tokens = q.split(/\\s+/);
+    for (var i = 0; i < tokens.length; i++) {
+      var tok = tokens[i];
+      if (!tok) continue;
+      var tokComp = compact(tok);
+      if (hayFold.indexOf(tok) !== -1) continue;
+      if (tokComp.length >= 2 && hayComp.indexOf(tokComp) !== -1) continue;
+      return false;
+    }
+    return true;
+  }
+  function syncDisabled() {
+    var on = !!(home && home.checked);
+    for (var i = 0; i < off.length; i++) {
+      var el = form.querySelector('[name="gt_' + off[i] + '"]');
+      if (el) el.disabled = on;
+    }
+  }
+  function countryBoxes() {
+    return form.querySelectorAll('.country-filter-options input[name=country]');
+  }
+  function selectedCountryCodes() {
+    var codes = [];
+    var boxes = countryBoxes();
+    for (var i = 0; i < boxes.length; i++) {
+      if (boxes[i].checked) codes.push(String(boxes[i].value || '').toUpperCase());
+    }
+    return codes;
+  }
+  function setCountrySelection(codes) {
+    var want = {};
+    for (var i = 0; i < codes.length; i++) {
+      var code = String(codes[i] || '').toUpperCase();
+      if (code) want[code] = true;
+    }
+    var boxes = countryBoxes();
+    for (var j = 0; j < boxes.length; j++) {
+      boxes[j].checked = !!want[String(boxes[j].value || '').toUpperCase()];
+    }
+    updateCountrySummary();
+  }
+  function updateCountrySummary() {
+    var el = form.querySelector('[data-country-summary]');
+    if (!el) return;
+    var boxes = countryBoxes();
+    var names = [];
+    for (var i = 0; i < boxes.length; i++) {
+      if (!boxes[i].checked) continue;
+      var lab = boxes[i].closest ? boxes[i].closest('label') : boxes[i].parentNode;
+      names.push(lab ? String(lab.textContent || '').trim() : String(boxes[i].value || ''));
+    }
+    if (!names.length) el.textContent = 'Select countries';
+    else if (names.length === boxes.length) el.textContent = 'All';
+    else if (names.length <= 2) el.textContent = names.join(', ');
+    else el.textContent = names.length + ' countries';
+  }
+  function countryOptionLabels() {
+    return form.querySelectorAll('.country-filter-options label.check');
+  }
+  function filterCountryList() {
+    var input = form.querySelector('[data-country-search]');
+    var q = input ? String(input.value || '') : '';
+    var labels = countryOptionLabels();
+    var shown = 0;
+    for (var i = 0; i < labels.length; i++) {
+      var hay = labels[i].getAttribute('data-country-hay') || labels[i].textContent || '';
+      var ok = smartMatch(hay, q);
+      labels[i].hidden = !ok;
+      if (ok) shown += 1;
+    }
+    var empty = form.querySelector('[data-country-empty]');
+    if (empty) {
+      if (shown) empty.classList.remove('is-on');
+      else empty.classList.add('is-on');
+    }
+  }
+  function visibleCountryBoxes() {
+    var out = [];
+    var labels = countryOptionLabels();
+    for (var i = 0; i < labels.length; i++) {
+      if (labels[i].hidden) continue;
+      var box = labels[i].querySelector('input[name=country]');
+      if (box) out.push(box);
+    }
+    return out;
+  }
+  function setVisibleCountries(on) {
+    var boxes = visibleCountryBoxes();
+    for (var i = 0; i < boxes.length; i++) boxes[i].checked = !!on;
+    updateCountrySummary();
+    go();
+  }
+  function bindCountryFilterDismiss() {
+    var details = form.querySelector('.country-filter');
+    if (!details) return;
+    document.addEventListener('pointerdown', function (e) {
+      if (!details.open) return;
+      if (details.contains(e.target)) return;
+      details.open = false;
+    }, true);
+  }
+  function navParams() {
     var params = new URLSearchParams();
     params.set('tab', 'trends');
     var fromEl = form.querySelector('[name=from]');
     var toEl = form.querySelector('[name=to]');
     var intervalEl = form.querySelector('[name=interval]');
     var viewEl = form.querySelector('[name=view]');
+    var placeEl = form.querySelector('[name=place]');
+    var ispEl = form.querySelector('[name=isp]');
     if (fromEl && fromEl.value) params.set('from', fromEl.value);
     if (toEl && toEl.value) params.set('to', toEl.value);
     if (intervalEl && intervalEl.value) params.set('interval', intervalEl.value);
     if (viewEl && viewEl.value) params.set('view', viewEl.value);
-    location.href = '/stats?' + params.toString();
+    var countries = selectedCountryCodes();
+    if (countries.length) params.set('country', countries.join(','));
+    if (placeEl && placeEl.value) params.set('place', placeEl.value);
+    if (ispEl && ispEl.value) params.set('isp', ispEl.value);
+    for (var i = 0; i < gtKeys.length; i++) {
+      var el = form.querySelector('[name="gt_' + gtKeys[i] + '"]');
+      if (!el || el.disabled) continue;
+      var raw = String(el.value || '').trim();
+      if (raw) params.set('gt_' + gtKeys[i], raw);
+    }
+    if (home && home.checked) params.set('homeHitsOnly', '1');
+    return params;
+  }
+  function go() {
+    syncDisabled();
+    location.href = '/stats?' + navParams().toString();
+  }
+  function syncTabHrefs(params) {
+    var links = document.querySelectorAll('.stats-tabs > a');
+    if (!links.length) return;
+    var tot = new URLSearchParams(params);
+    tot.set('tab', 'totals');
+    tot.delete('interval');
+    tot.delete('view');
+    if (links[0]) links[0].setAttribute('href', '/stats?' + tot.toString());
+    var tr = new URLSearchParams(params);
+    tr.set('tab', 'trends');
+    tr.delete('group');
+    if (!tr.get('interval')) tr.set('interval', 'days');
+    if (links[1]) links[1].setAttribute('href', '/stats?' + tr.toString());
   }
   function clearCalendar(e) {
     e.preventDefault();
@@ -1945,13 +2229,43 @@ ${STATS_GAME_IDS.map(
     }
     location.href = next;
   }
-  function onDateOrInterval(e) {
-    var name = e.target && e.target.name;
-    if (name === 'from' || name === 'to' || name === 'interval') go();
+  function clearFilters(e) {
+    e.preventDefault();
+    var placeEl = form.querySelector('[name=place]');
+    var ispEl = form.querySelector('[name=isp]');
+    setCountrySelection([]);
+    var searchEl = form.querySelector('[data-country-search]');
+    if (searchEl) searchEl.value = '';
+    filterCountryList();
+    if (placeEl) placeEl.value = '';
+    if (ispEl) ispEl.value = '';
+    if (home) home.checked = false;
+    for (var i = 0; i < gtKeys.length; i++) {
+      var el = form.querySelector('[name="gt_' + gtKeys[i] + '"]');
+      if (!el) continue;
+      el.value = gtKeys[i] === 'languages' || gtKeys[i] === 'games' ? '0' : '';
+    }
+    go();
   }
-  form.addEventListener('change', onDateOrInterval);
+  form.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t && t.getAttribute && t.getAttribute('data-country-search') != null) return;
+    var name = t && t.name;
+    if (!name) return;
+    go();
+  });
   form.addEventListener('input', function (e) {
-    var name = e.target && e.target.name;
+    var t = e.target;
+    if (t && t.getAttribute && t.getAttribute('data-country-search') != null) {
+      filterCountryList();
+      return;
+    }
+    var name = t && t.name;
+    if (name === 'place' || name === 'isp') {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(go, 80);
+      return;
+    }
     if (name === 'from' || name === 'to') go();
   });
   form.addEventListener('submit', function (e) {
@@ -1972,6 +2286,36 @@ ${STATS_GAME_IDS.map(
       clearCalendar(e);
     }, { passive: false });
   }
+  var clearFiltersBtn = form.querySelector('[data-clear-filters]');
+  if (clearFiltersBtn) {
+    clearFiltersBtn.addEventListener('click', clearFilters);
+  }
+  var countryAll = form.querySelector('[data-country-all]');
+  var countryNone = form.querySelector('[data-country-none]');
+  if (countryAll) {
+    countryAll.addEventListener('click', function (e) {
+      e.preventDefault();
+      setVisibleCountries(true);
+    });
+  }
+  if (countryNone) {
+    countryNone.addEventListener('click', function (e) {
+      e.preventDefault();
+      setVisibleCountries(false);
+    });
+  }
+  syncDisabled();
+  bindCountryFilterDismiss();
+  updateCountrySummary();
+  var tabsNav = document.querySelector('.stats-tabs');
+  if (tabsNav) {
+    tabsNav.addEventListener('pointerdown', function (e) {
+      var a = e.target && e.target.closest ? e.target.closest('a') : null;
+      if (!a || !tabsNav.contains(a)) return;
+      syncTabHrefs(navParams());
+    }, true);
+  }
+  syncTabHrefs(navParams());
 })();`;
 
     const TRENDS_CHART = `(function () {
@@ -2242,10 +2586,13 @@ ${emptyRow}
       </div>
       ${tabs}
       ${subtabs}
-      <div id="stats-filter-body" class="stats-filter-body">
-        ${sharedDates}
-        <button type="button" data-clear-calendar>Clear Calendar</button>
-        ${intervalSelect}
+      <div id="stats-filter-body" class="stats-filter-body stats-filter-body-split">
+        <div class="stats-filter-range">
+          ${sharedDates}
+          <button type="button" data-clear-calendar>Clear Calendar</button>
+          ${intervalSelect}
+        </div>
+        ${filterEntries}
       </div>
     </form>
     ${notice}
@@ -2327,47 +2674,6 @@ ${GROUP_OPTIONS.map(
 ).join('\n')}
       </select></label>`;
 
-  const countryFilter = `<details class="country-filter">
-        <summary><span>Country</span><span data-country-summary>${esc(
-          filters.countries.length
-            ? filters.countries.length <= 2
-              ? filters.countries
-                  .map((code) => {
-                    const hit = countryOptions.find(([c]) => c === code);
-                    return hit ? hit[1] : formatCountry(code) || code;
-                  })
-                  .join(', ')
-              : `${filters.countries.length} countries`
-            : 'All'
-        )}</span></summary>
-        <div class="country-filter-list">
-          <input type="search" data-country-search placeholder="Search countries" autocomplete="off"/>
-          <div class="country-filter-actions">
-            <button type="button" data-country-all>Select all</button>
-            <button type="button" data-country-none>Deselect all</button>
-          </div>
-          <div class="country-filter-options">
-${countryOptions
-  .map(
-    ([code, label]) =>
-      `          <label class="check" data-country-hay="${esc(`${code} ${label}`)}"><input type="checkbox" name="country" value="${esc(
-        code
-      )}"${filters.countries.includes(code) ? ' checked' : ''}/>${esc(label)}</label>`
-  )
-  .join('\n')}
-          </div>
-          <p class="country-filter-empty" data-country-empty>No matching countries</p>
-        </div>
-      </details>`;
-
-  const gtFields = GT_KEYS.map((key) => {
-    const disabled = homeHitsOnly && HOME_GT_OFF.includes(key) ? ' disabled' : '';
-    const shown = gtInputValue(filters, key);
-    return `<label>${esc(key)}<span class="gt-field"><span aria-hidden="true">&gt;</span><input type="number" name="gt_${esc(
-      key
-    )}" value="${esc(shown)}" placeholder="0" min="${GT_MIN}" max="${GT_MAX}" step="1"${disabled}/></span></label>`;
-  }).join('\n      ');
-
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2390,17 +2696,10 @@ ${countryOptions
       <div id="stats-filter-body" class="stats-filter-body stats-filter-body-split">
         <div class="stats-filter-range">
           ${sharedDates}
+          <button type="button" data-clear-calendar>Clear Calendar</button>
           ${groupSelect}
         </div>
-        <div id="stats-filter-entries" class="stats-filter-entries">
-          ${countryFilter}
-          <label>Place<input type="text" name="place" value="${esc(filters.place)}" autocomplete="off"/></label>
-          <label>ISP<input type="text" name="isp" value="${esc(filters.isp)}" autocomplete="off"/></label>
-          ${gtFields}
-          <span class="stats-filter-end">
-            <label class="check"><input type="checkbox" name="homeHitsOnly" value="1"${homeHitsOnly ? ' checked' : ''}/> Homehits only</label>
-          </span>
-        </div>
+        ${filterEntries}
       </div>
     </form>
     ${notice}

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createStatsStore, PRUNE_INTERVAL_MS } from './stats-store.js';
 import { createStatsHandler } from './stats-http.js';
 import { combineBodies, combineTrends, parseDateRange, parseTrendInterval } from './stats-combine.js';
-import { renderStatsHtml } from './stats-page.js';
+import { renderStatsHtml, trendIdentityAllowIds } from './stats-page.js';
 import { isStatsApiPath, isStatsGeoApiPath, isStatsPagePath } from './stats-path.js';
 import { lookupMissingGeos } from './stats-geo-lookup.js';
 import { buildStatsGeoPayload } from './stats-geo-api.js';
@@ -130,8 +130,10 @@ async function handleStatsPage(req, res) {
   const inputs = loadStatsInputs();
   const range = parseDateRange(url.searchParams.get('from') || '', url.searchParams.get('to') || '');
   const rows = combineBodies(inputs, range);
-  const trends = combineTrends(inputs, range, parseTrendInterval(url.searchParams.get('interval')));
   await lookupMissingGeos(rows);
+  const trends = combineTrends(inputs, range, parseTrendInterval(url.searchParams.get('interval')), {
+    allowIds: trendIdentityAllowIds(rows, url.searchParams),
+  });
   const html = renderStatsHtml({
     rows,
     trends,
