@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react';
 import type { GameState, DictionaryEntry, LetterState, LanguageConfig } from '../types';
 import { GameBoard } from './GameBoard';
 import { Keyboard } from './Keyboard';
@@ -154,7 +154,6 @@ export const Game: React.FC<GameProps> = ({
   const playAreaRef = useRef<HTMLDivElement>(null);
   const [selectedPlayDate, setSelectedPlayDate] = useState<string>('');
   const [keyboardRtl, setKeyboardRtl] = useState<boolean>(false);
-  const [shakeRowIndex, setShakeRowIndex] = useState<number | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [showWordIndexPopup, setShowWordIndexPopup] = useState(false);
   const [wordIndexInput, setWordIndexInput] = useState('');
@@ -930,6 +929,14 @@ export const Game: React.FC<GameProps> = ({
     }
   }, [selectedPlayDate]);
 
+  const currentGuessWord = keyboardRtl
+    ? [...(gameState?.currentGuess ?? '')].reverse().join('')
+    : (gameState?.currentGuess ?? '');
+  const invalidRow = useMemo(() => {
+    if (!dictionary || !gameState || gameState.isComplete) return false;
+    if (currentGuessWord.length !== wordLength) return false;
+    return !isValidWord(currentGuessWord, dictionary);
+  }, [dictionary, gameState, currentGuessWord, wordLength]);
 
   // Auto-start game when first letter is typed (instead of Play button)
   const handleKeyPress = useCallback(async (key: string) => {
@@ -978,13 +985,7 @@ export const Game: React.FC<GameProps> = ({
     }
 
     if (!isValidWord(guess, dictionary)) {
-      // Trigger shake animation on the current row
-      const currentRowIndex = gameState.guesses.length;
-      setShakeRowIndex(currentRowIndex);
-      // Clear shake after animation completes (600ms)
-      setTimeout(() => {
-        setShakeRowIndex(null);
-      }, 600);
+      setGameState({ ...gameState, currentGuess: '' });
       return;
     }
 
@@ -1373,7 +1374,7 @@ export const Game: React.FC<GameProps> = ({
                 targetWord={gameState.isComplete && !gameState.isWon ? targetWord : undefined}
                 isComplete={gameState.isComplete}
                 isWon={gameState.isWon}
-                shakeRowIndex={shakeRowIndex}
+                invalidRow={invalidRow}
                 rtl={keyboardRtl}
               />
               {gameState.isComplete && (

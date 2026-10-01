@@ -9,7 +9,7 @@ interface GameBoardProps {
   targetWord?: string;
   isComplete?: boolean;
   isWon?: boolean;
-  shakeRowIndex?: number | null;
+  invalidRow?: boolean;
   /** When true, current guess is shown right-to-left (first letter in rightmost cell) */
   rtl?: boolean;
 }
@@ -22,7 +22,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   targetWord,
   isComplete,
   isWon,
-  shakeRowIndex,
+  invalidRow = false,
   rtl = false,
 }) => {
   const getCellState = (row: number, col: number): LetterEvaluation | null => {
@@ -62,9 +62,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     return null;
   };
 
-  const getCellClass = (state: LetterEvaluation | null, isActive: boolean): string => {
-    if (!state) return `cell empty${isActive ? ' cell-active' : ''}`;
-    return `cell ${state.state}${isActive ? ' cell-active' : ''}`;
+  const getCellClass = (state: LetterEvaluation | null, isActive: boolean, warn: string): string => {
+    if (!state) return `cell empty${isActive ? ' cell-active' : ''}${warn}`;
+    return `cell ${state.state}${isActive ? ' cell-active' : ''}${warn}`;
   };
 
   const getActiveCol = (): number => {
@@ -75,19 +75,20 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   for (let row = 0; row < maxGuesses; row++) {
     const cells: React.ReactNode[] = [];
     const activeCol = !isComplete && row === guesses.length ? getActiveCol() : -1;
+    const onEntry = Boolean(!isComplete && row === guesses.length && currentGuess.length > 0);
+    const warn = onEntry && invalidRow ? ' invalid' : '';
     for (let col = 0; col < wordLength; col++) {
       const cellState = getCellState(row, col);
       const isActive = col === activeCol;
       cells.push(
-        <div key={col} className={getCellClass(cellState, isActive)}>
+        <div key={col} className={getCellClass(cellState, isActive, warn)}>
           {cellState?.letter.toUpperCase() || ''}
           {isActive && <span className="cell-cursor" aria-hidden="true" />}
         </div>
       );
     }
-    const isShaking = shakeRowIndex !== null && row === shakeRowIndex;
     rows.push(
-      <div key={row} className={`row ${isShaking ? 'shake' : ''}`}>
+      <div key={row} className={`row${warn}`}>
         {cells}
       </div>
     );
@@ -107,4 +108,3 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     </div>
   );
 };
-
