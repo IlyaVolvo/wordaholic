@@ -28,20 +28,24 @@ export function parseCatalog(raw) {
  * @param {string} noteCommit
  * @param {string} currentCommit
  */
-function freezeCommit(noteCommit, currentCommit) {
-  if (noteCommit === 'HEAD') return currentCommit || 'HEAD';
-  return noteCommit;
+function freezeCommit(noteCommit, currentCommit, notes = []) {
+  if (noteCommit !== 'HEAD') return noteCommit;
+  const taken = new Set(notes.filter((note) => note.commit !== 'HEAD').map((note) => note.commit));
+  // Do not collapse HEAD onto an earlier catalog SHA — that re-queues the note forever.
+  if (currentCommit && !taken.has(currentCommit)) return currentCommit;
+  return 'HEAD';
 }
 
 /**
  * @param {{ commit: string, body: string }} note
  * @param {string} cursor
  * @param {string} currentCommit
+ * @param {{ commit: string, body: string }[]} notes
  */
-function noteMatchesCursor(note, cursor, currentCommit) {
+function noteMatchesCursor(note, cursor, currentCommit, notes) {
   if (note.commit === cursor) return true;
   // Unstamped catalog still says HEAD; dismiss stores the deploy SHA.
-  return note.commit === 'HEAD' && cursor === freezeCommit('HEAD', currentCommit);
+  return note.commit === 'HEAD' && cursor === freezeCommit('HEAD', currentCommit, notes);
 }
 
 /**
@@ -59,18 +63,18 @@ export function planAnnouncements(notes, cursor, currentCommit) {
     if (!queue.length) {
       return {
         queue: [],
-        stamp: freezeCommit(notes[notes.length - 1].commit, currentCommit),
+        stamp: freezeCommit(notes[notes.length - 1].commit, currentCommit, notes),
       };
     }
     return { queue, stamp: null };
   }
-  const index = notes.findIndex((note) => noteMatchesCursor(note, cursor, currentCommit));
+  const index = notes.findIndex((note) => noteMatchesCursor(note, cursor, currentCommit, notes));
   if (index === -1) {
     const queue = notes.filter(isThisDeploy);
     if (!queue.length) {
       return {
         queue: [],
-        stamp: freezeCommit(notes[notes.length - 1].commit, currentCommit),
+        stamp: freezeCommit(notes[notes.length - 1].commit, currentCommit, notes),
       };
     }
     return { queue, stamp: null };
@@ -151,7 +155,7 @@ export async function showUpgradeAnnouncements() {
       }
       const note = queue[i];
       showOne(note, () => {
-        setCursor(freezeCommit(note.commit, currentCommit));
+        setCursor(freezeCommit(note.commit, currentCommit, notes));
         next(i + 1);
       });
     };

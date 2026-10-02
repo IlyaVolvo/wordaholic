@@ -12,7 +12,7 @@
     "body": "Home map: activity dots show where people have played (when you are online). Use From/To on the left to narrow the dates.\n\nLocations are approximate. If a city is missing or unknown, the dot is placed on that country’s capital. VPN and mobile roaming can shift a player far from where they really are, so the map is a rough picture, not a precise census."
   },
   {
-    "commit": "HEAD",
+    "commit": "5d7d620",
     "body": "PolyHydra is now Hydra. Its Summary mode has significantly changed.\n\n The reason: the old algorithm revealed more information that intended. \n\n Please, carefully read the explanation for this mode in the game manual. Standard mode is still available."
   }
 ]

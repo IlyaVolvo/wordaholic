@@ -263,12 +263,12 @@ export const Game: React.FC<GameProps> = ({
   const [windowStart, setWindowStart] = useState(0);
   const [exiting, setExiting] = useState<number[]>([]);
   const [boardScale, setBoardScale] = useState(1);
-  const [boardMode, setBoardMode] = useState<'summary' | 'full'>(() => storedBoardMode() || 'summary');
+  const [boardMode, setBoardMode] = useState<'summary' | 'full'>(() => storedBoardMode(boardCount) || 'summary');
   const [viewportTooSmall, setViewportTooSmall] = useState(false);
   const prevSolvedRef = useRef<boolean[] | null>(null);
   const finaleAppliedRef = useRef(false);
   const finaleFocusRef = useRef(false);
-  const modeUserOverrideRef = useRef(storedBoardMode() != null);
+  const modeUserOverrideRef = useRef(storedBoardMode(boardCount) != null);
   const isCompleteRef = useRef(false);
   const boardModeRef = useRef(boardMode);
   const boardsViewportRef = useRef<HTMLDivElement | null>(null);
@@ -281,11 +281,11 @@ export const Game: React.FC<GameProps> = ({
   const selectBoardMode = useCallback((mode: 'summary' | 'full', fromUser: boolean) => {
     if (fromUser) {
       modeUserOverrideRef.current = true;
-      setBoardModePref(mode);
+      setBoardModePref(boardCount, mode);
     }
     boardModeRef.current = mode;
     setBoardMode(mode);
-  }, []);
+  }, [boardCount]);
 
   useEffect(() => {
     isCompleteRef.current = isComplete;
@@ -522,13 +522,15 @@ export const Game: React.FC<GameProps> = ({
 
   useEffect(() => {
     setExiting([]);
-    const stored = storedBoardMode();
+    const stored = storedBoardMode(boardCount);
     if (stored) {
       modeUserOverrideRef.current = true;
       boardModeRef.current = stored;
       setBoardMode(stored);
     } else {
       modeUserOverrideRef.current = false;
+      boardModeRef.current = 'summary';
+      setBoardMode('summary');
     }
     prevSolvedRef.current = null;
     finaleAppliedRef.current = false;

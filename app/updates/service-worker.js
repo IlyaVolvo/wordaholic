@@ -107,6 +107,12 @@ function isStatsPagePath(pathname) {
   return canonicalPath(pathname) === '/stats';
 }
 
+/** Game index.html / folder navigations. Hashed bundles change; stale HTML 404s the JS. */
+function isGameShellPath(pathname) {
+  const p = canonicalPath(pathname);
+  return /^\/games\/[^/]+$/.test(p) || /^\/games\/[^/]+\/index\.html$/.test(p);
+}
+
 /**
  * Cache-first except the hash manifest. Reload should hit Cache Storage, not the network.
  * Navigations include ?lang= and often omit index.html; HEAD must reuse GET entries.
@@ -173,6 +179,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const isDocument = req.mode === 'navigate' || req.destination === 'document';
+  if (isGameShellPath(url.pathname) && (isDocument || url.pathname.endsWith('.html'))) {
+    event.respondWith(
+      (async () => {
+        try {
+          const res = await fetch(req, { cache: 'no-store' });
+          if (req.method === 'GET' && res.ok) {
+            const cache = await caches.open(CACHE_SHELL);
+            const indexPath = url.pathname.endsWith('index.html')
+              ? url.pathname
+              : `${canonicalPath(url.pathname)}/index.html`;
+            await cache.put(new Request(`${url.origin}${indexPath}`), res.clone());
+          }
+          return res;
+        } catch {
+          const cached = await matchFromCache(req);
+          if (cached) return cached;
+          return new Response('Offline', { status: 503, statusText: 'Offline' });
+        }
+      })()
+    );
+    return;
+  }
+
   event.respondWith(
     (async () => {
       const cached = await matchFromCache(req);
@@ -195,7 +225,7 @@ self.addEventListener('fetch', (event) => {
         }
         return res;
       } catch {
-        if (req.mode === 'navigate' && !isStatsPagePath(url.pathname)) {
+        if (req.mode === 'navigate' && !isStatsPagePath(url.pathname) && !isGameShellPath(url.pathname)) {
           const fallback = await caches.match('/index.html');
           if (fallback) return fallback;
         }

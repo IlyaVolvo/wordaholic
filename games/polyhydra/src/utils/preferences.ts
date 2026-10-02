@@ -15,30 +15,56 @@ const DEFAULT_PREFERENCES: HydraPrefs = {
   wordLength: 5,
   boardCount: DEFAULT_BOARD_COUNT,
   selectedDates: {},
+  boardModes: {},
 };
+
+function asBoardMode(value: unknown): 'summary' | 'full' | undefined {
+  return value === 'summary' || value === 'full' ? value : undefined;
+}
+
+function asBoardModes(value: unknown): Record<string, 'summary' | 'full'> {
+  if (!value || typeof value !== 'object') return {};
+  const next: Record<string, 'summary' | 'full'> = {};
+  for (const [key, mode] of Object.entries(value as Record<string, unknown>)) {
+    const parsed = asBoardMode(mode);
+    if (parsed) next[key] = parsed;
+  }
+  return next;
+}
 
 let cache: HydraPrefs = { ...DEFAULT_PREFERENCES, selectedDates: {} };
 let ready = false;
 
 export async function initPreferences(): Promise<HydraPrefs> {
   const stored = await getPrefs();
-  const storedMode = stored?.boardMode;
+  const boardCount = stored?.boardCount || DEFAULT_PREFERENCES.boardCount;
+  const boardModes = asBoardModes(stored?.boardModes);
+  const legacy = asBoardMode(stored?.boardMode);
+  const countKey = String(boardCount);
+  const migrated = Boolean(legacy && !boardModes[countKey]);
+  if (migrated && legacy) boardModes[countKey] = legacy;
   cache = {
     ...DEFAULT_PREFERENCES,
     ...stored,
     language: stored?.language || DEFAULT_PREFERENCES.language,
     wordLength: stored?.wordLength || DEFAULT_PREFERENCES.wordLength,
-    boardCount: stored?.boardCount || DEFAULT_PREFERENCES.boardCount,
+    boardCount,
     selectedDates: { ...DEFAULT_PREFERENCES.selectedDates, ...stored?.selectedDates },
-    boardMode: storedMode === 'summary' || storedMode === 'full' ? storedMode : undefined,
+    boardModes,
+    boardMode: undefined,
   };
   ready = true;
+  if (migrated) void setPrefs(cache);
   return loadPreferences();
 }
 
 export function loadPreferences(): HydraPrefs {
-  if (!ready) return { ...DEFAULT_PREFERENCES, selectedDates: {} };
-  return { ...cache, selectedDates: { ...cache.selectedDates } };
+  if (!ready) return { ...DEFAULT_PREFERENCES, selectedDates: {}, boardModes: {} };
+  return {
+    ...cache,
+    selectedDates: { ...cache.selectedDates },
+    boardModes: { ...cache.boardModes },
+  };
 }
 
 export function savePreferences(preferences: HydraPrefs): void {
@@ -46,6 +72,8 @@ export function savePreferences(preferences: HydraPrefs): void {
     ...DEFAULT_PREFERENCES,
     ...preferences,
     selectedDates: { ...preferences.selectedDates },
+    boardModes: asBoardModes(preferences.boardModes),
+    boardMode: asBoardMode(preferences.boardMode),
   };
   void setPrefs(cache);
 }
@@ -58,13 +86,15 @@ export function getSelectedDate(lang: string, len: number, boards: number): stri
   return cache.selectedDates?.[dateKey(lang, len, boards)] || null;
 }
 
-export function storedBoardMode(): 'summary' | 'full' | null {
-  const mode = cache.boardMode;
-  return mode === 'summary' || mode === 'full' ? mode : null;
+export function storedBoardMode(boardCount: number): 'summary' | 'full' | null {
+  return asBoardMode(cache.boardModes?.[String(boardCount)]) ?? null;
 }
 
-export function setBoardModePref(mode: 'summary' | 'full'): void {
-  cache = { ...cache, boardMode: mode };
+export function setBoardModePref(boardCount: number, mode: 'summary' | 'full'): void {
+  cache = {
+    ...cache,
+    boardModes: { ...cache.boardModes, [String(boardCount)]: mode },
+  };
   void setPrefs(cache);
 }
 

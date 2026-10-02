@@ -26,6 +26,9 @@ export type HydraPrefs = {
   wordLength: number;
   boardCount: number;
   selectedDates?: Record<string, string>;
+  /** Per board-count Standard/Summary. Shared across languages and word lengths. */
+  boardModes?: Record<string, 'summary' | 'full'>;
+  /** Legacy single mode; used only when a board count has no entry in boardModes. */
   boardMode?: 'summary' | 'full';
 };
 
@@ -183,15 +186,25 @@ export async function getStoredGame(params: {
 
 export async function getPrefs(): Promise<HydraPrefs | null> {
   if (prefsCache) {
-    return { ...prefsCache, selectedDates: { ...prefsCache.selectedDates } };
+    return {
+      ...prefsCache,
+      selectedDates: { ...prefsCache.selectedDates },
+      boardModes: { ...prefsCache.boardModes },
+    };
   }
   const value = (await storage.getGameState(GAME_ID, 'prefs')) as HydraPrefs | null;
   prefsCache = value;
-  return value ? { ...value, selectedDates: { ...value.selectedDates } } : null;
+  return value
+    ? { ...value, selectedDates: { ...value.selectedDates }, boardModes: { ...value.boardModes } }
+    : null;
 }
 
 export async function setPrefs(prefs: HydraPrefs): Promise<void> {
-  prefsCache = { ...prefs, selectedDates: { ...prefs.selectedDates } };
+  prefsCache = {
+    ...prefs,
+    selectedDates: { ...prefs.selectedDates },
+    boardModes: { ...prefs.boardModes },
+  };
   await storage.setGameState(GAME_ID, 'prefs', prefsCache);
 }
 
