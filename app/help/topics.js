@@ -235,10 +235,10 @@ export const HELP_TOPICS = {
         body:
           'This board does not have the tall grid. Instead it has the informational block is as tall as the word is long — one row per ' +
           'discovered letter, in the order they were found. Each row colors every column where ' +
-          'that letter was present in one of the guessed words: green if it is in this place and yellow otherwise. ' +
-          'The letter itself is written as many times as max discovered occurrences in a SINGLE guess ' + 
-          'A letter is written first on green if present, otherwise leftmost yellow. Extra columns stay empty. ' +
-          'Below that sit the previous guess and the entry row for entery. \n\n' +
+          'that letter was present in at least one of the guessed words: green if it is in this place and yellow otherwise. ' +
+          'The letter itself is written as many times as maximum discovered occurrences in a SINGLE guess. ' + 
+          'A letter itself is written first on green if present, otherwise on the leftmost yellow column. Extra columns stay empty. ' +
+          'Below that sit the previous guess and the entry row for the  next entry. \n\n' +
           'The up arrow, up key or swipe up returns to the Standard mode.',
       },
       {
