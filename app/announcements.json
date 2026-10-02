@@ -5,7 +5,7 @@
   },
   {
     "commit": "8d1958e",
-    "body": "New game: PolyHydra.\n\nPlay several PolyWordlot boards at once with one shared guess. Each board has its own secret. One typed word is scored on every board that is not solved yet. Win by solving all of them before the shared guesses run out."
+    "body": "New game: Hydra.\n\nPlay several PolyWordlot boards at once with one shared guess. Each board has its own secret. One typed word is scored on every board that is not solved yet. Win by solving all of them before the shared guesses run out."
   },
   {
     "commit": "6014537",

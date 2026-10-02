@@ -51,7 +51,7 @@ registerGame({
 
 registerGame({
   id: 'polyhydra',
-  name: 'PolyHydra',
+  name: 'Hydra',
   storageSchema: 1,
   languages: ['en', 'ru', 'fr', 'es', 'he', 'hy', 'de'],
   async initialize() {},

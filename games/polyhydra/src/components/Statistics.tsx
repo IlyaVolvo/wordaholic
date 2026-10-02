@@ -120,7 +120,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
             <a href="/" className="header-brand-home" title="Wordaholic home" aria-label="Wordaholic home">
               <img className="header-brand-home-svg" src="/brand/wordaholic-mark.svg" width={34} height={34} alt="" />
             </a>
-            <span className="header-game-name">PolyHydra</span>
+            <span className="header-game-name">Hydra</span>
           </div>
           <div className="game-header-side game-header-right">
             <button type="button" className="header-icon-button" onClick={() => onViewChange('game')} aria-label="Back to game">

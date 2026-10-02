@@ -12,7 +12,7 @@ export const GEO_GAME_COLORS = {
 export const GEO_GAME_LABELS = {
   polywordlot: 'PolyWordlot',
   transword: 'TransWord',
-  polyhydra: 'PolyHydra',
+  polyhydra: 'Hydra',
 };
 
 export const GEO_GAME_IDS = /** @type {const} */ (['polywordlot', 'transword', 'polyhydra']);

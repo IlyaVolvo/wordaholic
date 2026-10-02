@@ -59,7 +59,7 @@ export const HELP_TOPICS = {
           'Wordaholic keeps completed games on this device — there is no account. The tray ' +
           'icons at the bottom are used to export/import the historyy.\n\n' +
           'Export (arrow into the tray) saves a JSON file: finished PolyWordlot, ' +
-          'TransWord, and PolyHydra games, plus the languages you selected. Use it as a backup, or to copy ' +
+          'TransWord, and Hydra games, plus the languages you selected. Use it as a backup, or to copy ' +
           'progress to another browser or phone.\n\n' +
           'Import (arrow out of the tray) reads that file. Puzzles merge with what is ' +
           'already here. If the same daily exists on both, the worse result is kept. ' +
@@ -94,7 +94,7 @@ export const HELP_TOPICS = {
         screenshot: null,
         body:
           'PolyWordlot is inspired by Wordle.\n' +
-          'PolyHydra is inspired by Sedecordle.\n\n' +
+          'Hydra is inspired by Sedecordle.\n\n' +
           'Word sets were curated by:\n\n' +
           '• French — Tanya Levshina\n' +
           '• Spanish — Olga Lichten\n' +
@@ -195,15 +195,15 @@ export const HELP_TOPICS = {
     ],
   },
   polyhydra: {
-    title: 'PolyHydra',
-    tooltip: 'How to play PolyHydra',
+    title: 'Hydra',
+    tooltip: 'How to play Hydra',
     intro: 'Play several PolyWordlot boards at once with one shared guess.',
     steps: [
       {
         title: 'Many boards, one guess',
         screenshot: '/help/polyhydra/welcome.svg',
         body:
-          'PolyHydra is PolyWordlot on several boards at the same time. Each board has its ' +
+          'Hydra is PolyWordlot on several boards at the same time. Each board has its ' +
           'own secret word. You type one guess; it is scored on every board that is not ' +
           'solved yet. Secrets can repeat. There is no Practice mode — only Daily.',
       },

@@ -422,7 +422,7 @@ write(
     out += `<rect width="${w}" height="${h}" rx="10" fill="#6fa8c9"/>`;
     out += `<rect width="${w}" height="${hdr}" fill="#0c0e14"/>`;
     out += `<circle cx="14" cy="15" r="8" fill="#fff"/><text x="14" y="18.5" text-anchor="middle" font-size="9" font-weight="800" font-family="Fraunces, Georgia, serif" fill="#111">W</text>`;
-    out += `<text x="26" y="19" font-size="9" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#6c8cff">PolyHydra</text>`;
+    out += `<text x="26" y="19" font-size="9" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#6c8cff">Hydra</text>`;
     out += `<text x="100" y="20" text-anchor="middle" font-size="12" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#e2e4ec">16/21</text>`;
     const sbY = hdr + 3;
     const sbPad = 4;
@@ -616,7 +616,7 @@ write(
   <rect width="260" height="48" rx="10" fill="#0c0e14"/>
   <circle cx="22" cy="24" r="11" fill="#fff"/>
   <text x="22" y="28" text-anchor="middle" font-size="12" font-weight="800" font-family="Fraunces, Georgia, serif" fill="#111">W</text>
-  <text x="40" y="28" font-size="11" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#6c8cff">PolyHydra</text>
+  <text x="40" y="28" font-size="11" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#6c8cff">Hydra</text>
   <text x="130" y="30" text-anchor="middle" font-size="16" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#e2e4ec" letter-spacing="0.6">16/21</text>
   <g fill="none" stroke="#e2e4ec" stroke-width="1.8" stroke-linecap="round">
     <line x1="232" y1="32" x2="232" y2="20"/>
