@@ -6,8 +6,9 @@
   "description": "Offline-first multi-game word platform",
   "scripts": {
     "sync-dicts": "node scripts/sync-dicts.js",
-    "build:polywordlot": "vite build --config games/polywordlot/vite.config.ts",
-    "build:polyhydra": "vite build --config games/polyhydra/vite.config.ts",
+    "build:polywordlot": "vite build --config games/polywordlot/vite.config.ts && node scripts/stamp-dist-sw.js",
+    "build:polyhydra": "vite build --config games/polyhydra/vite.config.ts && node scripts/stamp-dist-sw.js",
+    "build:transword": "node scripts/build-transword.js && node scripts/stamp-dist-sw.js",
     "build": "node scripts/build.js",
     "build:full": "node scripts/sync-dicts.js && node scripts/build.js",
     "dev": "node scripts/dev.js",

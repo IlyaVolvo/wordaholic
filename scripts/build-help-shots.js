@@ -337,54 +337,258 @@ write(
 </svg>`
 );
 
-function hydraMiniBoards() {
-  const cell = 10;
-  const gap = 2;
-  const cols = 5;
-  const rows = 4;
-  const boardW = cols * cell + (cols - 1) * gap;
-  const boardH = rows * cell + (rows - 1) * gap;
-  let out = '';
-  for (let b = 0; b < 3; b++) {
-    const ox = 12 + b * (boardW + 14);
-    const oy = 36;
-    out += `<rect x="${ox - 4}" y="${oy - 4}" width="${boardW + 8}" height="${boardH + 8}" rx="6" fill="#fff"/>`;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        const x = ox + c * (cell + gap);
-        const y = oy + r * (cell + gap);
-        let fill = '#fff';
-        let stroke = '#c4c7ca';
-        if (r === 0) {
-          fill = c === 4 ? CORRECT : c > 1 ? PRESENT : '#787c7e';
-          stroke = fill;
-        }
-        out += `<rect x="${x}" y="${y}" width="${cell}" height="${cell}" rx="2" fill="${fill}" stroke="${stroke}"/>`;
+write('polyhydra/boards.svg', pwBoard([STARE, BRAIN], 1));
+
+write(
+  'polyhydra/scoreboard.svg',
+  (() => {
+    const w = 260;
+    const h = 78;
+    const cells = [
+      { id: 1, solved: true, word: 'CRANE', attempt: 4 },
+      { id: 2, solved: true, word: 'STARE', attempt: 6 },
+      { id: 3, g: 2, y: 3 },
+      { id: 4, g: 0, y: 0 },
+      { id: 5, g: 0, y: 2, inView: true },
+    ];
+    const gap = 4;
+    const pad = 10;
+    const cellW = (w - pad * 2 - gap * (cells.length - 1)) / cells.length;
+    const cellH = 30;
+    const cy = 30;
+    const mix = (g, y) => {
+      if (g + y <= 0) return { fill: '#fff', text: '#111' };
+      if (g > 0 && y === 0) return { fill: g >= 3 ? '#4a9a52' : '#8fbf8f', text: g >= 3 ? '#fff' : '#111' };
+      if (y > 0 && g === 0) return { fill: y >= 3 ? PRESENT : '#fff3a3', text: '#111' };
+      return { fill: '#d4c44a', text: '#111' };
+    };
+    let out = '';
+    cells.forEach((cell, i) => {
+      const x = pad + i * (cellW + gap);
+      const solved = Boolean(cell.solved);
+      const fill = solved ? CORRECT : mix(cell.g, cell.y).fill;
+      const text = solved ? '#fff' : mix(cell.g, cell.y).text;
+      out += `<rect x="${x}" y="${cy}" width="${cellW}" height="${cellH}" rx="3" fill="${fill}" stroke="${cell.inView ? '#fff' : 'rgba(0,0,0,0.12)'}" stroke-width="${cell.inView ? 2 : 1}"/>`;
+      if (solved) {
+        out += `<text x="${x + cellW / 2}" y="${cy - 6}" text-anchor="middle" font-size="10" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#fff" letter-spacing="-0.3">${cell.word}</text>`;
       }
-    }
+      const idX = x + 4;
+      const idY = cy + 8;
+      out += `<rect x="${idX}" y="${idY}" width="12" height="13" rx="2" fill="none" stroke="${text}"/>`;
+      out += `<text x="${idX + 6}" y="${idY + 10.5}" text-anchor="middle" font-size="9" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="${text}">${cell.id}</text>`;
+      if (solved) {
+        const cx = x + cellW - 11;
+        const rcy = cy + cellH / 2;
+        out += `<circle cx="${cx}" cy="${rcy}" r="7.5" fill="none" stroke="#fff"/>`;
+        out += `<text x="${cx}" y="${rcy + 3.5}" text-anchor="middle" font-size="9" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#fff">${cell.attempt}</text>`;
+      } else {
+        out += `<text x="${x + cellW - 5}" y="${cy + 20}" text-anchor="end" font-size="11" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="${text}">${cell.g}/${cell.y}</text>`;
+      }
+    });
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+  <rect width="${w}" height="${h}" rx="10" fill="#0c0e14"/>
+  ${out}
+</svg>`;
+  })()
+);
+
+function hydraScoreStrip(count, cell, gap, ox, oy) {
+  let out = '';
+  for (let i = 0; i < count; i++) {
+    const fill = i === 6 ? PRESENT : i === 7 ? CORRECT : i % 5 === 0 ? '#fff8c8' : '#fff';
+    const x = ox + i * (cell + gap);
+    out += `<rect x="${x}" y="${oy}" width="${cell}" height="${cell}" rx="2" fill="${fill}" stroke="#c4c7ca"/>`;
+    out += `<text x="${x + cell / 2}" y="${oy + cell / 2 + 2.4}" text-anchor="middle" font-size="5" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#111">${i + 1}</text>`;
+  }
+  return out;
+}
+
+function hydraCell(x, y, size, fill, stroke, letter, textFill) {
+  let out = `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="2.5" fill="${fill}" stroke="${stroke}"/>`;
+  if (letter) {
+    const fs = Math.max(8, Math.round(size * 0.52));
+    out += `<text x="${x + size / 2}" y="${y + size / 2 + fs * 0.36}" text-anchor="middle" font-size="${fs}" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="${textFill}">${letter}</text>`;
   }
   return out;
 }
 
 write(
   'polyhydra/welcome.svg',
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 110" width="260" height="110">
-  <rect width="260" height="110" rx="12" fill="#6fa8c9"/>
-  ${[0,1,2,3,4,5].map((i) => `<rect x="${10 + i * 40}" y="10" width="34" height="14" rx="3" fill="${i < 2 ? CORRECT : i < 4 ? PRESENT : '#fff'}"/>`).join('')}
-  ${hydraMiniBoards()}
-</svg>`
+  (() => {
+    const w = 200;
+    const h = 348;
+    const hdr = 30;
+    let out = '';
+    out += `<rect width="${w}" height="${h}" rx="10" fill="#6fa8c9"/>`;
+    out += `<rect width="${w}" height="${hdr}" fill="#0c0e14"/>`;
+    out += `<circle cx="14" cy="15" r="8" fill="#fff"/><text x="14" y="18.5" text-anchor="middle" font-size="9" font-weight="800" font-family="Fraunces, Georgia, serif" fill="#111">W</text>`;
+    out += `<text x="26" y="19" font-size="9" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#6c8cff">PolyHydra</text>`;
+    out += `<text x="100" y="20" text-anchor="middle" font-size="12" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#e2e4ec">16/21</text>`;
+    const sbY = hdr + 3;
+    const sbPad = 4;
+    const sbGap = 1;
+    const sbW = (w - sbPad * 2 - sbGap * 15) / 16;
+    const sbH = 11;
+    for (let i = 0; i < 16; i++) {
+      const x = sbPad + i * (sbW + sbGap);
+      out += `<rect x="${x}" y="${sbY}" width="${sbW}" height="${sbH}" rx="1.5" fill="#fff"/>`;
+      out += `<text x="${x + sbW / 2}" y="${sbY + 8.2}" text-anchor="middle" font-size="5.5" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#111">${i + 1}</text>`;
+    }
+    out += `<text x="${w / 2}" y="58" text-anchor="middle" font-size="9" fill="#14232b">↑</text>`;
+    out += `<text x="${w / 2}" y="70" text-anchor="middle" font-size="10" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#14232b">1</text>`;
+    const cols = 5;
+    const rows = 8;
+    const size = 16;
+    const gap = 2.5;
+    const ox = (w - (cols * size + (cols - 1) * gap)) / 2;
+    const oy = 76;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        out += hydraCell(ox + c * (size + gap), oy + r * (size + gap), size, '#fff', '#c4c7ca', '', '#111');
+      }
+    }
+    out += `<text x="10" y="150" font-size="16" fill="#14232b">‹</text>`;
+    out += `<text x="${w - 10}" y="150" text-anchor="end" font-size="16" fill="#14232b">›</text>`;
+    const dockY = 230;
+    out += `<rect y="${dockY}" width="${w}" height="${h - dockY}" fill="#0c0e14"/>`;
+    const picks = [
+      { x: 6, w: 52, t: 'English' },
+      { x: 62, w: 28, t: '5' },
+      { x: 94, w: 32, t: '16' },
+      { x: 148, w: 46, t: 'today' },
+    ];
+    picks.forEach((p) => {
+      out += `<rect x="${p.x}" y="${dockY + 6}" width="${p.w}" height="16" rx="8" fill="#1e2230"/>`;
+      out += `<text x="${p.x + p.w / 2}" y="${dockY + 17}" text-anchor="middle" font-size="8" font-family="DM Sans, system-ui, sans-serif" fill="#e2e4ec">${p.t}</text>`;
+    });
+    const keys = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+    keys.forEach((row, ri) => {
+      const kw = 16;
+      const kg = 1.5;
+      const rowW = row.length * kw + (row.length - 1) * kg;
+      const kx = (w - rowW) / 2;
+      const ky = dockY + 30 + ri * 20;
+      [...row].forEach((k, i) => {
+        out += `<rect x="${kx + i * (kw + kg)}" y="${ky}" width="${kw}" height="17" rx="3" fill="#d3d6da"/>`;
+        out += `<text x="${kx + i * (kw + kg) + kw / 2}" y="${ky + 12}" text-anchor="middle" font-size="7" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#111">${k}</text>`;
+      });
+    });
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${out}</svg>`;
+  })()
 );
 
-write('polyhydra/boards.svg', pwBoard([STARE, BRAIN], 1));
+const STD_ROWS = [
+  [
+    { letter: 'S', state: 'absent' },
+    { letter: 'T', state: 'absent' },
+    { letter: 'A', state: 'present' },
+    { letter: 'R', state: 'present' },
+    { letter: 'E', state: 'correct' },
+  ],
+  [
+    { letter: 'B', state: 'absent' },
+    { letter: 'R', state: 'present' },
+    { letter: 'A', state: 'present' },
+    { letter: 'I', state: 'absent' },
+    { letter: 'N', state: 'present' },
+  ],
+  [
+    { letter: 'C', state: 'absent' },
+    { letter: 'R', state: 'absent' },
+    { letter: 'A', state: 'present' },
+    { letter: 'S', state: 'absent' },
+    { letter: 'S', state: 'absent' },
+  ],
+];
 
 write(
-  'polyhydra/scoreboard.svg',
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 48" width="260" height="48">
-  <rect width="260" height="48" rx="10" fill="#6fa8c9"/>
-  ${[CORRECT, PRESENT, '#fff8c8', '#fff', '#ffe082', CORRECT, '#fffde7', PRESENT].map((fill, i) =>
-    `<rect x="${10 + i * 31}" y="12" width="26" height="24" rx="4" fill="${fill}"/><text x="${23 + i * 31}" y="29" text-anchor="middle" font-size="10" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="${fill === CORRECT ? '#fff' : '#111'}">${i + 1}</text>`
-  ).join('')}
-</svg>`
+  'polyhydra/standard.svg',
+  (() => {
+    const w = 260;
+    const h = 148;
+    const size = 22;
+    const gap = 3;
+    const cols = 5;
+    const visible = 6;
+    const ox = (w - (cols * size + (cols - 1) * gap)) / 2;
+    const oy = 8;
+    let cells = '';
+    for (let r = 0; r < visible; r++) {
+      for (let c = 0; c < cols; c++) {
+        const ev = STD_ROWS[r]?.[c];
+        const st = ev ? CELL[ev.state] : CELL.empty;
+        cells += hydraCell(ox + c * (size + gap), oy + r * (size + gap), size, st.fill, st.stroke, ev?.letter || '', st.text);
+      }
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+  <rect width="${w}" height="${h}" rx="12" fill="#6fa8c9"/>
+  ${cells}
+  <text x="28" y="78" font-size="18" fill="#14232b">‹</text>
+  <text x="232" y="78" font-size="18" fill="#14232b">›</text>
+  <defs><linearGradient id="stdFade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6fa8c9" stop-opacity="0"/><stop offset="1" stop-color="#6fa8c9" stop-opacity="0.95"/></linearGradient></defs>
+  <rect x="0" y="118" width="${w}" height="30" fill="url(#stdFade)"/>
+</svg>`;
+  })()
+);
+
+write(
+  'polyhydra/summary.svg',
+  (() => {
+    const w = 260;
+    const h = 148;
+    const size = 16;
+    const gap = 2.5;
+    const cols = 5;
+    const ox = (w - (cols * size + (cols - 1) * gap)) / 2;
+    const known = [
+      [
+        { letter: '', state: 'empty' },
+        { letter: 'A', state: 'present' },
+        { letter: '', state: 'present' },
+        { letter: '', state: 'present' },
+        { letter: '', state: 'empty' },
+      ],
+      [
+        { letter: '', state: 'empty' },
+        { letter: 'R', state: 'present' },
+        { letter: '', state: 'empty' },
+        { letter: '', state: 'empty' },
+        { letter: '', state: 'empty' },
+      ],
+      Array(5).fill(null),
+      Array(5).fill(null),
+      Array(5).fill(null),
+    ];
+    const prev = [
+      { letter: 'C', state: 'absent' },
+      { letter: 'R', state: 'present' },
+      { letter: 'A', state: 'present' },
+      { letter: 'S', state: 'absent' },
+      { letter: 'S', state: 'absent' },
+    ];
+    let cells = '';
+    known.forEach((row, r) => {
+      for (let c = 0; c < cols; c++) {
+        const ev = row[c];
+        const st = ev && ev.state !== 'empty' ? CELL[ev.state] : CELL.empty;
+        cells += hydraCell(ox + c * (size + gap), 4 + r * (size + gap), size, st.fill, st.stroke, ev?.letter || '', st.text);
+      }
+    });
+    const prevY = 4 + 5 * (size + gap) + 10;
+    prev.forEach((ev, c) => {
+      const st = CELL[ev.state];
+      cells += hydraCell(ox + c * (size + gap), prevY, size, st.fill, st.stroke, ev.letter, st.text);
+    });
+    const entryY = prevY + size + 6;
+    for (let c = 0; c < cols; c++) {
+      cells += hydraCell(ox + c * (size + gap), entryY, size, '#fff', '#c4c7ca', '', '#111');
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+  <rect width="${w}" height="${h}" rx="12" fill="#6fa8c9"/>
+  ${cells}
+  <text x="130" y="${prevY - 1}" text-anchor="middle" font-size="12" fill="#14232b">↓</text>
+</svg>`;
+  })()
 );
 
 write(
@@ -408,10 +612,17 @@ write(
 
 write(
   'polyhydra/attempts.svg',
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 56" width="240" height="56">
-  <rect width="240" height="56" rx="10" fill="#161923"/>
-  <text x="120" y="24" text-anchor="middle" font-size="13" font-weight="600" font-family="DM Sans, system-ui, sans-serif" fill="#e2e4ec">16 boards</text>
-  <text x="120" y="42" text-anchor="middle" font-size="12" font-family="DM Sans, system-ui, sans-serif" fill="#7a7e94">21 shared guesses</text>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 48" width="260" height="48">
+  <rect width="260" height="48" rx="10" fill="#0c0e14"/>
+  <circle cx="22" cy="24" r="11" fill="#fff"/>
+  <text x="22" y="28" text-anchor="middle" font-size="12" font-weight="800" font-family="Fraunces, Georgia, serif" fill="#111">W</text>
+  <text x="40" y="28" font-size="11" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#6c8cff">PolyHydra</text>
+  <text x="130" y="30" text-anchor="middle" font-size="16" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#e2e4ec" letter-spacing="0.6">16/21</text>
+  <g fill="none" stroke="#e2e4ec" stroke-width="1.8" stroke-linecap="round">
+    <line x1="232" y1="32" x2="232" y2="20"/>
+    <line x1="240" y1="32" x2="240" y2="16"/>
+    <line x1="248" y1="32" x2="248" y2="24"/>
+  </g>
 </svg>`
 );
 
@@ -426,15 +637,64 @@ write(
 
 write(
   'polyhydra/stats.svg',
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 90" width="220" height="90">
-  <rect width="220" height="90" rx="12" fill="#fff"/>
-  <text x="14" y="22" font-size="11" font-family="DM Sans, system-ui, sans-serif" fill="#4a5568">Wins by guesses</text>
-  <rect x="14" y="36" width="12" height="40" rx="2" fill="${CORRECT}"/>
-  <rect x="32" y="28" width="12" height="48" rx="2" fill="${CORRECT}"/>
-  <rect x="50" y="20" width="12" height="56" rx="2" fill="${CORRECT}"/>
-  <rect x="176" y="64" width="12" height="12" rx="2" fill="#787c7e"/>
-  <text x="182" y="86" text-anchor="middle" font-size="8" font-family="DM Sans, system-ui, sans-serif" fill="#4a5568">loss</text>
-</svg>`
+  (() => {
+    const w = 260;
+    const h = 148;
+    const WIN = '#2d7a36';
+    const LOST = '#c62828';
+    const PLUS3 = '#1b5e20';
+    const PLUS4 = '#66bb6a';
+    const PLUS5 = '#fdd835';
+    const barX = 72;
+    const barW = 154;
+    const barH = 18;
+    const totalX = 248;
+    const swatch = (x, y, fill, label, tw, dark) =>
+      `<rect x="${x}" y="${y}" width="${tw}" height="12" rx="2" fill="${fill}"/>` +
+      `<text x="${x + tw / 2}" y="${y + 9.2}" text-anchor="middle" font-size="7" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="${dark ? '#123318' : '#fff'}">${label}</text>`;
+    const hbar = (y, segs) => {
+      const sum = segs.reduce((s, seg) => s + seg.n, 0);
+      let x = barX;
+      let out = `<rect x="${barX}" y="${y}" width="${barW}" height="${barH}" rx="3" fill="rgba(0,0,0,0.08)"/>`;
+      segs.forEach((seg) => {
+        const ww = (seg.n / sum) * barW;
+        out += `<rect x="${x}" y="${y}" width="${ww}" height="${barH}" fill="${seg.fill}"/>`;
+        if (ww >= 18) {
+          out += `<text x="${x + ww / 2}" y="${y + 13}" text-anchor="middle" font-size="8" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="${seg.dark ? '#4a3c00' : '#fff'}">${seg.label}</text>`;
+        }
+        x += ww;
+      });
+      return out;
+    };
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">
+  <rect width="${w}" height="${h}" rx="12" fill="#6fa8c9"/>
+  <text x="10" y="16" font-size="12" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#1a2330">Statistics</text>
+  ${swatch(92, 6, WIN, 'Win', 22, false)}
+  ${swatch(116, 6, LOST, 'Lost', 26, false)}
+  ${swatch(144, 6, PLUS3, '+3', 18, false)}
+  ${swatch(164, 6, PLUS4, '+4', 18, true)}
+  ${swatch(184, 6, PLUS5, '+5', 18, true)}
+  ${swatch(204, 6, LOST, 'loss', 26, false)}
+  <text x="10" y="40" font-size="9" font-weight="600" font-family="DM Sans, system-ui, sans-serif" fill="#1a2330">All games</text>
+  ${hbar(28, [
+    { n: 8, fill: WIN, label: '67%', dark: false },
+    { n: 4, fill: LOST, label: '33%', dark: false },
+  ])}
+  <text x="${totalX}" y="41" text-anchor="end" font-size="11" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#1a2330">12</text>
+  <rect x="10" y="54" width="62" height="16" rx="3" fill="#000"/>
+  <text x="41" y="65.5" text-anchor="middle" font-size="9" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#fff">16 boards</text>
+  <rect x="${barX}" y="76" width="130" height="16" rx="3" fill="#1a4d8f"/>
+  <text x="${barX + 6}" y="87.5" font-size="8" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#fff">Rare Achievements: +0: 1 time</text>
+  <text x="10" y="114" font-size="9" font-weight="600" font-family="DM Sans, system-ui, sans-serif" fill="#1a2330">5 letters</text>
+  ${hbar(102, [
+    { n: 2, fill: PLUS3, label: '2', dark: false },
+    { n: 3, fill: PLUS4, label: '3', dark: true },
+    { n: 2, fill: PLUS5, label: '2', dark: true },
+    { n: 1, fill: LOST, label: '1', dark: false },
+  ])}
+  <text x="${totalX}" y="115" text-anchor="end" font-size="11" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#1a2330">8</text>
+</svg>`;
+  })()
 );
 
 console.log('Wrote help screenshots to public/help/');

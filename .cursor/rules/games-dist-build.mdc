@@ -1,0 +1,13 @@
+---
+description: Rebuild the changed game into dist so local 4173 can be tested immediately
+globs: games/polyhydra/**,games/polywordlot/**,games/transword/**,packages/wordle-core/**
+alwaysApply: false
+---
+
+# Game dist rebuild
+
+After changing a game (or wordle-core used by PolyHydra/PolyWordlot), always run the matching dist build before considering the task done:
+- PolyHydra: `npm run build:polyhydra`
+- PolyWordlot: `npm run build:polywordlot`
+- TransWord: `npm run build:transword`
+Each writes `dist/games/...` and stamps `dist/sw.js` so `scripts/serve.js` on port 4173 serves the new files. Do not leave the user on a stale dist or only on a Vite dev port. If help copy changed, copy `app/help/topics.js` to `dist/app/help/topics.js` as well.

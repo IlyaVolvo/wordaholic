@@ -26,6 +26,7 @@ export type HydraPrefs = {
   wordLength: number;
   boardCount: number;
   selectedDates?: Record<string, string>;
+  boardMode?: 'summary' | 'full';
 };
 
 type GameRecord = StoredHydra & {

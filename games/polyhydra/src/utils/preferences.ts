@@ -22,6 +22,7 @@ let ready = false;
 
 export async function initPreferences(): Promise<HydraPrefs> {
   const stored = await getPrefs();
+  const storedMode = stored?.boardMode;
   cache = {
     ...DEFAULT_PREFERENCES,
     ...stored,
@@ -29,6 +30,7 @@ export async function initPreferences(): Promise<HydraPrefs> {
     wordLength: stored?.wordLength || DEFAULT_PREFERENCES.wordLength,
     boardCount: stored?.boardCount || DEFAULT_PREFERENCES.boardCount,
     selectedDates: { ...DEFAULT_PREFERENCES.selectedDates, ...stored?.selectedDates },
+    boardMode: storedMode === 'summary' || storedMode === 'full' ? storedMode : undefined,
   };
   ready = true;
   return loadPreferences();
@@ -54,6 +56,16 @@ export function dateKey(lang: string, len: number, boards: number): string {
 
 export function getSelectedDate(lang: string, len: number, boards: number): string | null {
   return cache.selectedDates?.[dateKey(lang, len, boards)] || null;
+}
+
+export function storedBoardMode(): 'summary' | 'full' | null {
+  const mode = cache.boardMode;
+  return mode === 'summary' || mode === 'full' ? mode : null;
+}
+
+export function setBoardModePref(mode: 'summary' | 'full'): void {
+  cache = { ...cache, boardMode: mode };
+  void setPrefs(cache);
 }
 
 export function setSelectedDate(lang: string, len: number, boards: number, date: string): void {

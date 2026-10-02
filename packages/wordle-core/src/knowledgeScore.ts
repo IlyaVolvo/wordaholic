@@ -114,82 +114,113 @@ export function scoreboardYellowFactor(score: number, cap: number): number {
 }
 
 /**
- * Locked greens by position. Yellows only for unplaced instances: a letter
- * already fully accounted for as green is not shown again unless a second
- * (or further) copy is known. Extra copies appear in columns where they
- * were evaluated present.
+ * Columns in visual-left order. `cols` are logical indices.
+ * @param {number[]} cols
+ * @param {number} wordLength
+ * @param {boolean} rtl
  */
-export function boardSummaryKnowledge(
-  guesses: Guess[],
-  wordLength: number,
-  language: string = 'en'
-): { greens: Array<string | null>; yellowsByColumn: string[][] } {
-  const greens = lockedGreens(guesses, wordLength);
-  const knownByLetter = knownCountByLetter(guesses, language);
-  const greenByLetter = new Map<string, number>();
-  for (const letter of greens) {
-    if (!letter) continue;
-    const key = letterKey(letter, language);
-    greenByLetter.set(key, (greenByLetter.get(key) || 0) + 1);
-  }
-
-  const yellowsByColumn: string[][] = Array.from({ length: wordLength }, () => []);
-  const seenAt = Array.from({ length: wordLength }, () => new Set<string>());
-  for (const guess of guesses) {
-    const evals = guess.evaluations || [];
-    for (let i = 0; i < wordLength; i++) {
-      const ev = evals[i];
-      if (!ev || ev.state !== 'present') continue;
-      const key = letterKey(ev.letter, language);
-      if (greens[i] && letterKey(greens[i] as string, language) === key) continue;
-      const greenCount = greenByLetter.get(key) || 0;
-      const known = Math.max(knownByLetter.get(key) || 0, greenCount);
-      if (known - greenCount <= 0) continue;
-      if (seenAt[i].has(key)) continue;
-      seenAt[i].add(key);
-      yellowsByColumn[i].push(ev.letter);
-    }
-  }
-  return { greens, yellowsByColumn };
-}
-
-function rowHasLetter(
-  row: Array<LetterEvaluation | null>,
-  key: string,
-  language: string
-): boolean {
-  return row.some((cell) => cell && letterKey(cell.letter, language) === key);
+function columnsByDisplayLeft(cols, wordLength, rtl) {
+  return [...cols].sort((a, b) => {
+    const da = rtl ? wordLength - 1 - a : a;
+    const db = rtl ? wordLength - 1 - b : b;
+    return da - db;
+  });
 }
 
 /**
- * Summary known grid: greens on row 0 in position. Yellows stay in the
- * columns where they were present, on the first later row that does not
- * already show that letter.
+ * Columns that get a glyph: greens first (visual left), then yellows.
+ * Count is the max yellow+green hits for this letter in any one guess.
+ * @param {Array<'correct' | 'present' | null>} states
+ * @param {number} wordLength
+ * @param {boolean} rtl
+ * @param {number} maxGlyphs
+ */
+function glyphColumns(states, wordLength, rtl, maxGlyphs) {
+  /** @type {number[]} */
+  const greens = [];
+  /** @type {number[]} */
+  const yellows = [];
+  for (let col = 0; col < wordLength; col++) {
+    const st = states[col];
+    if (st === 'correct') greens.push(col);
+    else if (st === 'present') yellows.push(col);
+  }
+  const ordered = [
+    ...columnsByDisplayLeft(greens, wordLength, rtl),
+    ...columnsByDisplayLeft(yellows, wordLength, rtl),
+  ];
+  const n = Math.max(0, Math.min(maxGlyphs, ordered.length));
+  return new Set(ordered.slice(0, n));
+}
+
+/**
+ * Summary known grid: one row per discovered letter (yellow or green on the
+ * board), in discovery order, up to word length. Each row colors every column
+ * where that letter was present or correct. The letter is written as many
+ * times as it lit up in a single guess (greens first, then leftmost yellows).
+ * A later gray of that letter still marks the column yellow (ruled out).
  */
 export function layoutSummaryKnown(
   guesses: Guess[],
   wordLength: number,
-  language: string = 'en'
+  language: string = 'en',
+  rtl: boolean = false
 ): Array<Array<LetterEvaluation | null>> {
-  const { greens, yellowsByColumn } = boardSummaryKnowledge(guesses, wordLength, language);
   const knownRowCount = Math.max(1, wordLength);
   const rows: Array<Array<LetterEvaluation | null>> = Array.from(
     { length: knownRowCount },
     () => Array(wordLength).fill(null)
   );
-  for (let col = 0; col < wordLength; col++) {
-    const letter = greens[col];
-    if (letter) rows[0][col] = { letter, state: 'correct' };
-  }
-  for (let col = 0; col < wordLength; col++) {
-    for (const letter of yellowsByColumn[col] || []) {
-      const key = letterKey(letter, language);
-      for (let row = 1; row < knownRowCount; row++) {
-        if (rows[row][col]) continue;
-        if (rowHasLetter(rows[row], key, language)) continue;
-        rows[row][col] = { letter, state: 'present' };
-        break;
+  const knownByLetter = knownCountByLetter(guesses, language);
+
+  type LetterTrack = {
+    letter: string;
+    states: Array<'correct' | 'present' | null>;
+  };
+  const order: string[] = [];
+  const byKey = new Map<string, LetterTrack>();
+
+  for (const guess of guesses) {
+    const evals = guess.evaluations || [];
+    for (let col = 0; col < wordLength; col++) {
+      const ev = evals[col];
+      if (!ev || (ev.state !== 'correct' && ev.state !== 'present')) continue;
+      const key = letterKey(ev.letter, language);
+      let track = byKey.get(key);
+      if (!track) {
+        track = {
+          letter: ev.letter,
+          states: Array(wordLength).fill(null),
+        };
+        byKey.set(key, track);
+        order.push(key);
       }
+      if (track.states[col] !== 'correct') track.states[col] = ev.state;
+    }
+  }
+  for (const guess of guesses) {
+    const evals = guess.evaluations || [];
+    for (let col = 0; col < wordLength; col++) {
+      const ev = evals[col];
+      if (!ev || ev.state !== 'absent') continue;
+      const track = byKey.get(letterKey(ev.letter, language));
+      if (!track || track.states[col]) continue;
+      track.states[col] = 'present';
+    }
+  }
+
+  for (let i = 0; i < order.length && i < knownRowCount; i++) {
+    const key = order[i];
+    const track = byKey.get(key);
+    if (!track) continue;
+    const glyphCols = glyphColumns(track.states, wordLength, rtl, knownByLetter.get(key) || 1);
+    for (let col = 0; col < wordLength; col++) {
+      const state = track.states[col];
+      if (!state) continue;
+      rows[i][col] = {
+        letter: glyphCols.has(col) ? track.letter : '',
+        state,
+      };
     }
   }
   return rows;

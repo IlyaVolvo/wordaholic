@@ -37,7 +37,14 @@ import {
   STORAGE_IMPORTED_EVENT,
   type StoredHydra,
 } from '../storage/platform';
-import { getSelectedDate, loadPreferences, savePreferences, setSelectedDate } from '../utils/preferences';
+import {
+  getSelectedDate,
+  loadPreferences,
+  savePreferences,
+  setBoardModePref,
+  setSelectedDate,
+  storedBoardMode,
+} from '../utils/preferences';
 
 interface GameProps {
   view?: 'game' | 'statistics';
@@ -256,12 +263,12 @@ export const Game: React.FC<GameProps> = ({
   const [windowStart, setWindowStart] = useState(0);
   const [exiting, setExiting] = useState<number[]>([]);
   const [boardScale, setBoardScale] = useState(1);
-  const [boardMode, setBoardMode] = useState<'summary' | 'full'>('summary');
+  const [boardMode, setBoardMode] = useState<'summary' | 'full'>(() => storedBoardMode() || 'summary');
   const [viewportTooSmall, setViewportTooSmall] = useState(false);
   const prevSolvedRef = useRef<boolean[] | null>(null);
   const finaleAppliedRef = useRef(false);
   const finaleFocusRef = useRef(false);
-  const modeUserOverrideRef = useRef(false);
+  const modeUserOverrideRef = useRef(storedBoardMode() != null);
   const isCompleteRef = useRef(false);
   const boardModeRef = useRef(boardMode);
   const boardsViewportRef = useRef<HTMLDivElement | null>(null);
@@ -272,7 +279,10 @@ export const Game: React.FC<GameProps> = ({
   const boardNaturalWidth = wordLength * CELL_NATURAL + (wordLength - 1) * CELL_GAP;
 
   const selectBoardMode = useCallback((mode: 'summary' | 'full', fromUser: boolean) => {
-    if (fromUser) modeUserOverrideRef.current = true;
+    if (fromUser) {
+      modeUserOverrideRef.current = true;
+      setBoardModePref(mode);
+    }
     boardModeRef.current = mode;
     setBoardMode(mode);
   }, []);
@@ -512,7 +522,14 @@ export const Game: React.FC<GameProps> = ({
 
   useEffect(() => {
     setExiting([]);
-    modeUserOverrideRef.current = false;
+    const stored = storedBoardMode();
+    if (stored) {
+      modeUserOverrideRef.current = true;
+      boardModeRef.current = stored;
+      setBoardMode(stored);
+    } else {
+      modeUserOverrideRef.current = false;
+    }
     prevSolvedRef.current = null;
     finaleAppliedRef.current = false;
     finaleFocusRef.current = false;

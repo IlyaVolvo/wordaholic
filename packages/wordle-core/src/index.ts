@@ -37,7 +37,6 @@ export { Keyboard } from './components/Keyboard';
 export {
   boardKnowledgeScore,
   boardKnowledgeTally,
-  boardSummaryKnowledge,
   layoutSummaryKnown,
   scoreboardYellowFactor,
 } from './knowledgeScore';

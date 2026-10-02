@@ -56,7 +56,7 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
   onExpand,
 }) => {
   const knownRowCount = summaryKnownRows(wordLength);
-  const knownRows = layoutSummaryKnown(guesses, wordLength, language);
+  const knownRows = layoutSummaryKnown(guesses, wordLength, language, rtl);
   const showEntry = !frozen;
   const activeCol = showEntry
     ? rtl

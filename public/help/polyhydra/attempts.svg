@@ -1,5 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 56" width="240" height="56">
-  <rect width="240" height="56" rx="10" fill="#161923"/>
-  <text x="120" y="24" text-anchor="middle" font-size="13" font-weight="600" font-family="DM Sans, system-ui, sans-serif" fill="#e2e4ec">16 boards</text>
-  <text x="120" y="42" text-anchor="middle" font-size="12" font-family="DM Sans, system-ui, sans-serif" fill="#7a7e94">21 shared guesses</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 48" width="260" height="48">
+  <rect width="260" height="48" rx="10" fill="#0c0e14"/>
+  <circle cx="22" cy="24" r="11" fill="#fff"/>
+  <text x="22" y="28" text-anchor="middle" font-size="12" font-weight="800" font-family="Fraunces, Georgia, serif" fill="#111">W</text>
+  <text x="40" y="28" font-size="11" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#6c8cff">PolyHydra</text>
+  <text x="130" y="30" text-anchor="middle" font-size="16" font-weight="700" font-family="DM Sans, system-ui, sans-serif" fill="#e2e4ec" letter-spacing="0.6">16/21</text>
+  <g fill="none" stroke="#e2e4ec" stroke-width="1.8" stroke-linecap="round">
+    <line x1="232" y1="32" x2="232" y2="20"/>
+    <line x1="240" y1="32" x2="240" y2="16"/>
+    <line x1="248" y1="32" x2="248" y2="24"/>
+  </g>
 </svg>

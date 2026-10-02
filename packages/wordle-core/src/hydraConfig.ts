@@ -24,7 +24,7 @@ export function maxGuessesForBoardCount(boardCount: number): number {
 
 export const SCOREBOARD_YELLOW_CAP = 4.4;
 
-/** Summary known grid is square: one green row plus yellow rows to match word length. */
+/** Summary known grid is square: one row per discovered letter, up to word length. */
 export function summaryKnownRows(wordLength: number): number {
   return Math.max(1, Math.round(Number(wordLength)) || 1);
 }

@@ -208,20 +208,6 @@ export const HELP_TOPICS = {
           'solved yet. Secrets can repeat. There is no Practice mode — only Daily.',
       },
       {
-        title: 'Letter colors on the boards',
-        screenshot: '/help/polyhydra/boards.svg',
-        body:
-          'Boards use the same colors as PolyWordlot:\n\n' +
-          'Green = correct letter, correct position\n' +
-          'Yellow = correct letter, wrong position\n' +
-          'Gray = letter not in that board’s word\n\n' +
-          'A solved board flashes green three times, then its grid disappears. The scoreboard ' +
-          'keeps that cell the same size, puts the guess number on the right in a circle, and places the word ' +
-          'above the cell. Unused rows on open boards stay empty. ' +
-          'When the game ends, every board returns in its final state so you can page through ' +
-          'them with the arrows, a swipe, or by tapping a scoreboard cell.',
-      },
-      {
         title: 'Scoreboard',
         screenshot: '/help/polyhydra/scoreboard.svg',
         body:
@@ -230,13 +216,30 @@ export const HELP_TOPICS = {
           'the longest board number and n/m (or guess number) still fit. The cell color mixes those two counts ' +
           '(0 is none, 5 is strongest). A solved board turns green, hides n/m, keeps the same ' +
           'cell size, puts the guess number on the right in a circle, and places the word above the cell, ' +
-          'scaled so it is no wider than the cell. One board is on screen at a time. The default ' +
-          'summary shows greens on the first row, yellows in the positions they were found on ' +
-          'the remaining rows of a square the size of the word (a green letter is not shown again unless a second copy is known, and the same letter is never shown twice on one row), ' +
-          'then a gap with a down arrow, the previous guess, and the entry row. The down arrow, a swipe down, or the ' +
-          'down key opens the full grid; the up arrow by the board number, a swipe up, or the ' +
-          'up key returns to summary. Tap a cell, swipe left or right, or use the side arrows to bring ' +
-          'another board into view.',
+          'scaled so it is no wider than the cell. One board is on screen at a time. ' + 
+          'A solved board flashes green three times, then its grid disappears. \n\n' +
+          'Next we show two ' +
+          'play modes: Standard and Summary. The browser remembers and uses the last chosen mode.',
+      },
+      {
+        title: 'Standard mode',
+        screenshot: '/help/polyhydra/standard.svg',
+        body:
+          'This mode follows the same rules as PolyWordlot, but a 16-board game has many rows. ' +
+          'You may need to scroll and will not see the whole picture at once. Open it with the ' +
+          'down arrow, a swipe down, or the down key.',
+      },
+      {
+        title: 'Summary mode',
+        screenshot: '/help/polyhydra/summary.svg',
+        body:
+          'This board does not have the tall grid. Instead it has the informational block is as tall as the word is long — one row per ' +
+          'discovered letter, in the order they were found. Each row colors every column where ' +
+          'that letter was present in one of the guessed words: green if it is in this place and yellow otherwise. ' +
+          'The letter itself is written as many times as max discovered occurrences in a SINGLE guess ' + 
+          'A letter is written first on green if present, otherwise leftmost yellow. Extra columns stay empty. ' +
+          'Below that sit the previous guess and the entry row for entery. \n\n' +
+          'The up arrow, up key or swipe up returns to the Standard mode.',
       },
       {
         title: 'Keyboard',
