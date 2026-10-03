@@ -98,7 +98,7 @@ export function normalizeGeo(raw) {
 /**
  * @param {unknown} value
  */
-function countryCode(value) {
+export function countryCode(value) {
   const c = String(value || '').trim().toUpperCase();
   if (!c || c === 'XX' || c === 'T1') return '';
   return c;
@@ -923,6 +923,13 @@ function eventCountsFromRecord(rec, allowLanguages) {
  *
  * @param {{ source: string, body: unknown }[]} inputs
  * @param {{ from?: string | null, toExclusive?: string | null }} [range]
+ * @param {{
+ *   resolveCoords?: (
+ *     country: string,
+ *     region: string,
+ *     city: string
+ *   ) => { lat: number, lon: number, capitalFallback: boolean } | null,
+ * }} [opts]
  * @returns {{
  *   localities: {
  *     key: string,
@@ -938,7 +945,9 @@ function eventCountsFromRecord(rec, allowLanguages) {
  *   total: number,
  * }}
  */
-export function combineGeoLocalities(inputs, range = {}) {
+export function combineGeoLocalities(inputs, range = {}, opts = {}) {
+  const resolveCoords =
+    opts.resolveCoords || ((country, _region, city) => resolveLocalityCoords(country, city));
   /** @type {Map<string, Map<string, ReturnType<typeof emptyRecord>>>} */
   const byHour = new Map();
   for (const { source, body } of inputs) {
@@ -953,21 +962,23 @@ export function combineGeoLocalities(inputs, range = {}) {
     }
   }
 
-  /** @type {Map<string, { country: string, city: string, total: number, byGame: Record<string, number> }>} */
+  /** @type {Map<string, { country: string, region: string, city: string, total: number, byGame: Record<string, number> }>} */
   const buckets = new Map();
   for (const hour of [...byHour.keys()].sort()) {
     const collapsed = collapseHour(byHour.get(hour) || new Map());
     for (const { rec } of collapsed.values()) {
       const country = rec.geo?.country || '';
       if (!country) continue;
+      const region = rec.geo?.region || '';
       const city = rec.geo?.city || '';
-      const key = `${country}\n${city}`;
+      const key = `${country}\n${region}\n${city}`;
       const counts = eventCountsFromRecord(rec);
       if (counts.games <= 0) continue;
       const prev = buckets.get(key);
       if (!prev) {
         buckets.set(key, {
           country,
+          region,
           city,
           total: counts.games,
           byGame: { ...counts.byGame },
@@ -995,7 +1006,7 @@ export function combineGeoLocalities(inputs, range = {}) {
   const localities = [];
   let total = 0;
   for (const [key, b] of buckets) {
-    const coords = resolveLocalityCoords(b.country, b.city);
+    const coords = resolveCoords(b.country, b.region, b.city);
     if (!coords) continue;
     total += b.total;
     const countryName = formatCountry(b.country) || b.country;

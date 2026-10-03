@@ -1,6 +1,7 @@
 import { BODY_MAX_BYTES, parseStatsDelta } from '../../../scripts/stats-delta.js';
 import { archiveClosedHours } from '../../../scripts/stats-archive.js';
-import { gcsConfigured, getGcsObject, listGcsKeys } from '../../../scripts/gcs-xml-put.js';
+import { gcsConfigured, gcsPlacesObjectKey, getGcsObject, listGcsKeys } from '../../../scripts/gcs-xml-put.js';
+import { emptyPlacesDocument, parsePlacesDocument } from '../../../scripts/stats-places.js';
 import { createStatsStore, PRUNE_INTERVAL_MS } from '../../../scripts/stats-store.js';
 import { combineBodies, combineTrends, normalizeGeo, parseDateRange, parseTrendInterval } from '../../../scripts/stats-combine.js';
 import { isStatsApiPath, isStatsGeoApiPath, isStatsPagePath } from '../../../scripts/stats-path.js';
@@ -8,6 +9,8 @@ import { renderStatsHtml, trendIdentityAllowIds, trendLanguageAllow } from '../.
 import { buildStatsGeoPayload } from '../../../scripts/stats-geo-api.js';
 import { HOUR_PULL_BATCH, HOUR_STORAGE_GET_BATCH, hourFromObjectKey } from '../../../scripts/stats-hour-cache.js';
 import { lookupMissingGeos } from '../../../scripts/stats-geo-lookup.js';
+
+const PLACES_REFRESH_MS = 5 * 60 * 1000;
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json; charset=utf-8',
@@ -128,6 +131,9 @@ export class StatsStore {
     this.hourCacheIndex = new Set();
     /** @type {Map<string, unknown>} */
     this.hourBodies = new Map();
+    /** @type {ReturnType<typeof emptyPlacesDocument> | null} */
+    this.placesDoc = null;
+    this.placesLoadedAt = 0;
     this.ready = ctx.blockConcurrencyWhile(async () => {
       const snapshot = await ctx.storage.get('dump');
       if (snapshot) this.store.hydrate(snapshot);
@@ -137,6 +143,8 @@ export class StatsStore {
           if (typeof hour === 'string' && hour) this.hourCacheIndex.add(hour);
         }
       }
+      const places = await ctx.storage.get('places');
+      if (places) this.placesDoc = parsePlacesDocument(places);
       const alarm = await ctx.storage.getAlarm();
       if (alarm == null) {
         await ctx.storage.setAlarm(Date.now() + PRUNE_INTERVAL_MS);
@@ -211,6 +219,33 @@ export class StatsStore {
   }
 
   /**
+   * Load the maintained places.json map from GCS (cached in DO storage).
+   */
+  async loadPlacesFromGcs() {
+    const now = Date.now();
+    if (this.placesDoc && now - this.placesLoadedAt < PLACES_REFRESH_MS) {
+      return this.placesDoc;
+    }
+    if (gcsConfigured(this.env)) {
+      try {
+        const text = await getGcsObject({ ...gcsCreds(this.env), objectKey: gcsPlacesObjectKey() });
+        const doc = parsePlacesDocument(JSON.parse(text));
+        this.placesDoc = doc;
+        this.placesLoadedAt = now;
+        await this.ctx.storage.put('places', doc);
+        return doc;
+      } catch (err) {
+        console.error(err instanceof Error ? err.message : err);
+      }
+    }
+    if (!this.placesDoc) {
+      const stored = await this.ctx.storage.get('places');
+      if (stored) this.placesDoc = parsePlacesDocument(stored);
+    }
+    return this.placesDoc || emptyPlacesDocument();
+  }
+
+  /**
    * @param {Request} request
    */
   async fetch(request) {
@@ -256,7 +291,8 @@ export class StatsStore {
       }
       const from = url.searchParams.get('from') || '';
       const to = url.searchParams.get('to') || '';
-      const payload = await buildStatsGeoPayload(inputs, from, to);
+      const places = await this.loadPlacesFromGcs();
+      const payload = await buildStatsGeoPayload(inputs, from, to, places);
       const body = JSON.stringify(payload);
       return new Response(method === 'HEAD' ? null : body, { status: 200, headers: JSON_HEADERS });
     }
@@ -316,6 +352,8 @@ export class StatsStore {
         await this.putHourCache(file.hour, { hours: [{ hour: file.hour, ips: file.ips }] });
       }
       await this.fillHourCacheFromGcs();
+      this.placesLoadedAt = 0;
+      await this.loadPlacesFromGcs();
       this.store.prune();
     } else {
       this.store.prune(Date.now(), { requireArchived: false });

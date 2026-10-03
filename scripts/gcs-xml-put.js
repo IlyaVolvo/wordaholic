@@ -12,6 +12,13 @@ export function gcsHourObjectKey(hourIso) {
   return `hours/${hourIso}.json`;
 }
 
+/** Service-maintained city → lat/lon map (same bucket as hour archives). */
+export const GCS_PLACES_OBJECT_KEY = 'places.json';
+
+export function gcsPlacesObjectKey() {
+  return GCS_PLACES_OBJECT_KEY;
+}
+
 /**
  * @param {string} hour
  * @param {Record<string, unknown>} ips

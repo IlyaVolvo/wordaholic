@@ -10,6 +10,7 @@ import { renderStatsHtml, trendIdentityAllowIds, trendLanguageAllow } from './st
 import { isStatsApiPath, isStatsGeoApiPath, isStatsPagePath } from './stats-path.js';
 import { lookupMissingGeos } from './stats-geo-lookup.js';
 import { buildStatsGeoPayload } from './stats-geo-api.js';
+import { emptyPlacesDocument, parsePlacesDocument } from './stats-places.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../dist');
@@ -18,7 +19,8 @@ const HOST = process.env.HOST || '0.0.0.0';
 
 const statsStore = createStatsStore();
 const handleStats = createStatsHandler(statsStore);
-const HOURS_DIR = path.resolve(__dirname, '../stats-hours');
+const HOURS_DIR = path.resolve(process.env.STATS_HOURS_DIR || path.join(__dirname, '../stats-hours'));
+const PLACES_FILE = path.resolve(__dirname, 'stats-places.json');
 setInterval(() => statsStore.prune(), PRUNE_INTERVAL_MS).unref();
 
 const TYPES = {
@@ -96,7 +98,7 @@ function loadStatsInputs() {
   /** @type {{ source: string, body: unknown }[]} */
   const inputs = [{ source: 'live', body: statsStore.dump() }];
   if (fs.existsSync(HOURS_DIR)) {
-    for (const name of fs.readdirSync(HOURS_DIR).filter((n) => n.endsWith('.json')).sort()) {
+    for (const name of fs.readdirSync(HOURS_DIR).filter((n) => /^\d{4}-\d{2}-\d{2}T.+\.json$/.test(n)).sort()) {
       const file = path.join(HOURS_DIR, name);
       try {
         inputs.push({ source: file, body: JSON.parse(fs.readFileSync(file, 'utf8')) });
@@ -106,6 +108,16 @@ function loadStatsInputs() {
     }
   }
   return inputs;
+}
+
+function loadPlacesDocument() {
+  if (!fs.existsSync(PLACES_FILE)) return emptyPlacesDocument();
+  try {
+    return parsePlacesDocument(JSON.parse(fs.readFileSync(PLACES_FILE, 'utf8')));
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : err);
+    return emptyPlacesDocument();
+  }
 }
 
 /**
@@ -169,7 +181,8 @@ async function handleStatsGeoApi(req, res) {
   const payload = await buildStatsGeoPayload(
     loadStatsInputs(),
     url.searchParams.get('from') || '',
-    url.searchParams.get('to') || ''
+    url.searchParams.get('to') || '',
+    loadPlacesDocument()
   );
   const body = JSON.stringify(payload);
   res.writeHead(200, {

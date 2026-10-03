@@ -4,6 +4,7 @@
 import { combineGeoLocalities, parseDateRange } from './stats-combine.js';
 import { STATS_GAME_IDS } from './stats-games.js';
 import { lookupGeo } from './stats-geo-lookup.js';
+import { parsePlacesDocument, resolvePlaceCoords } from './stats-places.js';
 
 /**
  * Fill missing country/city on raw hour records (archives often lack CF geo).
@@ -76,11 +77,15 @@ export async function enrichInputsWithLookedUpGeo(inputs, range = {}) {
  * @param {{ source: string, body: unknown }[]} inputs
  * @param {string} [from]
  * @param {string} [to]
+ * @param {unknown} [placesRaw]
  */
-export async function buildStatsGeoPayload(inputs, from = '', to = '') {
+export async function buildStatsGeoPayload(inputs, from = '', to = '', placesRaw) {
   const range = parseDateRange(from || '', to || '');
   await enrichInputsWithLookedUpGeo(inputs, range);
-  const { localities, total } = combineGeoLocalities(inputs, range);
+  const places = parsePlacesDocument(placesRaw).places;
+  const { localities, total } = combineGeoLocalities(inputs, range, {
+    resolveCoords: (country, region, city) => resolvePlaceCoords(places, country, region, city),
+  });
   return {
     from: from || '',
     to: to || '',

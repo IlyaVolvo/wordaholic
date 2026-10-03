@@ -8,4 +8,5 @@ dist/
 # Large source word lists — not used at runtime (language.json is tracked)
 word-data/**/master.json
 stats-hours/*.json
+stats-places.json
 **/.wrangler/tmp/
