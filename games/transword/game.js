@@ -20,6 +20,11 @@ import { normalizeWithMappings } from '../../app/i18n/normalize.js';
 import { openHelp } from '../../app/help/dialog.js';
 import { mountPortraitGate } from '../../app/play/portrait-gate.js';
 import { reportStats } from '../../app/stats/report.js';
+import {
+  calendarMonthForSelection,
+  openVariant,
+  selectVariantDate,
+} from '../../app/daily/variantVisit.js';
 
 mountPortraitGate();
 
@@ -167,6 +172,10 @@ function optimalStepCount(start, end, fallback) {
   const result = shortestPath(fullGraph, start, end);
   if (!result) return fallback;
   return result.dist;
+}
+
+function dailyVariantParts() {
+  return [language, selectedLevel(), selectedDifficulty()];
 }
 
 function currentCombo() {
@@ -490,8 +499,7 @@ async function setPlayMode(mode) {
   saveDisplayPrefs();
   applyModeChrome();
   if (mode === 'daily') {
-    selectedGameDate = formatLocalDate();
-    await loadDailyForSelection();
+    await beginForCurrentSettings();
   } else {
     loadPracticeForSelection();
   }
@@ -743,6 +751,7 @@ async function pauseAndPersist() {
 
 async function beginForCurrentSettings() {
   if (playMode === 'daily') {
+    selectedGameDate = await openVariant(GAME_ID, dailyVariantParts());
     await loadDailyForSelection();
     return;
   }
@@ -1137,10 +1146,7 @@ function openHistory() {
     combo.difficulty <= 3 ? 'Easy' : combo.difficulty <= 5 ? 'Medium' : 'Hard';
   const vocabLabel = combo.vocabLevel <= 1 ? 'Basic' : 'Standard';
   $('#history-combo-label').textContent = `${vocabLabel} · ${diffLabel}`;
-  if (selectedGameDate) {
-    const [y, m] = selectedGameDate.split('-').map(Number);
-    calendarMonth = new Date(y, m - 1, 1);
-  }
+  calendarMonth = calendarMonthForSelection(selectedGameDate);
   overlay.hidden = false;
   overlay.classList.remove('hidden');
   void renderCalendar();
@@ -1197,7 +1203,7 @@ async function renderCalendar() {
       cell.addEventListener('click', async () => {
         closeHistory();
         await pauseAndPersist();
-        selectedGameDate = dateStr;
+        selectedGameDate = await selectVariantDate(GAME_ID, dailyVariantParts(), dateStr);
         playMode = 'daily';
         displayPrefs.mode = 'daily';
         saveDisplayPrefs();

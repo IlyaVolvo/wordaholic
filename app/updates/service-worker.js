@@ -1,5 +1,5 @@
 /* Wordaholic service worker — cache shell + requested wordsets */
-const CACHE_SHELL = 'wordaholic-shell-v69';
+const CACHE_SHELL = 'wordaholic-shell-v70';
 const CACHE_DATA = 'wordaholic-data-v4';
 
 const PRECACHE = [
@@ -10,6 +10,7 @@ const PRECACHE = [
   '/app/games-contract.js',
   '/app/storage/idb.js',
   '/app/storage/export-records.js',
+  '/app/daily/variantVisit.js',
   '/app/i18n-prefs/favorites.js',
   '/app/shell/languages.js',
   '/app/shell/map.js',
@@ -179,18 +180,23 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  const isDocument = req.mode === 'navigate' || req.destination === 'document';
-  if (isGameShellPath(url.pathname) && (isDocument || url.pathname.endsWith('.html'))) {
+  if (url.pathname.startsWith('/games/') && !url.pathname.startsWith('/games/transword/admin')) {
     event.respondWith(
       (async () => {
         try {
           const res = await fetch(req, { cache: 'no-store' });
           if (req.method === 'GET' && res.ok) {
-            const cache = await caches.open(CACHE_SHELL);
-            const indexPath = url.pathname.endsWith('index.html')
-              ? url.pathname
-              : `${canonicalPath(url.pathname)}/index.html`;
-            await cache.put(new Request(`${url.origin}${indexPath}`), res.clone());
+            const cache = await caches.open(
+              url.pathname.includes('/data/') ? CACHE_DATA : CACHE_SHELL
+            );
+            if (isGameShellPath(url.pathname)) {
+              const indexPath = url.pathname.endsWith('index.html')
+                ? url.pathname
+                : `${canonicalPath(url.pathname)}/index.html`;
+              await cache.put(new Request(`${url.origin}${indexPath}`), res.clone());
+            } else {
+              await cache.put(req, res.clone());
+            }
           }
           return res;
         } catch {

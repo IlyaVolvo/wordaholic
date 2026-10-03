@@ -22,6 +22,7 @@ import {
 import { openHelp } from '@wordaholic/help';
 import { reportStats } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
+import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../app/daily/variantVisit.js';
 import type { DictionaryEntry, Guess, LanguageConfig, LetterState } from '../types';
 import { GameBoard } from './GameBoard';
 import { SummaryBoard } from './SummaryBoard';
@@ -29,6 +30,7 @@ import { Scoreboard, type ScoreboardCell } from './Scoreboard';
 import { Settings } from './Settings';
 import { Calendar } from './Calendar';
 import {
+  GAME_ID,
   getStoredGame,
   hydraMaxGuesses,
   listStoredGames,
@@ -38,11 +40,9 @@ import {
   type StoredHydra,
 } from '../storage/platform';
 import {
-  getSelectedDate,
   loadPreferences,
   savePreferences,
   setBoardModePref,
-  setSelectedDate,
   storedBoardMode,
 } from '../utils/preferences';
 
@@ -266,6 +266,7 @@ export const Game: React.FC<GameProps> = ({
   const [boardMode, setBoardMode] = useState<'summary' | 'full'>(() => storedBoardMode(boardCount) || 'summary');
   const [viewportTooSmall, setViewportTooSmall] = useState(false);
   const prevSolvedRef = useRef<boolean[] | null>(null);
+  const variantVisitRef = useRef<string | null>(null);
   const finaleAppliedRef = useRef(false);
   const finaleFocusRef = useRef(false);
   const modeUserOverrideRef = useRef(storedBoardMode(boardCount) != null);
@@ -399,6 +400,25 @@ export const Game: React.FC<GameProps> = ({
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      const variantId = `${language}\u001f${wordLength}\u001f${boardCount}`;
+      let date = selectedPlayDate;
+      if (variantVisitRef.current !== variantId) {
+        try {
+          const resolved = await openVariant(GAME_ID, [language, wordLength, boardCount]);
+          if (cancelled) return;
+          date = resolved;
+        } catch (err) {
+          console.error(err);
+          if (cancelled) return;
+          date = formatDate();
+        }
+        variantVisitRef.current = variantId;
+        if (date !== selectedPlayDate) {
+          setSelectedPlayDate(date);
+          setCalendarMonth(calendarMonthForSelection(date));
+        }
+      }
+      if (cancelled) return;
       setLoading(true);
       setError(null);
       try {
@@ -411,10 +431,6 @@ export const Game: React.FC<GameProps> = ({
         setKeyboardRtl(rtl);
         setWinMessageBase(win);
         setWinMessage(win);
-        const storedDate = getSelectedDate(language, wordLength, boardCount) || formatDate();
-        const date = storedDate > formatDate() ? formatDate() : storedDate;
-        setSelectedPlayDate(date);
-        setCalendarMonth(new Date(`${date}T00:00:00`));
         const stored = await getStoredGame({
           language,
           word_length: wordLength,
@@ -459,13 +475,12 @@ export const Game: React.FC<GameProps> = ({
 
   useEffect(() => {
     const onImport = () => {
+      variantVisitRef.current = null;
       void refreshGamesFromIndexedDb().then(() => setImportTick((n) => n + 1));
     };
     window.addEventListener(STORAGE_IMPORTED_EVENT, onImport);
-    window.addEventListener('wordaholic:storage-imported', onImport);
     return () => {
       window.removeEventListener(STORAGE_IMPORTED_EVENT, onImport);
-      window.removeEventListener('wordaholic:storage-imported', onImport);
     };
   }, []);
 
@@ -636,7 +651,8 @@ export const Game: React.FC<GameProps> = ({
   const handleDateChange = (date: string) => {
     const clipped = date > formatDate() ? formatDate() : date;
     setSelectedPlayDate(clipped);
-    setSelectedDate(language, wordLength, boardCount, clipped);
+    setCalendarMonth(calendarMonthForSelection(clipped));
+    void selectVariantDate(GAME_ID, [language, wordLength, boardCount], clipped);
   };
 
   const handleLanguageChange = (code: string) => {
@@ -1248,7 +1264,10 @@ export const Game: React.FC<GameProps> = ({
           onLanguageChange={handleLanguageChange}
           onWordLengthChange={handleWordLengthChange}
           onBoardCountChange={handleBoardCountChange}
-          onShowCalendarChange={setShowCalendar}
+          onShowCalendarChange={(show) => {
+            if (show) setCalendarMonth(calendarMonthForSelection(selectedPlayDate));
+            setShowCalendar(show);
+          }}
         />
         <Keyboard
           onKeyPress={handleKeyPress}

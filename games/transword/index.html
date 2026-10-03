@@ -272,6 +272,13 @@
     </div>
   </div>
 
+  <script>
+    window.addEventListener('error', (event) => {
+      const msg = document.getElementById('loading-msg');
+      if (!msg || !event.filename) return;
+      msg.textContent = 'Failed to load the game. Confirm the local server is running, then refresh.';
+    }, true);
+  </script>
   <script type="module" src="./game.js"></script>
   <!-- Cloudflare Web Analytics -->
   <script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "4b74eaaaa28c477287ebd48372018a36"}'></script>

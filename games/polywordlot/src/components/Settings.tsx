@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { LanguageConfig } from '../types';
 import { formatDate } from '../utils/dailyWord';
+import { calendarMonthForSelection } from '../../../../app/daily/variantVisit.js';
 import { apiClient } from '../api/client';
 import { LanguageDropdown } from './LanguageDropdown';
 import { ModeDropdown } from './ModeDropdown';
@@ -94,14 +95,9 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const [internalShowCalendar, setInternalShowCalendar] = useState(false);
   const [_internalCalendarGames, setInternalCalendarGames] = useState<any[]>([]);
-  const [_internalCalendarMonth, setInternalCalendarMonth] = useState<Date>(() => {
-    // Initialize calendar month to the selected date
-    if (selectedDate) {
-      const [year, month] = selectedDate.split('-').map(Number);
-      return new Date(year, month - 1, 1);
-    }
-    return new Date();
-  });
+  const [_internalCalendarMonth, setInternalCalendarMonth] = useState<Date>(() =>
+    calendarMonthForSelection(selectedDate)
+  );
 
   // Use external state if provided, otherwise use internal state
   const showCalendar = externalShowCalendar !== undefined ? externalShowCalendar : internalShowCalendar;
@@ -142,18 +138,17 @@ export const Settings: React.FC<SettingsProps> = ({
     }
   }, [showCalendar, language, wordLength, randomMode, userId, onShowCalendarChange]);
 
-  // Update calendar month when selectedDate changes
+  // Follow the selected puzzle date's month while that date changes
   useEffect(() => {
-    if (selectedDate) {
-      const [year, month] = selectedDate.split('-').map(Number);
-      const newMonth = new Date(year, month - 1, 1);
-      // Only update if the month actually changed to avoid infinite loops
-      const currentMonth = onCalendarMonthChange ? _externalCalendarMonth : _internalCalendarMonth;
-      if (!currentMonth || 
-          currentMonth.getFullYear() !== newMonth.getFullYear() || 
-          currentMonth.getMonth() !== newMonth.getMonth()) {
-        setCalendarMonth(newMonth);
-      }
+    if (!selectedDate) return;
+    const newMonth = calendarMonthForSelection(selectedDate);
+    const currentMonth = onCalendarMonthChange ? _externalCalendarMonth : _internalCalendarMonth;
+    if (
+      !currentMonth ||
+      currentMonth.getFullYear() !== newMonth.getFullYear() ||
+      currentMonth.getMonth() !== newMonth.getMonth()
+    ) {
+      setCalendarMonth(newMonth);
     }
   }, [selectedDate]); // Removed setCalendarMonth from dependencies - it's recreated on every render
 

@@ -9,10 +9,11 @@ import { applyInputPlugins } from '../utils/inputPlugins';
 import { getDailyWord, getWordFromSeed, formatDate } from '../utils/dailyWord';
 import { evaluateGuess, isValidWord } from '../utils/gameLogic';
 import { normalizeForLanguage, loadNormalization, isWinningGuessForLanguage } from '../utils/characterNormalization';
-import { loadPreferences, savePreferences, getSelectedDate, setSelectedDate } from '../utils/preferences';
+import { loadPreferences, savePreferences } from '../utils/preferences';
 import { apiClient } from '../api/client';
 import { gameCacheUtils } from '../utils/gameCache';
-import { refreshGamesFromIndexedDb, STORAGE_IMPORTED_EVENT } from '../storage/platform';
+import { GAME_ID, refreshGamesFromIndexedDb, STORAGE_IMPORTED_EVENT } from '../storage/platform';
+import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../app/daily/variantVisit.js';
 import { openHelp, isHelpOpen } from '@wordaholic/help';
 import { reportStats } from '@wordaholic/stats';
 
@@ -148,6 +149,10 @@ export const Game: React.FC<GameProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [letterStates, setLetterStates] = useState<Map<string, LetterState>>(new Map());
   const [randomMode, setRandomMode] = useState<boolean>(false);
+  const randomModeRef = useRef(false);
+  randomModeRef.current = randomMode;
+  const historicalDateRef = useRef(historicalDate);
+  historicalDateRef.current = historicalDate;
   const initializedRef = useRef<boolean>(false);
   /** Ref set when dictionary is loaded so load effect only runs for current language/wordLength */
   const dictionaryForRef = useRef<{ language: string; wordLength: number } | null>(null);
@@ -233,8 +238,9 @@ export const Game: React.FC<GameProps> = ({
   useEffect(() => {
     if (historicalDate && (!gameState || gameState.isComplete)) {
       setSelectedPlayDate(historicalDate);
+      void selectVariantDate(GAME_ID, [language, wordLength], historicalDate);
     }
-  }, [historicalDate, gameState]);
+  }, [historicalDate, gameState, language, wordLength]);
 
   // Load dictionary on mount (keep dictionaryForRef in sync so resolver runs for current lang/count)
   useEffect(() => {
@@ -345,16 +351,7 @@ export const Game: React.FC<GameProps> = ({
     return () => window.removeEventListener(STORAGE_IMPORTED_EVENT, onImported);
   }, []);
 
-  // Store selected date per (language, wordLength) combination
-  const loadStoredDate = useCallback((lang: string, len: number): string | null => {
-    return getSelectedDate(lang, len);
-  }, []);
-
-  const saveStoredDate = useCallback((lang: string, len: number, date: string) => {
-    setSelectedDate(lang, len, date);
-  }, []);
-
-  // Handle language or word length change: reload dictionary and set selected date; game state is set by load effect
+  // Handle language or word length change: reload dictionary and open that variant's daily date
   useEffect(() => {
     if (!initializedRef.current || loading) return;
 
@@ -369,34 +366,21 @@ export const Game: React.FC<GameProps> = ({
           setDictionary(dict);
           dictionaryForRef.current = { language, wordLength };
         }
-        const today = formatDate();
-        const storedDate = loadStoredDate(language, wordLength);
-        let dateToUse = today;
-        if (storedDate) {
-          try {
-            const response = await apiClient.getCurrentGame({
-              language,
-              wordLength,
-              gameDate: storedDate,
-              isRandomMode: false,
-            });
-            // Use last played date only if game exists and is not finished
-            if (response.game && !response.game.is_complete) {
-              dateToUse = storedDate;
-            }
-          } catch {
-            // API error or not logged in: default to today
-          }
+        if (historicalDateRef.current) {
+          const date = await selectVariantDate(GAME_ID, [language, wordLength], historicalDateRef.current);
+          setSelectedPlayDate(date);
+          return;
         }
+        if (randomModeRef.current) return;
+        const dateToUse = await openVariant(GAME_ID, [language, wordLength]);
         setSelectedPlayDate(dateToUse);
-        saveStoredDate(language, wordLength, dateToUse);
       } catch (err) {
         console.error('Failed to load dictionary:', err);
       }
     };
 
     changeSettings();
-  }, [language, wordLength, initializedRef.current, loading, loadStoredDate, saveStoredDate]);
+  }, [language, wordLength, initializedRef.current, loading]);
 
   const saveGameToApi = useCallback(async (state: GameState) => {
     if (state.isRandomMode) return;
@@ -846,26 +830,6 @@ export const Game: React.FC<GameProps> = ({
           }
           setCalendarGames(dailyGames);
 
-          const monthKey = (year: number, monthIndex: number) => `${year}-${monthIndex}`;
-          const viewing = calendarMonthRef.current;
-          const viewingKey = monthKey(viewing.getFullYear(), viewing.getMonth());
-          const gameDates = dailyGames
-            .map((game: { game_date?: string; gameDate?: string }) => {
-              const match = /^(\d{4}-\d{2}-\d{2})/.exec(String(game.game_date || game.gameDate || '').trim());
-              return match ? match[1] : '';
-            })
-            .filter(Boolean)
-            .sort();
-          const viewingHasGames = gameDates.some((date) => {
-            const [year, month] = date.split('-').map(Number);
-            return monthKey(year, month - 1) === viewingKey;
-          });
-          if (!viewingHasGames && gameDates.length) {
-            const latest = gameDates[gameDates.length - 1];
-            const [year, month] = latest.split('-').map(Number);
-            setCalendarMonth(new Date(year, month - 1, 1));
-          }
-
           if (staleDates.size > 0) {
             setCalendarBlinkingDates(staleDates);
 
@@ -915,17 +879,16 @@ export const Game: React.FC<GameProps> = ({
     }
   }, [showCalendar, language, wordLength, randomMode, dictionary]);
 
-  // Update calendar month when selectedPlayDate changes
+  // Keep the closed calendar on the month of the selected puzzle date
   useEffect(() => {
-    if (selectedPlayDate) {
-      const [year, month] = selectedPlayDate.split('-').map(Number);
-      const newMonth = new Date(year, month - 1, 1);
-      // Only update if the month actually changed to avoid unnecessary re-renders
-      const currentMonth = calendarMonthRef.current;
-      if (currentMonth.getFullYear() !== newMonth.getFullYear() || 
-          currentMonth.getMonth() !== newMonth.getMonth()) {
-        setCalendarMonth(newMonth);
-      }
+    if (!selectedPlayDate) return;
+    const newMonth = calendarMonthForSelection(selectedPlayDate);
+    const currentMonth = calendarMonthRef.current;
+    if (
+      currentMonth.getFullYear() !== newMonth.getFullYear() ||
+      currentMonth.getMonth() !== newMonth.getMonth()
+    ) {
+      setCalendarMonth(newMonth);
     }
   }, [selectedPlayDate]);
 
@@ -1053,9 +1016,12 @@ export const Game: React.FC<GameProps> = ({
 
   // Handle date change
   const handleDateChange = useCallback((date: string) => {
-    setSelectedPlayDate(date);
-    saveStoredDate(language, wordLength, date);
-  }, [language, wordLength, saveStoredDate]);
+    const today = formatDate();
+    const clipped = date > today ? today : date;
+    setSelectedPlayDate(clipped);
+    setCalendarMonth(calendarMonthForSelection(clipped));
+    void selectVariantDate(GAME_ID, [language, wordLength], clipped);
+  }, [language, wordLength]);
   
   // Swipe gesture handlers for date navigation
   const onTouchStart = useCallback((e: React.TouchEvent) => {
@@ -1152,18 +1118,19 @@ export const Game: React.FC<GameProps> = ({
     swipeStartDateRef.current = null;
   }, [randomMode, gameState, handleDateChange]);
 
-  const handleRandomModeChange = useCallback((newRandomMode: boolean) => {
+  const handleRandomModeChange = useCallback(async (newRandomMode: boolean) => {
     const prefs = loadPreferences();
     prefs.randomMode = newRandomMode;
     savePreferences(prefs);
     setRandomMode(newRandomMode);
     if (!newRandomMode) {
-      setSelectedPlayDate(formatDate());
+      const date = await openVariant(GAME_ID, [language, wordLength]);
+      setSelectedPlayDate(date);
     } else {
       setSelectedPlayDate('');
       clearGameDisplay();
     }
-  }, [clearGameDisplay]);
+  }, [clearGameDisplay, language, wordLength]);
 
   const handleRestartPractice = useCallback(() => {
     if (!dictionary || !randomMode) return;
@@ -1418,7 +1385,10 @@ export const Game: React.FC<GameProps> = ({
         onRestartPractice={handleRestartPractice}
         onDateChange={handleDateChange}
         showCalendar={showCalendar}
-        onShowCalendarChange={setShowCalendar}
+        onShowCalendarChange={(open) => {
+          if (open) setCalendarMonth(calendarMonthForSelection(selectedPlayDate || formatDate()));
+          setShowCalendar(open);
+        }}
         calendarGames={calendarGames}
         calendarMonth={calendarMonth}
         onCalendarMonthChange={setCalendarMonth}

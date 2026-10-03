@@ -228,7 +228,12 @@ const server = http.createServer((req, res) => {
   }
   const ext = path.extname(filePath);
   const headers = { 'Content-Type': TYPES[ext] || 'application/octet-stream' };
-  if (urlPath === '/sw.js' || urlPath.startsWith('/games/transword/admin')) {
+  if (
+    urlPath === '/sw.js' ||
+    urlPath.startsWith('/games/transword/admin') ||
+    /^\/games\/[^/]+\/(index\.html)?$/.test(urlPath) ||
+    urlPath.includes('/games/') && urlPath.includes('/assets/')
+  ) {
     headers['Cache-Control'] = 'no-store';
   }
   res.writeHead(200, headers);
