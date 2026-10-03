@@ -1,6 +1,9 @@
 /**
  * Home-map play-activity bubbles (public /api/stats/geo).
  */
+import { projectLonLat } from './map-project.js';
+
+export { projectLonLat } from './map-project.js';
 
 /** Same palette as /stats Trends graph (per-game series). */
 export const GEO_GAME_COLORS = {
@@ -16,24 +19,6 @@ export const GEO_GAME_LABELS = {
 };
 
 export const GEO_GAME_IDS = /** @type {const} */ (['polywordlot', 'transword', 'polyhydra']);
-
-const MAP_VB_W = 950;
-const MAP_VB_H = 620;
-
-/**
- * Affine fit of lon/lat into this repo's world.svg (Illustrator low-res map).
- * Not pure equirectangular — calibrated against country path centroids.
- * @param {number} lon
- * @param {number} lat
- */
-export function projectLonLat(lon, lat) {
-  const x = 447.172 + 2.642 * Number(lon);
-  const y = 332.713 - 2.9481 * Number(lat);
-  return {
-    x: Math.min(MAP_VB_W, Math.max(0, x)),
-    y: Math.min(MAP_VB_H, Math.max(0, y)),
-  };
-}
 
 /**
  * @param {string} hex
@@ -111,6 +96,8 @@ export function bubbleScale(total, maxTotal, unitsPerPx = 1) {
  * @param {{
  *   key: string,
  *   label: string,
+ *   country?: string,
+ *   region?: string,
  *   lat: number,
  *   lon: number,
  *   total: number,
@@ -121,6 +108,8 @@ export function mergeByCoords(localities) {
   /** @type {Map<string, {
    *   key: string,
    *   label: string,
+   *   country: string,
+   *   region: string,
    *   lat: number,
    *   lon: number,
    *   total: number,
@@ -138,6 +127,8 @@ export function mergeByCoords(localities) {
       buckets.set(k, {
         key: loc.key || k,
         label: loc.label || '',
+        country: loc.country || '',
+        region: loc.region || '',
         lat,
         lon,
         total: Number(loc.total) || 0,
@@ -150,6 +141,8 @@ export function mergeByCoords(localities) {
     if (add > prev.total) {
       prev.label = loc.label || prev.label;
       prev.key = loc.key || prev.key;
+      prev.country = loc.country || prev.country;
+      prev.region = loc.region || prev.region;
     }
     prev.total += add;
     prev.places += 1;
@@ -211,7 +204,11 @@ export function paintGeoBubbles(svgEl, merged, opts = {}) {
   // Draw largest first so smaller localities stay hoverable on top.
   const ordered = [...merged].sort((a, b) => b.total - a.total);
   for (const loc of ordered) {
-    const { x, y } = projectLonLat(loc.lon, loc.lat);
+    const { x, y } = projectLonLat(loc.lon, loc.lat, {
+      country: loc.country,
+      region: loc.region,
+      svg: svgEl,
+    });
     const { r, opacity, strokeWidth } = bubbleScale(loc.total, maxTotal, unitsPerPx);
     const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     circle.setAttribute('class', 'map-geo-bubble');

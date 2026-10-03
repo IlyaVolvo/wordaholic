@@ -1014,6 +1014,7 @@ export function combineGeoLocalities(inputs, range = {}, opts = {}) {
     localities.push({
       key,
       country: b.country,
+      region: b.region,
       city: b.city,
       label,
       lat: coords.lat,
