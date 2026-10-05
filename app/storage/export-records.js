@@ -43,6 +43,7 @@ function asGuessLists(value, boardCount) {
 
 function isHydraRow(row) {
   if (!row || typeof row !== 'object') return false;
+  if (row.gameId === 'letterix') return false;
   if (row.gameId === 'polyhydra') return true;
   if (row.gameId === 'polywordlot' || row.gameId === 'transword') return false;
   return Number(row.board_count) >= 2 && (Array.isArray(row.target_words) || Array.isArray(row.board_guesses));
@@ -105,6 +106,55 @@ function polyFields(row) {
   };
 }
 
+function isLetterixRow(row) {
+  if (!row || typeof row !== 'object') return false;
+  if (row.gameId === 'letterix') return true;
+  if (row.gameId) return false;
+  return row.W != null && row.H != null && (row.best_score != null || row.first_score != null);
+}
+
+function letterixFields(row) {
+  return {
+    language: String(row.language || '').trim(),
+    W: Number(row.W),
+    H: Number(row.H),
+    game_date: asGameDate(row.game_date || row.gameDate),
+    first_score: row.first_score == null ? null : Number(row.first_score),
+    best_score: row.best_score == null ? null : Number(row.best_score),
+    plays: letterixPlays(row),
+    updated_at: row.updated_at || row.updatedAt || '',
+    completed_at: row.completed_at || row.completedAt || '',
+  };
+}
+
+function letterixPlays(row) {
+  const n = Number(row?.plays);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+}
+
+function earlierLetterixFirst(local, incoming) {
+  if (local.first_score == null) return incoming.first_score ?? null;
+  if (incoming.first_score == null) return local.first_score;
+  const localTime = Date.parse(local.completed_at || '') || 0;
+  const incomingTime = Date.parse(incoming.completed_at || '') || 0;
+  return localTime <= incomingTime ? local.first_score : incoming.first_score;
+}
+
+function pickLetterix(local, incoming) {
+  const localBest = Number(local.best_score) || 0;
+  const incomingBest = Number(incoming.best_score) || 0;
+  const first = earlierLetterixFirst(local, incoming);
+  const plays = Math.max(letterixPlays(local), letterixPlays(incoming));
+  if (incomingBest > localBest || (incomingBest === localBest && local.first_score == null && first != null)) {
+    incoming.best_score = Math.max(localBest, incomingBest);
+    if (first != null) incoming.first_score = first;
+    if (plays > 0) incoming.plays = plays;
+    return incoming;
+  }
+  if (plays > 0) local.plays = plays;
+  return local;
+}
+
 export function isPracticeRecord(row) {
   return Number(row?.is_random_mode) === 1;
 }
@@ -120,6 +170,7 @@ function isTranswordRow(row) {
 
 export function isCompletedRecord(row) {
   if (!row || typeof row !== 'object' || isPracticeRecord(row)) return false;
+  if (isLetterixRow(row)) return Number(row.is_complete) === 1 || row.best_score != null || row.first_score != null;
   if (isTranswordRow(row)) {
     const path = asWords(row.path);
     return Boolean(row.isComplete) || Boolean(row.end && path.includes(row.end));
@@ -154,6 +205,21 @@ function toTranswordExport(row) {
 }
 
 export function toExportRecord(row) {
+  if (isLetterixRow(row)) {
+    const game = letterixFields(row);
+    const out = {
+      language: game.language,
+      W: game.W,
+      H: game.H,
+      game_date: game.game_date,
+      first_score: game.first_score,
+      best_score: game.best_score,
+    };
+    if (game.plays > 0) out.plays = game.plays;
+    if (game.updated_at) out.updated_at = game.updated_at;
+    if (game.completed_at) out.completed_at = game.completed_at;
+    return out;
+  }
   if (isTranswordRow(row)) return toTranswordExport(row);
   if (isHydraRow(row)) {
     const hydra = hydraFields(row);
@@ -185,6 +251,11 @@ export function toExportRecord(row) {
 }
 
 export function completedRecordId(gameId, row) {
+  if (gameId === 'letterix' || isLetterixRow(row)) {
+    const game = letterixFields(row);
+    if (!game.language || !game.W || !game.H || !game.game_date) return '';
+    return `letterix:game:${game.language}|${game.W}|${game.H}|${game.game_date}`;
+  }
   if (gameId === 'transword') {
     const gameDate = asGameDate(row?.gameDate);
     if (!row?.language || row.vocabLevel == null || row.difficulty == null || !gameDate) return '';
@@ -201,6 +272,25 @@ export function completedRecordId(gameId, row) {
 }
 
 export function toStoredRecord(gameId, row, numericId = 0) {
+  if (gameId === 'letterix' || isLetterixRow(row)) {
+    const game = letterixFields(row);
+    return {
+      id: completedRecordId('letterix', game),
+      gameId: 'letterix',
+      kind: 'game',
+      numericId,
+      language: game.language,
+      W: game.W,
+      H: game.H,
+      game_date: game.game_date,
+      first_score: game.first_score,
+      best_score: game.best_score,
+      ...(game.plays > 0 ? { plays: game.plays } : {}),
+      is_complete: 1,
+      updated_at: game.updated_at || new Date().toISOString(),
+      completed_at: game.completed_at || game.updated_at || new Date().toISOString(),
+    };
+  }
   if (gameId === 'transword') {
     const gameDate = asGameDate(row.gameDate);
     return {
@@ -306,6 +396,7 @@ export function pickRecordToKeep(local, incoming) {
   if (!local) return incoming;
   if (!isCompletedRecord(local)) return incoming;
   if (!isCompletedRecord(incoming)) return local;
+  if (isLetterixRow(local) || isLetterixRow(incoming)) return pickLetterix(local, incoming);
   if (isTranswordRow(local) || isTranswordRow(incoming)) return pickTransword(local, incoming);
   if (isHydraRow(local) || isHydraRow(incoming)) return pickHydra(local, incoming);
   return pickPolywordlot(local, incoming);

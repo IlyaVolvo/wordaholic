@@ -44,6 +44,7 @@ export function diffManifests(local, remote) {
     polywordlot: 'PolyWordlot',
     transword: 'TransWord',
     polyhydra: 'Hydra',
+    letterix: 'Letterix',
   };
   const updatedGames = [];
   for (const id of new Set([...Object.keys(localGames), ...Object.keys(remoteGames)])) {

@@ -10,15 +10,17 @@ export const GEO_GAME_COLORS = {
   polywordlot: '#0d9488',
   transword: '#c2410c',
   polyhydra: '#7c3aed',
+  letterix: '#0f766e',
 };
 
 export const GEO_GAME_LABELS = {
   polywordlot: 'PolyWordlot',
   transword: 'TransWord',
   polyhydra: 'Hydra',
+  letterix: 'Letterix',
 };
 
-export const GEO_GAME_IDS = /** @type {const} */ (['polywordlot', 'transword', 'polyhydra']);
+export const GEO_GAME_IDS = /** @type {const} */ (['polywordlot', 'transword', 'polyhydra', 'letterix']);
 
 /**
  * @param {string} hex

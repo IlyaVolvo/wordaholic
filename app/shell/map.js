@@ -1038,6 +1038,14 @@ export const GAME_ICONS = {
         <circle cx="8" cy="16" r="2.2"/>
       </g>
     </svg>`,
+  letterix: `
+    <svg viewBox="0 0 40 40" aria-hidden="true">
+      <rect x="4" y="4" width="32" height="32" rx="6" fill="currentColor" opacity="0.12"/>
+      <path d="M10 30h20M10 14v16M30 14v16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <rect x="17" y="8" width="6" height="6" rx="1" fill="currentColor"/>
+      <rect x="12" y="18" width="6" height="6" rx="1" fill="currentColor" opacity="0.85"/>
+      <rect x="22" y="22" width="6" height="6" rx="1" fill="currentColor" opacity="0.7"/>
+    </svg>`,
 };
 
 /**

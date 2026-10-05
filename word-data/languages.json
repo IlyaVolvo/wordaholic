@@ -8,7 +8,8 @@
     "games": [
       "polywordlot",
       "polyhydra",
-      "transword"
+      "transword",
+      "letterix"
     ],
     "polywordlotLengths": [
       4,

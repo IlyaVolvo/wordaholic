@@ -66,6 +66,7 @@ export async function prepareOffline(onProgress) {
     '/map/world.svg',
     '/games/polywordlot/index.html',
     '/games/polyhydra/index.html',
+    '/games/letterix/index.html',
     '/games/transword/index.html',
     '/games/transword/game.js',
     '/games/transword/game.css',
@@ -75,7 +76,8 @@ export async function prepareOffline(onProgress) {
   ];
   const pwAssets = await assetUrlsFromIndex('/games/polywordlot/index.html');
   const phAssets = await assetUrlsFromIndex('/games/polyhydra/index.html');
-  await Promise.all([...shellUrls, ...pwAssets, ...phAssets].map((u) => fetch(u).catch(() => null)));
+  const lxAssets = await assetUrlsFromIndex('/games/letterix/index.html');
+  await Promise.all([...shellUrls, ...pwAssets, ...phAssets, ...lxAssets].map((u) => fetch(u).catch(() => null)));
 
   onProgress(55, 'Caching favorite language dictionaries…');
   const wordUrls = [];
@@ -97,6 +99,9 @@ export async function prepareOffline(onProgress) {
       if (dir) {
         wordUrls.push(`/games/transword/data/languages/${dir}/corpus.txt`);
       }
+    }
+    if ((lang.games || []).includes('letterix') && lang.letterixDir) {
+      wordUrls.push(`/games/letterix/dict/${lang.letterixDir}/words.txt`);
     }
   }
 

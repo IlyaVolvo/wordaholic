@@ -132,6 +132,12 @@ function main() {
     stdio: 'inherit',
   });
 
+  console.log('Building Letterix…');
+  execSync('npx vite build --config games/letterix/vite.config.ts', {
+    cwd: ROOT,
+    stdio: 'inherit',
+  });
+
   const catalog = buildLanguagesCatalog();
   ensureDir(path.join(DIST, 'data'));
   fs.writeFileSync(path.join(DIST, 'data/languages.json'), JSON.stringify(catalog, null, 2));
@@ -140,6 +146,7 @@ function main() {
     polywordlot: hashTree(path.join(DIST, 'games', 'polywordlot')),
     polyhydra: hashTree(path.join(DIST, 'games', 'polyhydra')),
     transword: hashTree(path.join(DIST, 'games', 'transword')),
+    letterix: hashTree(path.join(DIST, 'games', 'letterix')),
   };
   const wordDataHashes = hashTree(path.join(DIST, 'word-data'));
 
@@ -164,6 +171,9 @@ function main() {
         siteHash;
     }
     if (lang.transwordDir) words[`transword:${lang.code}`] = gameHashes.transword[`data/languages/${lang.transwordDir}/corpus.txt`] || siteHash;
+    if (lang.letterixDir) {
+      words[`letterix:${lang.code}`] = gameHashes.letterix[`dict/${lang.letterixDir}/words.txt`] || siteHash;
+    }
     if (langHash) words[`language:${lang.code}`] = langHash;
   }
 
@@ -180,6 +190,9 @@ function main() {
       },
       transword: {
         hash: crypto.createHash('sha256').update(JSON.stringify(gameHashes.transword)).digest('hex').slice(0, 16),
+      },
+      letterix: {
+        hash: crypto.createHash('sha256').update(JSON.stringify(gameHashes.letterix)).digest('hex').slice(0, 16),
       },
     },
     words,

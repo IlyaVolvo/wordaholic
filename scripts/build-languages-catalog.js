@@ -58,6 +58,10 @@ export function buildLanguagesCatalog() {
       meta = { ...meta, ...JSON.parse(fs.readFileSync(langJsonPath, 'utf8')) };
     }
     const games = lengths.length ? ['polywordlot', 'polyhydra'] : [];
+    const letterixFile = path.join(ROOT, 'games/letterix/dict', language, locale, 'words.txt');
+    const letterixDir =
+      fs.existsSync(letterixFile) && fs.statSync(letterixFile).size > 0 ? `${language}/${locale}` : '';
+    if (letterixDir) games.push('letterix');
     const coords = MAP_COORDS[code] || { lat: 0, lon: 0 };
     byCode.set(code, {
       code,
@@ -68,6 +72,7 @@ export function buildLanguagesCatalog() {
       games,
       polywordlotLengths: lengths,
       polyDir: `${language}/${locale}`,
+      ...(letterixDir ? { letterixDir } : {}),
       wordDir,
       blockedIds: blockedGameIds(meta.blocked),
     });

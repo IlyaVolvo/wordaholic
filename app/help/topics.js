@@ -362,6 +362,44 @@ export const HELP_TOPICS = {
       },
     ],
   },
+  letterix: {
+    title: 'Letterix',
+    tooltip: 'How to play Letterix',
+    intro: 'Build words from letters falling into a bucket. Score as much as you can before a letter sticks above the top.',
+    steps: [
+      {
+        title: 'Falling letters',
+        screenshot: '/help/letterix/play.svg',
+        body:
+          'Letters fall into the bucket. The next letter appears after a random wait of one row up to the open rows above the bucket. ' +
+          'While paused, the percent on the left speeds the fall. 100% is twice as fast, and a word is worth that much more. ' +
+          'Click or tap a falling letter, or the top letter of a column, to select it, then move it sideways with the mouse, a finger, or the arrow keys. ' +
+          'A sideways move stays at the same height, and it can push other top letters along that row. Space, a double click, or Drop sends it straight down for a small bonus.\n\n' +
+          'Words of three or more letters can sit across a row or down a column, and more than one word can share a line. ' +
+          'A shorter word hidden inside a longer one is not counted on its own. The English list in this test starts at four letters.',
+      },
+      {
+        title: 'Use or skip',
+        screenshot: '/help/letterix/play.svg',
+        body:
+          'When a word is on the board its letters flash and the fall stops. Use and Skip appear, and Use starts selected. ' +
+          'This holds for a short time, then the selected choice happens. Use removes the word and adds its points. ' +
+          'Skip leaves the word so you can build a longer one. Space confirms the flashing choice early and adds a small bonus.\n\n' +
+          'A word you skipped is not offered again until a letter is added or removed on its row or column. ' +
+          'Pause blurs the whole field.',
+      },
+      {
+        title: 'The daily bucket',
+        screenshot: '/help/letterix/play.svg',
+        body:
+          'The letter order comes from the date and the bucket width and height, so everyone with the same size ' +
+          'gets the same game that day. You can play it again. The first finished score stays, and the best score updates ' +
+          'when you beat it.\n\n' +
+          'Abort is only there while the game is paused. It stops the run and keeps the points already scored. Words still on the countdown are not included. ' +
+          'The game also ends after pending words settle, if a letter is still above the bucket.',
+      },
+    ],
+  },
 };
 
 /** Public screenshot URLs used by help steps (for offline cache). */

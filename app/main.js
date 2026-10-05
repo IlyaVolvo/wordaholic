@@ -61,6 +61,18 @@ registerGame({
   getStatistics() { return null; },
 });
 
+registerGame({
+  id: 'letterix',
+  name: 'Letterix',
+  storageSchema: 1,
+  languages: ['en'],
+  async initialize() {},
+  start() {},
+  saveState() { return null; },
+  restoreState() {},
+  getStatistics() { return null; },
+});
+
 const $ = (sel) => document.querySelector(sel);
 
 /** @type {import('./shell/languages.js').LanguageInfo[]} */

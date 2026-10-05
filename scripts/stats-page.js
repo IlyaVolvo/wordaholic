@@ -28,7 +28,7 @@ const STATS_HELP =
   'Hover or tap an IP for permutation keys, or a language count for those codes.\n' +
   'Click a column header to sort (numeric columns start high-to-low).\n' +
   'Numeric filters keep rows with a count greater than the value (default 0; use -1 to include zeros).\n' +
-  'Homehits only keeps networks with home hits and no games, including polywordlot, transword, and polyhydra. Those count filters are disabled while it is checked. Unchecked, it has no effect. Country, place, ISP, and language still apply.\n' +
+  'Homehits only keeps networks with home hits and no games, including polywordlot, transword, polyhydra, and letterix. Those count filters are disabled while it is checked. Unchecked, it has no effect. Country, place, ISP, and language still apply.\n' +
   'Place and ISP match any part of the name; multiple words all have to match. Filters apply as you change them.\n' +
   'Country can be several at once; none selected means all. Search matches country names and codes the same way Place and ISP do. Select all and Deselect all apply to the countries currently shown in that list.\n' +
   'Language works the same way: none selected means all; only games played in the selected languages are counted, for the games total and each game. Search matches language names and codes. Select all and Deselect all apply to the languages currently shown in that list.\n' +
@@ -52,6 +52,7 @@ const COLUMN_SHORT_LABELS = {
   polywordlot: 'wordlot',
   polyhydra: 'hydra',
   transword: 'trans',
+  letterix: 'ltrix',
 };
 
 /**
@@ -125,6 +126,7 @@ const TREND_SERIES_COLORS = {
   polywordlot: '#0d9488',
   transword: '#c2410c',
   polyhydra: '#7c3aed',
+  letterix: '#0f766e',
 };
 
 /**

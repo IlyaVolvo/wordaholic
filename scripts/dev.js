@@ -2,6 +2,7 @@
  * Local loop: keep dist/ in sync with static sources and serve it.
  * PolyWordlot still needs `npm run build:polywordlot` after UI changes.
  * PolyHydra still needs `npm run build:polyhydra` after UI changes.
+ * Letterix still needs `npm run build:letterix` after UI changes.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -89,6 +90,7 @@ function main() {
   console.log('Watching public/, app/, word-data/, games/transword/');
   console.log('PolyWordlot UI: npm run build:polywordlot (then reload)');
   console.log('PolyHydra UI: npm run build:polyhydra (then reload)');
+  console.log('Letterix UI: npm run build:letterix (then reload)');
 
   const child = spawn(process.execPath, ['scripts/serve.js'], {
     cwd: ROOT,
