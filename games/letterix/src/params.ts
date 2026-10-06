@@ -4,7 +4,9 @@ export const PARAMS = {
   E: 4,
   Amin: 28,
   Wmin: 6,
+  Wmax: 12,
   Hmin: 10,
+  Hmax: 20,
   Nmin: 3,
   Vmax: 10,
   Cword: 0.5,
@@ -13,7 +15,7 @@ export const PARAMS = {
   Trow: 1493,
   N: 2,
   preferW: 8,
-  preferH: 16,
+  preferH: 12,
 } as const;
 
 export function fallingCap(W: number, H: number, E = PARAMS.E): number {
@@ -66,7 +68,7 @@ export function fitCell(availW: number, availH: number, W: number, H: number, E 
 
 export function maxWidth(availW: number, availH: number, H: number): number {
   let w = PARAMS.Wmin;
-  for (let n = PARAMS.Wmin + 1; n <= 40; n++) {
+  for (let n = PARAMS.Wmin + 1; n <= PARAMS.Wmax; n++) {
     if (fitCell(availW, availH, n, H) >= PARAMS.Amin) w = n;
     else break;
   }
@@ -75,7 +77,7 @@ export function maxWidth(availW: number, availH: number, H: number): number {
 
 export function maxHeight(availW: number, availH: number, W: number): number {
   let h = PARAMS.Hmin;
-  for (let n = PARAMS.Hmin + 1; n <= 48; n++) {
+  for (let n = PARAMS.Hmin + 1; n <= PARAMS.Hmax; n++) {
     if (fitCell(availW, availH, W, n) >= PARAMS.Amin) h = n;
     else break;
   }

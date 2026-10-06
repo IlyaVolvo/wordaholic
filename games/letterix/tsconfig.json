@@ -18,11 +18,12 @@
     "allowJs": true,
     "paths": {
       "@wordaholic/normalize": ["../../app/i18n/normalize.js"],
+      "@wordaholic/i18n-prefs": ["../../app/i18n-prefs/preferred.js"],
       "@wordaholic/storage": ["../../app/storage/idb.js"],
       "@wordaholic/help": ["../../app/help/dialog.js"],
       "@wordaholic/stats": ["../../app/stats/report.js"],
       "@wordaholic/updates": ["../../app/updates/manifest.js"]
     }
   },
-  "include": ["src", "../../app/i18n/normalize.js", "../../app/storage/idb.js", "../../app/help/dialog.js", "../../app/stats/report.js", "../../app/updates/manifest.js"]
+  "include": ["src", "../../app/i18n/normalize.js", "../../app/i18n-prefs/preferred.js", "../../app/i18n-prefs/favorites.js", "../../app/storage/idb.js", "../../app/help/dialog.js", "../../app/stats/report.js", "../../app/updates/manifest.js"]
 }

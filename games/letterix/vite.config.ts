@@ -42,9 +42,28 @@ function shellDataPlugin(): Plugin {
   const wordDataRoot = path.resolve(repoRoot, 'word-data');
   return {
     name: 'letterix-shell-data',
+    enforce: 'pre',
     configureServer(server) {
+      const publicRoot = path.join(repoRoot, 'public');
+      const send = (res: import('node:http').ServerResponse, file: string) => {
+        const ext = path.extname(file);
+        const types: Record<string, string> = {
+          '.css': 'text/css',
+          '.js': 'text/javascript',
+          '.svg': 'image/svg+xml',
+          '.json': 'application/json',
+          '.html': 'text/html',
+          '.webmanifest': 'application/manifest+json',
+        };
+        res.setHeader('Content-Type', `${types[ext] || 'application/octet-stream'}; charset=utf-8`);
+        fs.createReadStream(file).pipe(res);
+      };
       server.middlewares.use(async (req, res, next) => {
         const url = (req.url || '').split('?')[0];
+        if (url === '/' || url === '/index.html') {
+          send(res, path.join(publicRoot, 'index.html'));
+          return;
+        }
         if (url === '/data/languages.json') {
           const { buildLanguagesCatalog } = await import('../../scripts/build-languages-catalog.js');
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -90,6 +109,15 @@ function shellDataPlugin(): Plugin {
           fs.createReadStream(file).pipe(res);
           return;
         }
+        if (!url.startsWith('/@') && !url.startsWith('/src') && !url.startsWith('/games/') && !url.startsWith('/node_modules') && !url.includes('..')) {
+          const rel = decodeURIComponent(url.replace(/^\/+/, ''));
+          const file = path.join(publicRoot, rel);
+          const fromPublic = path.relative(publicRoot, file);
+          if (!fromPublic.startsWith('..') && !path.isAbsolute(fromPublic) && fs.existsSync(file) && fs.statSync(file).isFile()) {
+            send(res, file);
+            return;
+          }
+        }
         next();
       });
     },
@@ -111,6 +139,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@wordaholic/normalize': path.resolve(repoRoot, 'app/i18n/normalize.js'),
+      '@wordaholic/i18n-prefs': path.resolve(repoRoot, 'app/i18n-prefs/preferred.js'),
       '@wordaholic/storage': path.resolve(repoRoot, 'app/storage/idb.js'),
       '@wordaholic/help': path.resolve(repoRoot, 'app/help/dialog.js'),
       '@wordaholic/stats': path.resolve(repoRoot, 'app/stats/report.js'),

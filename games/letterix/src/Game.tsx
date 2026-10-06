@@ -4,7 +4,7 @@ import { openHelp } from '@wordaholic/help';
 import { reportStats } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import type { Lexicon } from './lexicon.ts';
-import { fitCell, localCalendarDate, maxHeight, maxWidth, PARAMS } from './params.ts';
+import { fitCell, localCalendarDate, PARAMS } from './params.ts';
 import { Calendar } from './Calendar.tsx';
 import { drawField, pointerToCell } from './render.ts';
 import {
@@ -69,9 +69,18 @@ function readHud(sim: Sim): Hud {
   };
 }
 
-export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; initialH: number }> = ({
+export const Game: React.FC<{
+  lex: Lexicon;
+  language: string;
+  languages: { code: string; name: string; flag: string }[];
+  onLanguageChange: (code: string) => void;
+  initialW: number;
+  initialH: number;
+}> = ({
   lex,
   language,
+  languages,
+  onLanguageChange,
   initialW,
   initialH,
 }) => {
@@ -86,7 +95,6 @@ export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; 
   const [date, setDate] = useState(localCalendarDate);
   const [hud, setHud] = useState<Hud | null>(null);
   const [scores, setScores] = useState<ScoreRecord | null>(null);
-  const [limits, setLimits] = useState({ maxW: 30, maxH: 40 });
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => calendarMonthForSelection(localCalendarDate()));
   const [showStats, setShowStats] = useState(false);
@@ -137,10 +145,6 @@ export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; 
       const sim = simRef.current;
       if (!sim || slot.clientWidth < 8 || slot.clientHeight < 8) return;
       setCellSize(sim, fitCell(slot.clientWidth, slot.clientHeight, sim.W, sim.H));
-      setLimits({
-        maxW: maxWidth(slot.clientWidth, slot.clientHeight, sim.H),
-        maxH: maxHeight(slot.clientWidth, slot.clientHeight, sim.W),
-      });
     };
     const observer = new ResizeObserver(apply);
     observer.observe(slot);
@@ -375,8 +379,8 @@ export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; 
     canvas.dataset.drag = '';
   }
 
-  const widths = sizeOptions(PARAMS.Wmin, limits.maxW, W);
-  const heights = sizeOptions(PARAMS.Hmin, limits.maxH, H);
+  const widths = sizeOptions(PARAMS.Wmin, PARAMS.Wmax, W);
+  const heights = sizeOptions(PARAMS.Hmin, PARAMS.Hmax, H);
   const canMove = hud?.phase === 'fall' && !hud.paused;
   const canDrop = !hud?.paused && (hud?.phase === 'decide' || (hud?.phase === 'fall' && Boolean(hud.letter)));
 
@@ -442,6 +446,11 @@ export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; 
             Start
           </button>
         )}
+        {hud?.phase === 'over' && (
+          <button type="button" className="letterix-start" data-action="replay" onClick={() => replay()}>
+            Replay
+          </button>
+        )}
       </div>
       <div className="settings">
         <div className="toolbar-picks">
@@ -450,21 +459,35 @@ export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; 
               <button
                 type="button"
                 className="language-dropdown-trigger"
-                aria-label="Language: English"
+                aria-label={`Language: ${languages.find((lang) => lang.code === language)?.name || language}`}
                 aria-haspopup="listbox"
                 aria-expanded={langOpen}
                 disabled={locked}
                 onClick={() => setLangOpen((open) => !open)}
               >
-                <span className="language-dropdown-flag" aria-hidden="true">🇺🇸</span>
+                <span className="language-dropdown-flag" aria-hidden="true">{languages.find((lang) => lang.code === language)?.flag || '🇺🇸'}</span>
                 <span className="language-dropdown-chevron" aria-hidden="true">{langOpen ? '▲' : '▼'}</span>
               </button>
               {langOpen && !locked && (
                 <ul className="language-dropdown-list" role="listbox" aria-label="Select language">
-                  <li className="language-dropdown-option selected" role="option" aria-selected="true" onClick={() => setLangOpen(false)}>
-                    <span className="language-dropdown-flag" aria-hidden="true">🇺🇸</span>
-                    <span>English</span>
-                  </li>
+                  {languages.map((lang) => (
+                    <li
+                      key={lang.code}
+                      className={`language-dropdown-option${lang.code === language ? ' selected' : ''}`}
+                      role="option"
+                      aria-selected={lang.code === language}
+                      onClick={() => {
+                        setLangOpen(false);
+                        if (lang.code === language) return;
+                        const sim = simRef.current;
+                        if (sim && sim.phase !== 'ready') void saveRun(sim);
+                        onLanguageChange(lang.code);
+                      }}
+                    >
+                      <span className="language-dropdown-flag" aria-hidden="true">{lang.flag}</span>
+                      <span>{lang.name}</span>
+                    </li>
+                  ))}
                 </ul>
               )}
             </div>
@@ -570,11 +593,6 @@ export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; 
             </Tip>
           </>
         )}
-        {hud?.phase === 'over' && (
-          <Tip label="Play again">
-            <button type="button" data-action="replay" onClick={() => replay()}>Replay</button>
-          </Tip>
-        )}
         </div>
         <div className="keys-corner">
           {hud?.paused && (
@@ -639,15 +657,10 @@ export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; 
 
   function setSize(axis: 'W' | 'H', value: number) {
     if (!Number.isFinite(value)) return;
-    const slot = slotRef.current;
-    const availW = slot?.clientWidth || 800;
-    const availH = slot?.clientHeight || 700;
     if (axis === 'W') {
-      const cap = maxWidth(availW, availH, H);
-      setW(Math.max(PARAMS.Wmin, Math.min(cap, Math.round(value))));
+      setW(Math.max(PARAMS.Wmin, Math.min(PARAMS.Wmax, Math.round(value))));
     } else {
-      const cap = maxHeight(availW, availH, W);
-      setH(Math.max(PARAMS.Hmin, Math.min(cap, Math.round(value))));
+      setH(Math.max(PARAMS.Hmin, Math.min(PARAMS.Hmax, Math.round(value))));
     }
   }
 
