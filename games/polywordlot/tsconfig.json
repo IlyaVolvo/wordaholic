@@ -18,6 +18,7 @@
     "allowJs": true,
     "paths": {
       "@wordaholic/locales": ["../../app/shell/locales.js"],
+      "@wordaholic/game-state": ["../../app/shell/game-state.js"],
       "@wordaholic/normalize": ["../../app/i18n/normalize.js"],
       "@wordaholic/storage": ["../../app/storage/idb.js"],
       "@wordaholic/stats": ["../../app/stats/report.js"],
@@ -28,6 +29,7 @@
     "src",
     "../../packages/wordle-core/src",
     "../../app/shell/locales.js",
+    "../../app/shell/game-state.js",
     "../../app/i18n/normalize.js",
     "../../app/storage/idb.js"
   ]

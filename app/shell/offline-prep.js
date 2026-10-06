@@ -87,8 +87,9 @@ export async function prepareOffline(onProgress) {
       if (lang.polyDir) {
         const dir = lang.polyDir;
         for (const len of lang.polywordlotLengths || []) {
-          wordUrls.push(`/games/polywordlot/dict/${dir}/answers-${len}.txt`);
-          wordUrls.push(`/games/polywordlot/dict/${dir}/dictionary-${len}.txt`);
+          wordUrls.push(`/games/polywordlot/dict/${dir}/${len}/answers.txt`);
+          wordUrls.push(`/games/polywordlot/dict/${dir}/${len}/dictionary.txt`);
+          wordUrls.push(`/games/polywordlot/dict/${dir}/${len}/game-state.json`);
         }
       }
     }
@@ -96,6 +97,7 @@ export async function prepareOffline(onProgress) {
       const dir = lang.transwordDir;
       if (dir) {
         wordUrls.push(`/games/transword/data/languages/${dir}/corpus.txt`);
+        wordUrls.push(`/games/transword/data/languages/${dir}/game-state.json`);
       }
     }
   }

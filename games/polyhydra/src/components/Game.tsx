@@ -15,11 +15,14 @@ import {
   loadKeyboard,
   loadLoseMessage,
   loadWinMessage,
+  loadWordsetState,
   maxGuessesForBoardCount,
   normalizeForLanguage,
   summaryKnownRows,
 } from '@wordaholic/wordle-core';
 import { openHelp } from '@wordaholic/help';
+import { uncuratedWarningText } from '../../../../app/shell/game-state.js';
+import { mountUncuratedWarning } from '../../../../app/shell/uncurated-warning.js';
 import { reportStats } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../app/daily/variantVisit.js';
@@ -273,6 +276,24 @@ export const Game: React.FC<GameProps> = ({
   const isCompleteRef = useRef(false);
   const boardModeRef = useRef(boardMode);
   const boardsViewportRef = useRef<HTMLDivElement | null>(null);
+  const warningStopRef = useRef<() => void>(() => {});
+  const manualRef = useCallback((node: HTMLButtonElement | null) => {
+    warningStopRef.current();
+    warningStopRef.current = () => {};
+    if (!node) return;
+    let cancel = false;
+    warningStopRef.current = () => {
+      cancel = true;
+    };
+    void loadWordsetState(language, wordLength).then((state) => {
+      if (cancel) return;
+      const stop = mountUncuratedWarning(node, uncuratedWarningText(state));
+      warningStopRef.current = () => {
+        cancel = true;
+        stop();
+      };
+    });
+  }, [language, wordLength]);
   const swipeRef = useRef<{ x: number; y: number; active: boolean } | null>(null);
 
   const maxGuesses = maxGuessesForBoardCount(boardCount);
@@ -1049,6 +1070,7 @@ export const Game: React.FC<GameProps> = ({
           </div>
           <button
             type="button"
+            ref={manualRef}
             className="help-trigger help-trigger--game"
             aria-label="How to play Hydra"
             onClick={() => openHelp('polyhydra')}

@@ -153,7 +153,7 @@ function main() {
     if (lang.polyDir) {
       const dictPrefix = `dict/${lang.polyDir}/`;
       for (const [rel, hash] of Object.entries(gameHashes.polywordlot)) {
-        const match = /^dict\/.+\/answers-(\d+)\.txt$/.exec(rel);
+        const match = /^dict\/.+\/(\d+)\/answers\.txt$/.exec(rel);
         if (match && rel.startsWith(dictPrefix)) {
           words[`polywordlot:${lang.code}:${match[1]}`] = hash;
         }

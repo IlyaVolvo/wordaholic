@@ -59,7 +59,6 @@
   "winMessage": "Félicitations ! Vous avez gagné !",
   "helpTip": "Les détails arrivent...",
   "loseMessage": "La réponse était : {word}",
-  "blocked": [],
   "about": {
     "contributorLabel": "Contributeurs",
     "rulesLabel": "Règles du jeu",

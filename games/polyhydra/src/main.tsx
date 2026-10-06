@@ -4,6 +4,7 @@ import { App } from './App';
 import { mountPortraitGate } from '../../../app/play/portrait-gate.js';
 import '../../../app/play/portrait-gate.css';
 import '../../../app/help/help.css';
+import '../../../app/shell/uncurated-warning.css';
 import './styles.css';
 
 mountPortraitGate();

@@ -1,5 +1,6 @@
 import type { DictionaryEntry, LanguageConfig } from './types';
 import { languageDirForCode } from '@wordaholic/locales';
+import { interpretGameState } from '@wordaholic/game-state';
 
 /** Shared PolyWordlot word lists — Hydra uses the same files, not a copy. */
 const DICT_BASE = '/games/polywordlot/dict/';
@@ -8,6 +9,7 @@ const WORD_DATA_BASE = '/word-data/';
 
 // Cache for loaded dictionaries
 const dictionaryCache = new Map<string, DictionaryEntry>();
+const wordsetStateCache = new Map<string, { curated: boolean; blocked: boolean }>();
 
 // Cache for language configurations (from the build-time catalog)
 const languageConfigsCache = new Map<string, LanguageConfig>();
@@ -200,8 +202,38 @@ export async function loadAbout(language: string): Promise<{ contributorLabel?: 
 }
 
 /**
- * Loads a dictionary for a specific language and word length
- * Uses the new directory structure: Language/Locale/answers-<len>.txt
+ * Curated and blocked flags for one PolyWordlot/Hydra length.
+ * Missing game-state.json is curated and available.
+ */
+export async function loadWordsetState(
+  language: string,
+  wordLength: number
+): Promise<{ curated: boolean; blocked: boolean }> {
+  const cacheKey = `${language}-${wordLength}`;
+  const cached = wordsetStateCache.get(cacheKey);
+  if (cached) return cached;
+
+  const languageDir = getLanguageDir(language);
+  const fallback = interpretGameState(null);
+  if (!languageDir) return fallback;
+
+  try {
+    const response = await fetch(`${DICT_BASE}${languageDir}/${wordLength}/game-state.json`);
+    if (!response.ok) {
+      wordsetStateCache.set(cacheKey, fallback);
+      return fallback;
+    }
+    const state = interpretGameState(await response.json());
+    wordsetStateCache.set(cacheKey, state);
+    return state;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Loads a dictionary for a specific language and word length.
+ * Files live in Language/Locale/<length>/answers.txt and dictionary.txt.
  */
 export async function loadDictionary(
   language: string,
@@ -221,8 +253,8 @@ export async function loadDictionary(
   }
 
   // Load answer words and dictionary words from new structure
-  const answersPath = `${DICT_BASE}${languageDir}/answers-${wordLength}.txt`;
-  const dictionaryPath = `${DICT_BASE}${languageDir}/dictionary-${wordLength}.txt`;
+  const answersPath = `${DICT_BASE}${languageDir}/${wordLength}/answers.txt`;
+  const dictionaryPath = `${DICT_BASE}${languageDir}/${wordLength}/dictionary.txt`;
 
   const [answerWords, allWords] = await Promise.all([
     loadDictionaryFile(answersPath),

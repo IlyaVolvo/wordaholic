@@ -16,6 +16,8 @@ import {
   setLastLanguage,
 } from '../../app/i18n-prefs/preferred.js';
 import { languageDirForTranswordDir } from '../../app/shell/locales.js';
+import { interpretGameState, uncuratedWarningText } from '../../app/shell/game-state.js';
+import { mountUncuratedWarning } from '../../app/shell/uncurated-warning.js';
 import { normalizeWithMappings } from '../../app/i18n/normalize.js';
 import { openHelp } from '../../app/help/dialog.js';
 import { mountPortraitGate } from '../../app/play/portrait-gate.js';
@@ -350,20 +352,14 @@ async function loadLanguageConfig(dir) {
   return res.json();
 }
 
-function blockedGameIds(cfg) {
-  const raw = cfg?.blocked;
-  if (raw === true) return ['transword'];
-  if (typeof raw === 'string') {
-    const v = raw.trim().toLowerCase();
-    if (v === 'yes' || v === 'true') return ['transword'];
-    return v ? [v] : [];
+async function loadWordsetState(dir) {
+  try {
+    const res = await fetch(`${LANG_BASE}/${dir}/game-state.json`);
+    if (!res.ok) return interpretGameState(null);
+    return interpretGameState(await res.json());
+  } catch {
+    return interpretGameState(null);
   }
-  if (Array.isArray(raw)) return raw.map((id) => String(id));
-  return [];
-}
-
-function isBlockedInGame(cfg) {
-  return blockedGameIds(cfg).includes(GAME_ID);
 }
 
 async function loadLanguagesCatalog() {
@@ -380,7 +376,8 @@ async function loadLanguagesCatalog() {
     if (!entry?.dir || !(Number(entry.words || 0) > 0)) continue;
     try {
       const cfg = await loadLanguageConfig(entry.dir);
-      if (isBlockedInGame(cfg)) continue;
+      const wordset = await loadWordsetState(entry.dir);
+      if (wordset.blocked) continue;
       const corpusRes = await fetch(`${LANG_BASE}/${entry.dir}/corpus.txt`);
       if (!corpusRes.ok) continue;
       const text = await corpusRes.text();
@@ -514,6 +511,8 @@ async function switchLanguage(code, startPuzzle = true) {
   setLastLanguage(language);
   showLoading('Loading language corpus…');
   languageConfig = await loadLanguageConfig(languageDir);
+  const wordset = await loadWordsetState(languageDir);
+  mountUncuratedWarning(document.getElementById('btn-howto'), uncuratedWarningText(wordset));
   corpusEntries = await loadCorpus(languageDir);
   setLoading(`Building graphs (${corpusEntries.length} words)…`);
   await new Promise((r) => requestAnimationFrame(r));

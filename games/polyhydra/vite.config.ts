@@ -35,9 +35,15 @@ function shellDataPlugin(): Plugin {
   const wordDataRoot = path.resolve(repoRoot, 'word-data');
   return {
     name: 'polyhydra-shell-data',
+    enforce: 'pre',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = (req.url || '').split('?')[0];
+        if (url === '/') {
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          fs.createReadStream(path.join(repoRoot, 'public/index.html')).pipe(res);
+          return;
+        }
         if (url === '/data/languages.json') {
           const { buildLanguagesCatalog } = await import('../../scripts/build-languages-catalog.js');
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -99,6 +105,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@wordaholic/locales': path.resolve(repoRoot, 'app/shell/locales.js'),
+      '@wordaholic/game-state': path.resolve(repoRoot, 'app/shell/game-state.js'),
       '@wordaholic/normalize': path.resolve(repoRoot, 'app/i18n/normalize.js'),
       '@wordaholic/storage': path.resolve(repoRoot, 'app/storage/idb.js'),
       '@wordaholic/help': path.resolve(repoRoot, 'app/help/dialog.js'),

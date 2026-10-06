@@ -24,9 +24,42 @@ function shellDataPlugin(): Plugin {
   const wordDataRoot = path.resolve(repoRoot, 'word-data');
   return {
     name: 'polywordlot-shell-data',
+    enforce: 'pre',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = (req.url || '').split('?')[0];
+        if (
+          url === '/' ||
+          (!url.startsWith('/@') &&
+            !url.startsWith('/src') &&
+            !url.startsWith('/games/') &&
+            !url.startsWith('/node_modules') &&
+            !url.startsWith('/word-data/') &&
+            url !== '/data/languages.json')
+        ) {
+          const rel = url === '/' ? '' : decodeURIComponent(url.replace(/^\/+/, ''));
+          if (!rel.includes('..')) {
+            const candidates = url === '/'
+              ? [path.join(repoRoot, 'public/index.html')]
+              : [path.join(repoRoot, 'public', rel), path.join(repoRoot, rel)];
+            const file = candidates.find((candidate) => {
+              const fromRoot = path.relative(repoRoot, candidate);
+              return !fromRoot.startsWith('..') && !path.isAbsolute(fromRoot) && fs.existsSync(candidate) && fs.statSync(candidate).isFile();
+            });
+            if (file) {
+              const ext = path.extname(file);
+              const type = ext === '.js' ? 'text/javascript'
+                : ext === '.css' ? 'text/css'
+                : ext === '.svg' ? 'image/svg+xml'
+                : ext === '.html' ? 'text/html'
+                : ext === '.json' || ext === '.webmanifest' ? 'application/json'
+                : 'application/octet-stream';
+              res.setHeader('Content-Type', `${type}; charset=utf-8`);
+              fs.createReadStream(file).pipe(res);
+              return;
+            }
+          }
+        }
         if (url === '/data/languages.json') {
           const { buildLanguagesCatalog } = await import('../../scripts/build-languages-catalog.js');
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -72,6 +105,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@wordaholic/locales': path.resolve(__dirname, '../../app/shell/locales.js'),
+      '@wordaholic/game-state': path.resolve(__dirname, '../../app/shell/game-state.js'),
       '@wordaholic/normalize': path.resolve(__dirname, '../../app/i18n/normalize.js'),
       '@wordaholic/storage': path.resolve(__dirname, '../../app/storage/idb.js'),
       '@wordaholic/help': path.resolve(__dirname, '../../app/help/dialog.js'),

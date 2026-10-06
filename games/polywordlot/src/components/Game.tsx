@@ -4,7 +4,9 @@ import { GameBoard } from './GameBoard';
 import { Keyboard } from './Keyboard';
 import { Settings } from './Settings';
 import { Calendar } from './Calendar';
-import { loadDictionary, loadKeyboard, getKeyboardRtl, getInputPlugins, loadWinMessage, loadLoseMessage } from '../data/languageLoader';
+import { loadDictionary, loadKeyboard, getKeyboardRtl, getInputPlugins, loadWinMessage, loadLoseMessage, loadWordsetState } from '../data/languageLoader';
+import { uncuratedWarningText } from '../../../../app/shell/game-state.js';
+import { mountUncuratedWarning } from '../../../../app/shell/uncurated-warning.js';
 import { applyInputPlugins } from '../utils/inputPlugins';
 import { getDailyWord, getWordFromSeed, formatDate } from '../utils/dailyWord';
 import { evaluateGuess, isValidWord } from '../utils/gameLogic';
@@ -157,6 +159,24 @@ export const Game: React.FC<GameProps> = ({
   /** Ref set when dictionary is loaded so load effect only runs for current language/wordLength */
   const dictionaryForRef = useRef<{ language: string; wordLength: number } | null>(null);
   const playAreaRef = useRef<HTMLDivElement>(null);
+  const warningStopRef = useRef<() => void>(() => {});
+  const manualRef = useCallback((node: HTMLButtonElement | null) => {
+    warningStopRef.current();
+    warningStopRef.current = () => {};
+    if (!node) return;
+    let cancel = false;
+    warningStopRef.current = () => {
+      cancel = true;
+    };
+    void loadWordsetState(language, wordLength).then((state) => {
+      if (cancel) return;
+      const stop = mountUncuratedWarning(node, uncuratedWarningText(state));
+      warningStopRef.current = () => {
+        cancel = true;
+        stop();
+      };
+    });
+  }, [language, wordLength]);
   const [selectedPlayDate, setSelectedPlayDate] = useState<string>('');
   const [keyboardRtl, setKeyboardRtl] = useState<boolean>(false);
   const [showCalendar, setShowCalendar] = useState(false);
@@ -1251,6 +1271,7 @@ export const Game: React.FC<GameProps> = ({
             <a href="/" className="header-home-link header-game-name">PolyWordlot</a>
             <button
               type="button"
+              ref={manualRef}
               className="help-trigger help-trigger--game"
               aria-label="How to play PolyWordlot"
               onClick={() => openHelp('polywordlot')}

@@ -23,6 +23,7 @@ export {
   loadLoseMessage,
   loadAbout,
   loadDictionary,
+  loadWordsetState,
   getLanguageConfigs,
   getLanguageConfig,
   loadKeyboard,
