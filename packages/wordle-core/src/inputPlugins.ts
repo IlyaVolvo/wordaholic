@@ -43,16 +43,58 @@ export function applyInputPlugins(
 
 // --- Built-in plugins ---
 
+function regularToFinalMap(
+  config: Record<string, unknown> | undefined
+): Record<string, string> | null {
+  const map = config?.regularToFinal;
+  if (!map || typeof map !== 'object') return null;
+  return map as Record<string, string>;
+}
+
+/** Regular letter for a final-form pair, or null when `letter` is not in the map. */
+function regularOfFinalPair(letter: string, regularToFinal: Record<string, string>): string | null {
+  if (Object.prototype.hasOwnProperty.call(regularToFinal, letter)) return letter;
+  for (const regular of Object.keys(regularToFinal)) {
+    if (regularToFinal[regular] === letter) return regular;
+  }
+  return null;
+}
+
+function hebrewFinalFormPlugin(
+  plugins: Array<{ id: string; config?: Record<string, unknown> }>
+): { id: string; config?: Record<string, unknown> } | undefined {
+  return plugins.find((plugin) => plugin.id === 'hebrewFinalForms');
+}
+
+/**
+ * Final form at the end of the word; regular form everywhere else.
+ * Letters outside the plugin map are unchanged, so regular and final stay one letter.
+ * Word-level exceptions apply only while typing (the summary does not know the target).
+ */
+export function letterWithFinalForm(
+  letter: string,
+  isEndOfWord: boolean,
+  plugins: Array<{ id: string; config?: Record<string, unknown> }>
+): string {
+  const regularToFinal = regularToFinalMap(hebrewFinalFormPlugin(plugins)?.config);
+  if (!regularToFinal) return letter;
+  const regular = regularOfFinalPair(letter, regularToFinal);
+  if (!regular) return letter;
+  if (!isEndOfWord) return regular;
+  return regularToFinal[regular] ?? regular;
+}
+
 /**
  * Hebrew final forms: when a letter is at the end of the word, replace with its final form.
  * - Keyboard shows only non-final (מ, נ, צ, פ, כ)
  * - When at end of word, substitute with final (ם, ן, ץ, ף, ך)
  * - Config: { regularToFinal: { "מ":"ם", "נ":"ן", ... }, exceptions?: string[] }
  * - exceptions: words that do not use final form at end (optional)
+ * Summary rows use the same map via letterWithFinalForm.
  */
 registerInputPlugin('hebrewFinalForms', (key, currentGuess, wordLength, rtl, config) => {
-  const regularToFinal = config.regularToFinal as Record<string, string> | undefined;
-  if (!regularToFinal || !(key in regularToFinal)) return key;
+  const regularToFinal = regularToFinalMap(config);
+  if (!regularToFinal || !Object.prototype.hasOwnProperty.call(regularToFinal, key)) return key;
 
   // "End of word" = position where we add the last character.
   // For RTL: first char typed goes at index 0 (rightmost), last char at index wordLength-1 (leftmost).

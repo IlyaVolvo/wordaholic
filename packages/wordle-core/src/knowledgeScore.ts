@@ -1,5 +1,7 @@
 import type { Guess, LetterEvaluation } from './types';
 import { normalizeForLanguage } from './characterNormalization';
+import { getInputPlugins } from './languageLoader';
+import { letterWithFinalForm } from './inputPlugins';
 
 function letterKey(letter: string, language: string): string {
   return normalizeForLanguage(letter.toLowerCase(), language);
@@ -159,6 +161,8 @@ function glyphColumns(states, wordLength, rtl, maxGlyphs) {
  * where that letter was present or correct. The letter is written as many
  * times as it lit up in a single guess (greens first, then leftmost yellows).
  * A later gray of that letter still marks the column yellow (ruled out).
+ * A final-form pair (Hebrew מ/ם and the rest) stays on that one row: the glyph
+ * in the last column is the final form, and every other glyph is the regular form.
  */
 export function layoutSummaryKnown(
   guesses: Guess[],
@@ -172,6 +176,7 @@ export function layoutSummaryKnown(
     () => Array(wordLength).fill(null)
   );
   const knownByLetter = knownCountByLetter(guesses, language);
+  const inputPlugins = getInputPlugins(language);
 
   type LetterTrack = {
     letter: string;
@@ -218,7 +223,9 @@ export function layoutSummaryKnown(
       const state = track.states[col];
       if (!state) continue;
       rows[i][col] = {
-        letter: glyphCols.has(col) ? track.letter : '',
+        letter: glyphCols.has(col)
+          ? letterWithFinalForm(track.letter, col === wordLength - 1, inputPlugins)
+          : '',
         state,
       };
     }
