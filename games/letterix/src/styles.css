@@ -94,12 +94,31 @@ a.header-brand-home {
 }
 .header-icon-button svg { display: block; }
 .stage {
+  position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 4px 8px;
+}
+.letterix-start {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 5;
+  transform: translate(-50%, -50%);
+  height: 56px;
+  min-width: 168px;
+  padding: 0 28px;
+  border: none;
+  border-radius: 8px;
+  background: #d3d6da;
+  color: #111;
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.5rem;
+  cursor: pointer;
 }
 .field { max-width: 100%; max-height: 100%; }
 .field.is-paused canvas { filter: blur(22px); }

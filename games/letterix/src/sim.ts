@@ -204,6 +204,7 @@ function nextSpawnWaitPx(sim: Sim): number {
 }
 
 function trySpawn(sim: Sim) {
+  if (!sim.falling.some((f) => f.kind === 'play')) sim.spawnWaitPx = 0;
   if (sim.phase !== 'fall' || sim.missedLock || sim.spawnWaitPx > 0) return;
   const play = sim.falling.filter((f) => f.kind === 'play');
   if (!sim.table.length || sim.total <= 0) return;
@@ -309,7 +310,8 @@ function stepPlay(sim: Sim) {
   for (const piece of pieces) {
     if (stepDown(sim, piece)) locked = true;
   }
-  if (sim.spawnWaitPx > 0) sim.spawnWaitPx -= 1;
+  if (!sim.falling.some((f) => f.kind === 'play')) sim.spawnWaitPx = 0;
+  else if (sim.spawnWaitPx > 0) sim.spawnWaitPx -= 1;
   if (sim.spawnWaitPx <= 0) sim.spawnWaitPx = 0;
   if (locked) resolve(sim);
   else if (sim.phase === 'fall' && sim.spawnWaitPx === 0) trySpawn(sim);
@@ -421,6 +423,27 @@ export function selectTop(sim: Sim, row: number, col: number): boolean {
   return true;
 }
 
+/** A moved top letter with empty space below becomes an ordinary falling letter. */
+function releaseUnsupported(sim: Sim, row: number, col: number, select: boolean): boolean {
+  if (row <= 0 || sim.grid[row - 1]?.[col]) return false;
+  const letter = sim.grid[row]?.[col];
+  if (!letter) return false;
+  sim.grid[row][col] = null;
+  bump(sim, row, col);
+  if (select) {
+    for (const f of sim.falling) if (f.kind === 'play') f.selected = false;
+  }
+  sim.falling.push({
+    id: sim.nextId++,
+    letter,
+    col,
+    yPx: row * sim.A,
+    selected: select,
+    kind: 'play',
+  });
+  return true;
+}
+
 function shiftHeld(sim: Sim, dir: -1 | 1): boolean {
   const held = sim.held;
   if (!held) return false;
@@ -448,7 +471,12 @@ function shiftHeld(sim: Sim, dir: -1 | 1): boolean {
     bump(sim, held.row, from);
     bump(sim, held.row, to);
   }
-  sim.held = { row: held.row, col: held.col + dir };
+  const heldDest = held.col + dir;
+  let heldReleased = false;
+  for (const col of moving.map((from) => from + dir)) {
+    if (releaseUnsupported(sim, held.row, col, col === heldDest) && col === heldDest) heldReleased = true;
+  }
+  sim.held = heldReleased ? null : { row: held.row, col: heldDest };
   const offer = scanOffer(sim);
   if (offer.length) beginDecide(sim, offer);
   touch(sim);

@@ -241,8 +241,7 @@ export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; 
         tryMove(sim, 1);
       } else if (event.key === ' ') {
         event.preventDefault();
-        if (sim.phase === 'ready') begin(sim);
-        else hardDrop(sim);
+        if (sim.phase !== 'ready') hardDrop(sim);
       } else if (event.key === 'p' || event.key === 'P') {
         event.preventDefault();
         setPaused(sim, !sim.paused);
@@ -284,8 +283,7 @@ export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; 
     const sim = simRef.current;
     if (!sim || sim.paused) return;
     if (sim.phase === 'decide') confirmChoice(sim, true);
-    else if (sim.phase === 'ready') begin(sim);
-    else hardDrop(sim);
+    else if (sim.phase !== 'ready') hardDrop(sim);
   }
 
   function pickDate(next: string) {
@@ -344,7 +342,7 @@ export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; 
   const widths = sizeOptions(PARAMS.Wmin, limits.maxW, W);
   const heights = sizeOptions(PARAMS.Hmin, limits.maxH, H);
   const canMove = hud?.phase === 'fall' && !hud.paused;
-  const canDrop = !hud?.paused && (hud?.phase === 'ready' || hud?.phase === 'decide' || (hud?.phase === 'fall' && Boolean(hud.letter)));
+  const canDrop = !hud?.paused && (hud?.phase === 'decide' || (hud?.phase === 'fall' && Boolean(hud.letter)));
 
   return (
     <div className="letterix" data-phase={hud?.phase || 'ready'}>
@@ -403,6 +401,11 @@ export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; 
             onDoubleClick={onDoubleClick}
           />
         </div>
+        {(!hud || hud.phase === 'ready') && (
+          <button type="button" className="letterix-start" onClick={() => { const sim = simRef.current; if (sim) begin(sim); }}>
+            Start
+          </button>
+        )}
       </div>
       <div className="settings">
         <div className="toolbar-picks">

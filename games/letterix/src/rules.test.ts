@@ -97,6 +97,18 @@ test('the next letter waits a random number of rows from 1 to the open rows abov
   assert.ok(new Set(gaps).size >= 2, `gaps stayed ${gaps.join(',')}`);
 });
 
+test('a new letter appears immediately when nothing is falling', () => {
+  const sim = board();
+  sim.dict = new Set();
+  start(sim);
+  assert.equal(sim.falling.filter((piece) => piece.kind === 'play').length, 1);
+  assert.ok(sim.spawnWaitPx >= sim.A);
+  hardDrop(sim);
+  assert.equal(sim.phase, 'fall');
+  assert.equal(sim.falling.filter((piece) => piece.kind === 'play').length, 1);
+  assert.ok(sim.spawnWaitPx >= sim.A);
+});
+
 test('daily seed is stable and changes with the date and width', () => {
   const dictionary = lex();
   const a = lettersFromSeed('2026-10-03|8|16', dictionary, 8);
@@ -157,11 +169,12 @@ test('shorter words inside a longer match are dropped; separate words on one row
   );
 });
 
-test('the top letter of a column slides sideways and stays there until dropped', () => {
+test('the top letter of a column stays put when the cell below its new column is filled', () => {
   const sim = board();
   sim.phase = 'fall';
   placeFrozen(sim, 0, 0, 'a');
   placeFrozen(sim, 1, 0, 'b');
+  placeFrozen(sim, 0, 1, 'c');
   assert.equal(selectTop(sim, 0, 0), false);
   injectFalling(sim, 'z', 0, 8 * sim.A);
   assert.equal(selectTop(sim, 1, 0), true);
@@ -172,13 +185,64 @@ test('the top letter of a column slides sideways and stays there until dropped',
   tick(sim, 400);
   assert.equal(sim.grid[1][1], 'b');
   hardDrop(sim);
-  assert.equal(sim.grid[1][1], null);
-  assert.equal(sim.grid[0][1], 'b');
+  assert.equal(sim.grid[1][1], 'b');
+});
+
+test('a top letter moved over empty space becomes a falling letter', () => {
+  const sim = board();
+  sim.phase = 'fall';
+  sim.dict = new Set();
+  placeFrozen(sim, 0, 0, 'a');
+  placeFrozen(sim, 2, 0, 'b');
+  placeFrozen(sim, 0, 1, 'c');
+  const score = sim.score;
+  assert.equal(selectTop(sim, 2, 0), true);
+  assert.equal(tryMove(sim, 1), true);
+  assert.equal(sim.grid[2][0], null);
+  assert.equal(sim.grid[2][1], null);
+  assert.equal(sim.held, null);
+  const piece = sim.falling.find((f) => f.letter === 'b');
+  assert.ok(piece);
+  assert.equal(piece.kind, 'play');
+  assert.equal(piece.selected, true);
+  assert.equal(piece.col, 1);
+  assert.equal(piece.yPx, 2 * sim.A);
+  assert.equal(sim.score, score);
+  const before = piece.yPx;
+  tick(sim, pixelInterval(sim.A) * 2);
+  assert.ok(piece.yPx < before);
+  runUntil(sim, pixelInterval(sim.A) * (2 * sim.A + 40));
+  assert.equal(sim.grid[1][1], 'b');
+  assert.equal(sim.grid[0][1], 'c');
+});
+
+test('a pushed top letter falls when its new cell has nothing under it', () => {
+  const sim = board();
+  sim.phase = 'fall';
+  sim.dict = new Set();
+  placeFrozen(sim, 0, 0, 'x');
+  placeFrozen(sim, 0, 1, 'y');
+  placeFrozen(sim, 1, 0, 'a');
+  placeFrozen(sim, 1, 1, 'b');
+  assert.equal(selectTop(sim, 1, 0), true);
+  assert.equal(tryMove(sim, 1), true);
+  assert.equal(sim.grid[1][1], 'a');
+  assert.equal(sim.held?.col, 1);
+  assert.equal(sim.grid[1][2], null);
+  const piece = sim.falling.find((f) => f.letter === 'b');
+  assert.equal(piece?.col, 2);
+  assert.equal(piece?.kind, 'play');
+  assert.equal(piece?.selected, false);
+  assert.equal(piece?.yPx, sim.A);
 });
 
 test('a top letter pushes other top letters in the same row', () => {
   const sim = board();
   sim.phase = 'fall';
+  placeFrozen(sim, 1, 0, 'x');
+  placeFrozen(sim, 1, 1, 'y');
+  placeFrozen(sim, 1, 2, 'z');
+  placeFrozen(sim, 1, 3, 'w');
   placeFrozen(sim, 2, 0, 'a');
   placeFrozen(sim, 2, 1, 'b');
   placeFrozen(sim, 2, 2, 'c');

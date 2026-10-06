@@ -371,7 +371,7 @@ export const HELP_TOPICS = {
         title: 'Falling letters',
         screenshot: '/help/letterix/play.svg',
         body:
-          'Letters fall into the bucket. The next letter appears after a random wait of one row up to the open rows above the bucket. ' +
+          'Letters fall into the bucket. The next letter appears after a random wait of one row up to the open rows above the bucket, or at once when nothing is falling. ' +
           'While paused, the percent on the left speeds the fall. 100% is twice as fast, and a word is worth that much more. ' +
           'Click or tap a falling letter, or the top letter of a column, to select it, then move it sideways with the mouse, a finger, or the arrow keys. ' +
           'A sideways move stays at the same height, and it can push other top letters along that row. Space, a double click, or Drop sends it straight down for a small bonus.\n\n' +
