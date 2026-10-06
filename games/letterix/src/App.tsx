@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { normalizeWithMappings } from '@wordaholic/normalize';
 import { Game } from './Game';
 import { buildLexicon, type Lexicon } from './lexicon.ts';
-import { fitCell, openingSize, PARAMS } from './params.ts';
+import { openingSize, PARAMS } from './params.ts';
 import { loadPrefs } from './storage.ts';
 
 export const App: React.FC = () => {
@@ -28,17 +28,9 @@ export const App: React.FC = () => {
           .filter(Boolean);
         const built = buildLexicon(words, (word) => normalizeWithMappings(word, mappings));
         const prefs = await loadPrefs();
-        const availW = Math.max(320, window.innerWidth - 32);
-        const availH = Math.max(320, window.innerHeight - 180);
-        const open = openingSize(availW, availH);
-        let W = prefs?.W || open.W;
-        let H = prefs?.H || open.H;
-        W = Math.max(PARAMS.Wmin, W);
-        H = Math.max(PARAMS.Hmin, H);
-        if (fitCell(availW, availH, W, H) < PARAMS.Amin) {
-          W = open.W;
-          H = open.H;
-        }
+        const open = openingSize();
+        const W = Math.max(PARAMS.Wmin, prefs?.W || open.W);
+        const H = Math.max(PARAMS.Hmin, prefs?.H || open.H);
         if (!cancel) {
           setLex(built);
           setSize({ W, H });

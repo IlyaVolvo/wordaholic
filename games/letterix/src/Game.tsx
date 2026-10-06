@@ -251,6 +251,42 @@ export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; 
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  useEffect(() => {
+    const speedLabel = 'Falling speed increase';
+    const allowSpeedEdit = (target: EventTarget | null) => {
+      const sim = simRef.current;
+      return Boolean(
+        sim?.paused &&
+        target instanceof HTMLInputElement &&
+        target.getAttribute('aria-label') === speedLabel,
+      );
+    };
+    const hideKeyboard = () => {
+      const vk = (navigator as Navigator & { virtualKeyboard?: { hide: () => void } }).virtualKeyboard;
+      vk?.hide();
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      if (allowSpeedEdit(event.target)) return;
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return;
+      target.blur();
+      hideKeyboard();
+    };
+    const onTouchStart = (event: TouchEvent) => {
+      if (allowSpeedEdit(event.target)) return;
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return;
+      event.preventDefault();
+      target.blur();
+    };
+    document.addEventListener('focusin', onFocusIn, true);
+    document.addEventListener('touchstart', onTouchStart, { capture: true, passive: false });
+    return () => {
+      document.removeEventListener('focusin', onFocusIn, true);
+      document.removeEventListener('touchstart', onTouchStart, true);
+    };
+  }, []);
+
   const locked = hud?.phase === 'fall' || hud?.phase === 'decide' || hud?.phase === 'settle';
   const showBest = playedAgain(scores, hud?.phase);
   const dayResults = useMemo(() => {
@@ -471,13 +507,18 @@ export const Game: React.FC<{ lex: Lexicon; language: string; initialW: number; 
           <Tip label="Falling speed increase. 100% is twice as fast, and word scores rise by the same amount. Change it while paused.">
             <label>
               <input
-                type="number"
-                min={0}
-                step={1}
-                inputMode="numeric"
+                type="text"
+                inputMode={hud?.paused ? 'numeric' : 'none'}
+                enterKeyHint="done"
+                autoComplete="off"
+                readOnly={!hud?.paused}
+                tabIndex={hud?.paused ? 0 : -1}
                 aria-label="Falling speed increase"
                 value={hud?.speedPct ?? 0}
                 disabled={!hud?.paused}
+                onFocus={(event) => {
+                  if (!simRef.current?.paused) event.currentTarget.blur();
+                }}
                 onChange={(event) => {
                   const sim = simRef.current;
                   if (!sim) return;

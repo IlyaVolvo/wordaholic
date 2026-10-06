@@ -82,27 +82,9 @@ export function maxHeight(availW: number, availH: number, W: number): number {
   return h;
 }
 
-/** 8×16 when a 28px cell fits; otherwise the largest board that still fits, never below 6×10. */
-export function openingSize(availW: number, availH: number): { W: number; H: number } {
-  if (availW <= 0 || availH <= 0) return { W: PARAMS.preferW, H: PARAMS.preferH };
-  if (fitCell(availW, availH, PARAMS.preferW, PARAMS.preferH) >= PARAMS.Amin) {
-    return { W: PARAMS.preferW, H: PARAMS.preferH };
-  }
-  let bestW = PARAMS.Wmin;
-  let bestH = PARAMS.Hmin;
-  let bestArea = 0;
-  for (let W = PARAMS.Wmin; W <= 30; W++) {
-    for (let H = PARAMS.Hmin; H <= 40; H++) {
-      if (fitCell(availW, availH, W, H) < PARAMS.Amin) continue;
-      const area = W * H;
-      if (area > bestArea) {
-        bestArea = area;
-        bestW = W;
-        bestH = H;
-      }
-    }
-  }
-  return { W: bestW, H: bestH };
+/** Opening board, before a saved width and height. */
+export function openingSize(): { W: number; H: number } {
+  return { W: PARAMS.preferW, H: PARAMS.preferH };
 }
 
 export function localCalendarDate(now = new Date()): string {
