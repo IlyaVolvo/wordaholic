@@ -238,6 +238,8 @@ export const HELP_TOPICS = {
           'that letter was present in at least one of the guessed words: green if it is in this place and yellow otherwise. ' +
           'The letter itself is written as many times as maximum discovered occurrences in a SINGLE guess. ' + 
           'A letter itself is written first on green if present, otherwise on the leftmost yellow column. Extra columns stay empty. ' +
+          'If a guess also proves that every copy of that letter is already green (for example a second L that scored gray), ' +
+          'the remaining squares in that row are dark grey: the letter cannot be there. ' +
           'Below that sit the previous guess and the entry row for the  next entry. \n\n' +
           'The up arrow, up key or swipe up returns to the Standard mode.',
       },
