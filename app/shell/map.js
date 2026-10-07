@@ -71,10 +71,12 @@ async function loadMapSvg() {
   if (!res.ok) throw new Error('Failed to load world map');
   let svg = await res.text();
   svg = svg.replace(/<\?xml[^>]*>/, '').trim();
-  if (!svg.includes('wh-map-style')) {
+  // A <style> inside inlined SVG applies to the whole page; app.css styles the map instead.
+  svg = svg.replace(/<style id="wh-map-style">[\s\S]*?<\/style>/, '');
+  if (!svg.includes('id="ocean"')) {
     svg = svg.replace(
       /<svg([^>]*)>/,
-      `<svg$1><rect id="ocean" width="100%" height="100%" fill="#6fa8c9"/><style id="wh-map-style">path,polygon,polyline{fill:#a8adb3!important;stroke:#6f757c!important;stroke-width:0.35!important}</style>`
+      `<svg$1><rect id="ocean" width="100%" height="100%" fill="#6fa8c9"/>`
     );
   }
   return svg;
@@ -150,16 +152,18 @@ export async function renderWorldMap(container, opts = {}) {
         <div class="world-map-svg">${mapSvg}</div>
       </div>
       <div class="map-chrome map-corner-left" role="group" aria-label="Site tools">
-        <button type="button" class="map-zoom-btn" data-transfer="feedback" title="Send feedback" aria-label="Send feedback">
+        <button type="button" class="map-zoom-btn" data-transfer="feedback" aria-label="Join the Wordaholic group on Telegram">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
           </svg>
+          <span class="map-corner-tip" role="tooltip">Join the Wordaholic group on Telegram: ideas, questions, bug reports</span>
         </button>
-        <button type="button" class="map-zoom-btn" data-transfer="reload" title="Reload latest version" aria-label="Reload latest version">
+        <button type="button" class="map-zoom-btn" data-transfer="reload" aria-label="Reload the latest version">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="23 4 23 10 17 10"></polyline>
             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
           </svg>
+          <span class="map-corner-tip" role="tooltip">Reload the latest version: refreshes the offline copy, keeps your games. Needs internet</span>
         </button>
       </div>
       <div class="map-chrome map-zoom-controls" role="group" aria-label="Map tools">
