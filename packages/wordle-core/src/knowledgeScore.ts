@@ -40,6 +40,33 @@ function knownCountByLetter(guesses: Guess[], language: string): Map<string, num
   return known;
 }
 
+/**
+ * Exact multiplicity when a guess used the letter more times than it scored
+ * green/yellow (leftover tiles were gray). "At least n" is not enough.
+ */
+function exactCountByLetter(guesses: Guess[], language: string): Map<string, number> {
+  const exact = new Map<string, number>();
+  for (const guess of guesses) {
+    const scored = new Map<string, number>();
+    const total = new Map<string, number>();
+    for (const ev of guess.evaluations || []) {
+      if (!ev) continue;
+      const key = letterKey(ev.letter, language);
+      total.set(key, (total.get(key) || 0) + 1);
+      if (ev.state === 'correct' || ev.state === 'present') {
+        scored.set(key, (scored.get(key) || 0) + 1);
+      }
+    }
+    for (const [key, n] of total) {
+      const hit = scored.get(key) || 0;
+      if (n <= hit) continue;
+      const prev = exact.get(key);
+      exact.set(key, prev == null ? hit : Math.min(prev, hit));
+    }
+  }
+  return exact;
+}
+
 function knowledgeParts(
   guesses: Guess[],
   wordLength: number,
@@ -160,7 +187,8 @@ function glyphColumns(states, wordLength, rtl, maxGlyphs) {
  * board), in discovery order, up to word length. Each row colors every column
  * where that letter was present or correct. The letter is written as many
  * times as it lit up in a single guess (greens first, then leftmost yellows).
- * A later gray of that letter still marks the column yellow (ruled out).
+ * A later gray of that letter still marks the column yellow (tried, not there).
+ * If a gray also proves every copy is already green, leftover columns are absent.
  * A final-form pair (Hebrew מ/ם and the rest) stays on that one row: the glyph
  * in the last column is the final form, and every other glyph is the regular form.
  */
@@ -176,11 +204,12 @@ export function layoutSummaryKnown(
     () => Array(wordLength).fill(null)
   );
   const knownByLetter = knownCountByLetter(guesses, language);
+  const exactByLetter = exactCountByLetter(guesses, language);
   const inputPlugins = getInputPlugins(language);
 
   type LetterTrack = {
     letter: string;
-    states: Array<'correct' | 'present' | null>;
+    states: Array<'correct' | 'present' | 'absent' | null>;
   };
   const order: string[] = [];
   const byKey = new Map<string, LetterTrack>();
@@ -211,6 +240,15 @@ export function layoutSummaryKnown(
       const track = byKey.get(letterKey(ev.letter, language));
       if (!track || track.states[col]) continue;
       track.states[col] = 'present';
+    }
+  }
+
+  for (const [key, track] of byKey) {
+    const greens = track.states.filter((st) => st === 'correct').length;
+    const exact = exactByLetter.get(key);
+    if (exact == null || exact !== greens) continue;
+    for (let col = 0; col < wordLength; col++) {
+      if (!track.states[col]) track.states[col] = 'absent';
     }
   }
 
