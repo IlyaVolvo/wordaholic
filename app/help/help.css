@@ -158,6 +158,10 @@
   border: none;
 }
 
+.help-dialog-shot.is-wide img {
+  width: 100%;
+}
+
 .help-dialog-shot[hidden] {
   display: none !important;
 }
