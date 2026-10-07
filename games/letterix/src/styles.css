@@ -113,7 +113,7 @@ a.header-brand-home {
   padding: 0 28px;
   border: none;
   border-radius: 8px;
-  background: #d3d6da;
+  background: var(--water);
   color: #111;
   font: inherit;
   font-weight: 700;

@@ -1,7 +1,7 @@
 /**
  * Help topics for the site and each game.
  * `screenshot` is a public URL under /help/.
- * @typedef {{ title: string, body: string, screenshot?: string | null }} HelpStep
+ * @typedef {{ title: string, body: string, screenshot?: string | null, wide?: boolean }} HelpStep
  * @typedef {{ title: string, tooltip: string, intro: string, steps: HelpStep[] }} HelpTopic
  */
 
@@ -365,38 +365,93 @@ export const HELP_TOPICS = {
   letterix: {
     title: 'Letterix',
     tooltip: 'How to play Letterix',
-    intro: 'Build words from letters falling into a bucket. Score as much as you can before a letter sticks above the top.',
+    intro: 'Earn points from words, a faster fall, and dropping letters, before a letter sticks above the bucket.',
     steps: [
       {
-        title: 'Falling letters',
-        screenshot: '/help/letterix/play.svg',
+        title: 'Game goal',
+        screenshot: '/help/letterix/goal.png',
         body:
-          'Letters fall into the bucket. The next letter appears after a random wait of one row up to the open rows above the bucket, or at once when nothing is falling. ' +
-          'While paused, the percent on the left speeds the fall. 100% is twice as fast, and a word is worth that much more. ' +
-          'Click or tap a falling letter, or the top letter of a column, to select it, then move it sideways with the mouse, a finger, or the arrow keys. ' +
-          'A sideways move stays at the same height, and it can push other top letters along that row. Space, a double click, or Drop sends it straight down for a small bonus.\n\n' +
-          'Words of three or more letters can sit across a row or down a column, and more than one word can share a line. ' +
-          'A shorter word hidden inside a longer one is not counted on its own. The English list in this test starts at four letters.',
+          'Letters fall into a bucket. The goal is to earn points before a letter stays above the top.\n\n' +
+          'Points come from three places:\n\n' +
+          '• Building words. A word of three or more letters can run across a row or down a column. Longer words are worth more.\n' +
+          '• Raising the fall speed. A faster game pays more for each word.\n' +
+          '• Dropping a letter from above. Sending it straight down skips rows and adds a small bonus.\n\n' +
+          'Press Start in the middle of the board to begin. When the game is over, Replay starts the same day again. ' +
+          'The first finished score stays, and the best score updates when you beat it.\n\n' +
+          'The game ends after any pending words settle, if a letter is still above the bucket.',
       },
       {
-        title: 'Use or skip',
-        screenshot: '/help/letterix/play.svg',
+        title: 'Rules',
+        screenshot: '/help/letterix/rules.png',
         body:
+          'Only a falling letter, and the top letter of a column, can be moved. A letter with something above it stays put.\n\n' +
+          'Select a letter by pointing at it. Then drag it across its row, or move it with the arrow keys. ' +
+          'A sideways move stays at the same height and can push other top letters along that row. ' +
+          'If you move a top letter onto a cell with nothing under it, that letter starts falling.\n\n' +
+          'The next letter appears after a short random wait, from one row up to the open rows above the bucket. ' +
+          'If nothing is falling, the next letter appears at once.\n\n' +
           'When a word is on the board its letters flash and the fall stops. Use and Skip appear, and Use starts selected. ' +
-          'This holds for a short time, then the selected choice happens. Use removes the word and adds its points. ' +
-          'Skip leaves the word so you can build a longer one. Space confirms the flashing choice early and adds a small bonus.\n\n' +
+          'This holds for two seconds, then the selected choice happens. Use removes the word and adds its points. ' +
+          'Skip leaves the word so you can build a longer one. If several words flash at once, the choice applies to all of them. ' +
           'A word you skipped is not offered again until a letter is added or removed on its row or column. ' +
-          'Pause blurs the whole field.',
+          'A shorter word hidden inside a longer one on the same line is not offered on its own.',
       },
       {
-        title: 'The daily bucket',
-        screenshot: '/help/letterix/play.svg',
+        title: 'Game controls',
+        screenshot: '/help/letterix/controls.svg',
         body:
-          'The letter order comes from the date and the bucket width and height, so everyone with the same size ' +
-          'gets the same game that day. You can play it again. The first finished score stays, and the best score updates ' +
-          'when you beat it.\n\n' +
-          'Abort is only there while the game is paused. It stops the run and keeps the points already scored. Words still on the countdown are not included. ' +
-          'The game also ends after pending words settle, if a letter is still above the bucket.',
+          'Under the board are ←, Space, and →.\n\n' +
+          '• ← moves the selected letter one column left. While a word is flashing, ← selects Use.\n' +
+          '• Space drops the selected letter straight down. While a word is flashing, Space confirms that choice early and adds a small bonus.\n' +
+          '• → moves the selected letter one column right. While a word is flashing, → selects Skip.\n\n' +
+          'You can also drag a selected letter. A double click drops it, the same as Space.\n\n' +
+          'Use removes the flashing word and takes the points. Skip leaves it on the board.',
+      },
+      {
+        title: 'Pause, resume, and abort',
+        screenshot: '/help/letterix/pause.png',
+        wide: true,
+        body:
+          'Pause stops the fall and blurs the board. Resume continues from the same place. ' +
+          'The P key does the same. Pause is not available before Start or after the game is over.\n\n' +
+          'The speed field is to the left of the arrows. It can be changed only while the game is paused. ' +
+          '0% is the normal fall. 100% is twice as fast, and the points from words rise by the same amount.\n\n' +
+          'Abort appears only while the game is paused. It ends the run and keeps the points already scored. ' +
+          'A word still on the countdown is not included.',
+      },
+      {
+        title: 'Game configuration',
+        screenshot: '/help/letterix/config.png',
+        wide: true,
+        body:
+          'Language, width, height, and the date work the same way as in the other Wordaholic games. ' +
+          'They sit in the row under the board.\n\n' +
+          '• Language is the flag. The game uses that language’s word list.\n' +
+          '• Width is the number of columns, from 6 to 12.\n' +
+          '• Height is the number of rows in the bucket, from 10 to 20.\n' +
+          '• The date is the daily. The same language, width, height, and date give everyone the same letters.\n\n' +
+          'A first visit opens at 8 by 12. After that, this browser remembers the last width and height.\n\n' +
+          'Language, width, and height stay locked while a game is in progress. Choose them before Start, or after the game is over.',
+      },
+      {
+        title: 'The top line',
+        screenshot: '/help/letterix/header.png',
+        wide: true,
+        body: 'The top line is similar to the other games.',
+      },
+      {
+        title: 'How points are counted',
+        screenshot: '/help/letterix/score.png',
+        body:
+          'Each letter is worth from 1 to 10. Common letters are worth less. Rare letters are worth more.\n\n' +
+          'A three-letter word is the sum of its letter values. Every extra letter adds another half to that multiple. ' +
+          'Four letters are worth one and a half times the letters, five letters twice the letters, and so on. ' +
+          'The total is rounded to a whole number.\n\n' +
+          'Dropping a letter adds a separate bonus: 15% of that letter’s value for each full row it skips. ' +
+          'A drop that does not skip a full row adds nothing. This bonus does not rise when the fall is faster. ' +
+          'A letter that starts falling because nothing is under it does not get a drop bonus.\n\n' +
+          'A faster fall raises the word points. At 100% they are doubled. ' +
+          'Confirming a word before the two seconds are up adds 15% of those word points, at least 1, and that extra rises with the speed too.',
       },
     ],
   },

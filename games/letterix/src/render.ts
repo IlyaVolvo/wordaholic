@@ -62,7 +62,7 @@ export function drawField(ctx: CanvasRenderingContext2D, sim: Sim, now: number) 
     const frac = Math.max(0, Math.min(1, sim.decideMsLeft / (PARAMS.N * 1000)));
     ctx.fillStyle = '#f0c400';
     ctx.fillRect(wall, 8, (width - wall * 2) * frac, 8);
-    ctx.fillStyle = '#1a1d27';
+    ctx.fillStyle = '#fff';
     ctx.font = `700 ${Math.max(16, Math.round(sim.A * 0.7))}px "DM Sans", sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';

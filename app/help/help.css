@@ -150,6 +150,14 @@
   justify-content: center;
 }
 
+.help-dialog-shot.is-wide {
+  max-width: none;
+  width: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
 .help-dialog-shot[hidden] {
   display: none !important;
 }

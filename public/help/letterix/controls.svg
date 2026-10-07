@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 120" role="img" aria-label="Left, Space, and right controls">
+  <rect width="320" height="120" fill="#161923"/>
+  <rect x="24" y="28" width="72" height="64" rx="6" fill="#d3d6da"/>
+  <text x="60" y="70" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="700" fill="#111">&#8592;</text>
+  <rect x="112" y="28" width="96" height="64" rx="6" fill="#d3d6da"/>
+  <text x="160" y="68" text-anchor="middle" font-family="sans-serif" font-size="18" font-weight="700" fill="#111">Space</text>
+  <rect x="224" y="28" width="72" height="64" rx="6" fill="#d3d6da"/>
+  <text x="260" y="70" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="700" fill="#111">&#8594;</text>
+</svg>

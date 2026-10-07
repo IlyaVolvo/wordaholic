@@ -111,6 +111,7 @@ function renderHelp() {
   if (body) body.textContent = step?.body || topic.intro;
 
   const screenshot = step?.screenshot;
+  if (shot) shot.classList.toggle('is-wide', Boolean(step?.wide));
   if (shot && shotImg && screenshot) {
     shotImg.src = screenshot;
     shotImg.alt = step?.title || '';
