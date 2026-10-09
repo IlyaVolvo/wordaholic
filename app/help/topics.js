@@ -236,7 +236,7 @@ export const HELP_TOPICS = {
           'This board does not have the tall grid. Instead it has the informational block is as tall as the word is long — one row per ' +
           'discovered letter, in the order they were found. Each row colors every column where ' +
           'that letter was present in at least one of the guessed words: green if it is in this place and yellow otherwise. ' +
-          'The letter itself is written as many times as maximum discovered occurrences in a SINGLE guess. ' + 
+          'The letter itself is written as many times as we can prove it occurs in the word (at least this many, maybe more). ' + 
           'A letter itself is written first on green if present, otherwise on the leftmost yellow column. Extra columns stay empty. ' +
           'If a guess also proves that every copy of that letter is already green (for example a second L that scored gray), ' +
           'the remaining squares in that row are dark grey: the letter cannot be there. ' +

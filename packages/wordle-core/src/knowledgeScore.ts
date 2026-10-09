@@ -20,22 +20,38 @@ function lockedGreens(guesses: Guess[], wordLength: number): Array<string | null
 }
 
 /**
- * Known multiplicity of each letter: the highest (correct + present) count
- * seen in any single guess. Appearances across later guesses are not added.
+ * Proven minimum copies of each letter in the word: max of
+ * (highest green+yellow count in any one guess) and (distinct green columns).
+ * Yellows across separate guesses are not added; greens in separate guesses are.
  */
 function knownCountByLetter(guesses: Guess[], language: string): Map<string, number> {
   const known = new Map<string, number>();
+  const greenCols = new Map<string, Set<number>>();
   for (const guess of guesses) {
     const inGuess = new Map<string, number>();
-    for (const ev of guess.evaluations || []) {
-      if (ev?.state === 'correct' || ev.state === 'present') {
-        const key = letterKey(ev.letter, language);
+    const evals = guess.evaluations || [];
+    for (let col = 0; col < evals.length; col++) {
+      const ev = evals[col];
+      if (!ev) continue;
+      const key = letterKey(ev.letter, language);
+      if (ev.state === 'correct' || ev.state === 'present') {
         inGuess.set(key, (inGuess.get(key) || 0) + 1);
+      }
+      if (ev.state === 'correct') {
+        let cols = greenCols.get(key);
+        if (!cols) {
+          cols = new Set();
+          greenCols.set(key, cols);
+        }
+        cols.add(col);
       }
     }
     for (const [key, n] of inGuess) {
       known.set(key, Math.max(known.get(key) || 0, n));
     }
+  }
+  for (const [key, cols] of greenCols) {
+    known.set(key, Math.max(known.get(key) || 0, cols.size));
   }
   return known;
 }
@@ -158,7 +174,7 @@ function columnsByDisplayLeft(cols, wordLength, rtl) {
 
 /**
  * Columns that get a glyph: greens first (visual left), then yellows.
- * Count is the max yellow+green hits for this letter in any one guess.
+ * Count is the proven minimum copies of this letter in the word.
  * @param {Array<'correct' | 'present' | null>} states
  * @param {number} wordLength
  * @param {boolean} rtl
@@ -186,7 +202,7 @@ function glyphColumns(states, wordLength, rtl, maxGlyphs) {
  * Summary known grid: one row per discovered letter (yellow or green on the
  * board), in discovery order, up to word length. Each row colors every column
  * where that letter was present or correct. The letter is written as many
- * times as it lit up in a single guess (greens first, then leftmost yellows).
+ * times as we can prove it occurs (greens first, then leftmost yellows).
  * A later gray of that letter still marks the column yellow (tried, not there).
  * If a gray also proves every copy is already green, leftover columns are absent.
  * A final-form pair (Hebrew מ/ם and the rest) stays on that one row: the glyph
