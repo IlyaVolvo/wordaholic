@@ -372,7 +372,7 @@ test('timeout uses the word by default; space confirms early and adds a small bo
   assert.equal(early.grid[10][0], null);
 });
 
-test('100% speed is twice as fast and doubles the word score, and only changes while paused', () => {
+test('100% speed is twice as fast and doubles the word score, and mid-game only changes while paused', () => {
   assert.equal(pixelInterval(28), 53);
   assert.equal(pixelInterval(28, 100), 1493 / 2 / 28);
   const sim = makeTestDrop();
@@ -380,6 +380,8 @@ test('100% speed is twice as fast and doubles the word score, and only changes w
   setSpeedPercent(sim, 100);
   assert.equal(sim.speedPct, 0);
   setPaused(sim, true);
+  setSpeedPercent(sim, 1000);
+  assert.equal(sim.speedPct, 400);
   setSpeedPercent(sim, 100);
   assert.equal(sim.speedPct, 100);
   setPaused(sim, false);
@@ -387,6 +389,12 @@ test('100% speed is twice as fast and doubles the word score, and only changes w
   assert.equal(sim.choice, 'use');
   confirmChoice(sim, false);
   assert.equal(sim.score, before + Math.round(base * 2));
+});
+
+test('speed can be set before the game starts', () => {
+  const sim = board();
+  setSpeedPercent(sim, 250);
+  assert.equal(sim.speedPct, 250);
 });
 
 test('pause freezes the clear countdown', () => {

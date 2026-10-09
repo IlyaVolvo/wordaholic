@@ -202,22 +202,22 @@ a.header-brand-home {
 .keys-speed label {
   display: inline-flex;
   align-items: center;
-  gap: 0.2rem;
+  gap: 0.4rem;
   color: var(--text);
   font-size: 0.75rem;
   font-weight: 600;
 }
 .keys-speed input {
-  width: 4.4rem;
+  width: clamp(3.5rem, 22vw - 2rem, 7rem);
   height: 28px;
-  padding: 0 0.35rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface2);
-  color: var(--text);
-  font: inherit;
-  font-size: 0.75rem;
-  font-weight: 600;
+  margin: 0;
+  accent-color: var(--accent, #6c8cff);
+  cursor: pointer;
+}
+.keys-speed-value {
+  min-width: 2.6rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .keys-speed input:disabled { opacity: 0.55; cursor: default; }
 .keys-center {
@@ -286,6 +286,43 @@ a.header-brand-home {
   transition: opacity 0.15s ease, visibility 0s linear;
 }
 .header-section .tip-label, .settings .tip-label { bottom: auto; top: calc(100% + 8px); }
+.keys-speed .tip-label {
+  left: 0;
+  transform: none;
+  width: max-content;
+  max-width: min(17rem, calc(100vw - 1.5rem));
+  white-space: normal;
+  line-height: 1.35;
+  background: #fff;
+  color: #14232b;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+.keys-speed.keys-speed--tip-off .tip .tip-label,
+.keys-speed.keys-speed--off .tip .tip-label {
+  opacity: 0;
+  visibility: hidden;
+  transition: none;
+}
+.keys-speed--off { visibility: hidden; }
+.keys-speed--readout input { display: none; }
+.keys-speed--readout .keys-speed-value {
+  visibility: visible;
+  min-width: 0;
+  text-align: left;
+}
+@media (max-width: 560px) {
+  .keys-speed--off:not(.keys-speed--readout),
+  .letterix-keys--setup .keys-center { display: none; }
+  .keys-speed--readout .keys-speed-word { display: block; }
+  .letterix-keys { column-gap: 6px; }
+  .keys-center { gap: 12px; }
+  .letterix-keys--setup {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .letterix-keys--setup .keys-speed input { width: clamp(6rem, 100vw - 16rem, 12rem); }
+}
 .tip:hover .tip-label, .tip:focus-within .tip-label {
   opacity: 1;
   visibility: visible;

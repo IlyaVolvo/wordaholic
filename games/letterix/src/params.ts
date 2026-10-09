@@ -16,6 +16,8 @@ export const PARAMS = {
   N: 2,
   preferW: 8,
   preferH: 12,
+  speedMax: 400,
+  speedStep: 10,
 } as const;
 
 export function fallingCap(W: number, H: number, E = PARAMS.E): number {

@@ -414,7 +414,7 @@ export const HELP_TOPICS = {
         body:
           'Pause stops the fall and blurs the board. Resume continues from the same place. ' +
           'The P key does the same. Pause is not available before Start or after the game is over.\n\n' +
-          'The speed field is to the left of the arrows. It can be changed only while the game is paused. ' +
+          'The speed slider appears before the game starts, after it ends and while it is paused; during play it is hidden. On small screens it takes the place of the arrows. It goes from 0% to 400% in steps of 10%, and the last setting carries over to the next game. ' +
           '0% is the normal fall. 100% is twice as fast, and the points from words rise by the same amount.\n\n' +
           'Abort appears only while the game is paused. It ends the run and keeps the points already scored. ' +
           'A word still on the countdown is not included.',

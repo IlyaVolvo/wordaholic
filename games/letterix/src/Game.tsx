@@ -52,6 +52,10 @@ type Hud = {
   speedPct: number;
 };
 
+function notPlaying(sim: Pick<Sim, 'paused' | 'phase'>): boolean {
+  return sim.paused || sim.phase === 'ready' || sim.phase === 'over';
+}
+
 function readHud(sim: Sim): Hud {
   const piece = selectedPiece(sim);
   const heldLetter = sim.held ? sim.grid[sim.held.row]?.[sim.held.col] : null;
@@ -99,6 +103,9 @@ export const Game: React.FC<{
   const [calendarMonth, setCalendarMonth] = useState(() => calendarMonthForSelection(localCalendarDate()));
   const [showStats, setShowStats] = useState(false);
   const [langOpen, setLangOpen] = useState(false);
+  const [speedTipOff, setSpeedTipOff] = useState(false);
+  const speedPrefRef = useRef(0);
+  const [speedPref, setSpeedPref] = useState(0);
   const [history, setHistory] = useState<ScoreRecord[]>([]);
 
   useEffect(() => {
@@ -121,6 +128,8 @@ export const Game: React.FC<{
           lex,
           A: PARAMS.Amin,
         });
+      if (!saved) setSpeedPercent(sim, speedPrefRef.current);
+      else if (sim.phase !== 'over') chooseSpeed(sim.speedPct);
       const slot = slotRef.current;
       if (slot && slot.clientWidth > 8 && slot.clientHeight > 8) {
         setCellSize(sim, fitCell(slot.clientWidth, slot.clientHeight, sim.W, sim.H));
@@ -219,7 +228,9 @@ export const Game: React.FC<{
       const sim = simRef.current;
       if (!sim) return;
       const target = event.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
+      if (target instanceof HTMLInputElement && target.type === 'range') {
+        if (notPlaying(sim) && event.key !== 'p' && event.key !== 'P') return;
+      } else if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
       if (sim.phase === 'decide' && !sim.paused) {
         if (event.key === 'ArrowLeft') {
           event.preventDefault();
@@ -257,14 +268,10 @@ export const Game: React.FC<{
 
   useEffect(() => {
     const speedLabel = 'Falling speed increase';
-    const allowSpeedEdit = (target: EventTarget | null) => {
-      const sim = simRef.current;
-      return Boolean(
-        sim?.paused &&
-        target instanceof HTMLInputElement &&
-        target.getAttribute('aria-label') === speedLabel,
-      );
-    };
+    const allowSpeedEdit = (target: EventTarget | null) =>
+      Boolean(simRef.current && notPlaying(simRef.current)) &&
+      target instanceof HTMLInputElement &&
+      target.getAttribute('aria-label') === speedLabel;
     const hideKeyboard = () => {
       const vk = (navigator as Navigator & { virtualKeyboard?: { hide: () => void } }).virtualKeyboard;
       vk?.hide();
@@ -383,6 +390,8 @@ export const Game: React.FC<{
   const heights = sizeOptions(PARAMS.Hmin, PARAMS.Hmax, H);
   const canMove = hud?.phase === 'fall' && !hud.paused;
   const canDrop = !hud?.paused && (hud?.phase === 'decide' || (hud?.phase === 'fall' && Boolean(hud.letter)));
+  const setup = !hud || notPlaying(hud);
+  const speedShown = hud?.phase === 'over' ? speedPref : hud?.speedPct ?? speedPref;
 
   return (
     <div className="letterix" data-phase={hud?.phase || 'ready'}>
@@ -525,33 +534,40 @@ export const Game: React.FC<{
           </Tip>
         </div>
       </div>
-      <div className="letterix-keys">
-        <div className="keys-speed">
-          <Tip label="Falling speed increase. 100% is twice as fast, and word scores rise by the same amount. Change it while paused.">
+      <div className={`letterix-keys${setup ? ' letterix-keys--setup' : ''}`}>
+        <div
+          className={`keys-speed${setup ? '' : ' keys-speed--off'}${!setup && speedShown > 0 ? ' keys-speed--readout' : ''}${speedTipOff ? ' keys-speed--tip-off' : ''}`}
+          aria-hidden={!setup && speedShown === 0}
+        >
+          <Tip label="Falling speed increase. 100% is twice as fast, and word scores rise by the same amount.">
             <label>
               <input
-                type="text"
-                inputMode={hud?.paused ? 'numeric' : 'none'}
-                enterKeyHint="done"
-                autoComplete="off"
-                readOnly={!hud?.paused}
-                tabIndex={hud?.paused ? 0 : -1}
+                type="range"
+                min={0}
+                max={PARAMS.speedMax}
+                step={PARAMS.speedStep}
                 aria-label="Falling speed increase"
-                value={hud?.speedPct ?? 0}
-                disabled={!hud?.paused}
-                onFocus={(event) => {
-                  if (!simRef.current?.paused) event.currentTarget.blur();
-                }}
+                aria-valuetext={`${speedShown}%`}
+                value={speedShown}
+                disabled={!setup || !hud}
+                tabIndex={setup ? 0 : -1}
+                onBlur={() => setSpeedTipOff(false)}
                 onChange={(event) => {
                   const sim = simRef.current;
                   if (!sim) return;
                   const next = Number(event.target.value);
                   if (!Number.isFinite(next)) return;
+                  setSpeedTipOff(true);
+                  chooseSpeed(Math.min(PARAMS.speedMax, Math.max(0, next)));
+                  if (sim.phase === 'over') return;
                   setSpeedPercent(sim, next);
                   setHud(readHud(sim));
                 }}
               />
-              <span>%</span>
+              <span className="keys-speed-value">
+                {!setup && <span className="keys-speed-word">Speedup: </span>}
+                {speedShown}%
+              </span>
             </label>
           </Tip>
         </div>
@@ -596,23 +612,19 @@ export const Game: React.FC<{
         </div>
         <div className="keys-corner">
           {hud?.paused && (
-            <Tip label="Stop and keep the points already scored">
-              <button type="button" className="text-btn" data-action="abort" onClick={() => { const sim = simRef.current; if (sim) abort(sim); }}>
-                Abort
-              </button>
-            </Tip>
-          )}
-          <Tip label={hud?.paused ? 'Resume' : 'Pause'}>
-            <button
-              type="button"
-              className="text-btn"
-              data-action="pause"
-              disabled={!hud || hud.phase === 'ready' || hud.phase === 'over'}
-              onClick={() => { const sim = simRef.current; if (sim) setPaused(sim, !sim.paused); }}
-            >
-              {hud?.paused ? 'Resume' : 'Pause'}
+            <button type="button" className="text-btn" data-action="abort" onClick={() => { const sim = simRef.current; if (sim) abort(sim); }}>
+              Abort
             </button>
-          </Tip>
+          )}
+          <button
+            type="button"
+            className="text-btn"
+            data-action="pause"
+            disabled={!hud || hud.phase === 'ready' || hud.phase === 'over'}
+            onClick={() => { const sim = simRef.current; if (sim) setPaused(sim, !sim.paused); }}
+          >
+            {hud?.paused ? 'Resume' : 'Pause'}
+          </button>
         </div>
       </div>
       {showCalendar && (
@@ -664,6 +676,11 @@ export const Game: React.FC<{
     }
   }
 
+  function chooseSpeed(pct: number) {
+    speedPrefRef.current = pct;
+    setSpeedPref(pct);
+  }
+
   function replay() {
     const sim = freshSim({
       W,
@@ -673,6 +690,7 @@ export const Game: React.FC<{
       lex,
       A: simRef.current?.A || PARAMS.Amin,
     });
+    setSpeedPercent(sim, speedPrefRef.current);
     simRef.current = sim;
     liveRef.current = true;
     savedRev.current = -1;

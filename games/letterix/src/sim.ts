@@ -587,8 +587,8 @@ export function leaveWords(sim: Sim) {
 }
 
 export function setSpeedPercent(sim: Sim, percent: number) {
-  if (!sim.paused || !Number.isFinite(percent)) return;
-  sim.speedPct = Math.max(0, percent);
+  if (!(sim.paused || sim.phase === 'ready') || !Number.isFinite(percent)) return;
+  sim.speedPct = Math.min(PARAMS.speedMax, Math.max(0, percent));
   touch(sim);
 }
 
@@ -736,7 +736,7 @@ export function importState(data: PersistedSim, lex: Lexicon = EMPTY_LEX as Lexi
   sim.suppressed = data.suppressed.map((s) => ({ ...s }));
   sim.fallAccum = data.fallAccum;
   sim.spawnWaitPx = typeof data.spawnWaitPx === 'number' && data.spawnWaitPx > 0 ? data.spawnWaitPx : 0;
-  sim.speedPct = typeof data.speedPct === 'number' && data.speedPct > 0 ? data.speedPct : 0;
+  sim.speedPct = typeof data.speedPct === 'number' && data.speedPct > 0 ? Math.min(PARAMS.speedMax, data.speedPct) : 0;
   sim.missedLock = data.missedLock;
   sim.aborted = Boolean(data.aborted);
   return sim;
