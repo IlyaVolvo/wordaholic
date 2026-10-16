@@ -10,6 +10,7 @@ import { drawField, pointerToCell } from './render.ts';
 import {
   abort,
   confirmChoice,
+  dropBlocked,
   hardDrop,
   moveToColumn,
   offerPoints,
@@ -47,6 +48,7 @@ type Hud = {
   seconds: number;
   column: number | null;
   letter: string;
+  dropBlocked: boolean;
   aborted: boolean;
   choice: Sim['choice'];
   speedPct: number;
@@ -67,6 +69,7 @@ function readHud(sim: Sim): Hud {
     seconds: Math.max(0, Math.ceil(sim.decideMsLeft / 100) / 10),
     column: piece ? piece.col + 1 : sim.held && heldLetter ? sim.held.col + 1 : null,
     letter: piece?.letter || heldLetter || '',
+    dropBlocked: dropBlocked(sim),
     aborted: sim.aborted,
     choice: sim.choice,
     speedPct: sim.speedPct,
@@ -192,7 +195,7 @@ export const Game: React.FC<{
           drawField(ctx, sim, now);
         }
         const next = readHud(sim);
-        const sig = `${next.phase}|${next.paused}|${next.score}|${next.points}|${next.seconds}|${next.column}|${next.letter}|${next.aborted}|${next.choice}|${next.speedPct}`;
+        const sig = `${next.phase}|${next.paused}|${next.score}|${next.points}|${next.seconds}|${next.column}|${next.letter}|${next.dropBlocked}|${next.aborted}|${next.choice}|${next.speedPct}`;
         if (sig !== lastSig) {
           lastSig = sig;
           setHud(next);
@@ -389,7 +392,7 @@ export const Game: React.FC<{
   const widths = sizeOptions(PARAMS.Wmin, PARAMS.Wmax, W);
   const heights = sizeOptions(PARAMS.Hmin, PARAMS.Hmax, H);
   const canMove = hud?.phase === 'fall' && !hud.paused;
-  const canDrop = !hud?.paused && (hud?.phase === 'decide' || (hud?.phase === 'fall' && Boolean(hud.letter)));
+  const canDrop = !hud?.paused && (hud?.phase === 'decide' || (hud?.phase === 'fall' && Boolean(hud.letter) && !hud.dropBlocked));
   const setup = !hud || notPlaying(hud);
   const speedShown = hud?.phase === 'over' ? speedPref : hud?.speedPct ?? speedPref;
 

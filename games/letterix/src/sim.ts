@@ -406,6 +406,28 @@ function columnTopRow(sim: Sim, col: number): number {
   return -1;
 }
 
+/** A settled letter occupies this column somewhere under `row`. */
+function hasLetterBelow(sim: Sim, col: number, row: number): boolean {
+  for (let r = 0; r < row; r++) {
+    if (sim.grid[r]?.[col]) return true;
+  }
+  return false;
+}
+
+/** Another letter is still in the air under this one, in the same column. */
+function fallingLetterBelow(sim: Sim, piece: Piece): boolean {
+  return sim.falling.some((other) => other.id !== piece.id && other.col === piece.col && other.yPx < piece.yPx - 1e-6);
+}
+
+/** Drop is refused while a letter under the selection is still falling, or a resting selection has a settled letter under it. */
+export function dropBlocked(sim: Sim): boolean {
+  const piece = selectedPiece(sim);
+  if (piece) return fallingLetterBelow(sim, piece);
+  const held = sim.held;
+  if (!held || !sim.grid[held.row]?.[held.col]) return false;
+  return hasLetterBelow(sim, held.col, held.row);
+}
+
 function overlapsFalling(sim: Sim, row: number, col: number): boolean {
   const y0 = row * sim.A;
   const y1 = y0 + sim.A;
@@ -423,9 +445,9 @@ export function selectTop(sim: Sim, row: number, col: number): boolean {
   return true;
 }
 
-/** A moved top letter with empty space below becomes an ordinary falling letter. */
+/** A moved top letter becomes a falling letter only when the column below it is empty. */
 function releaseUnsupported(sim: Sim, row: number, col: number, select: boolean): boolean {
-  if (row <= 0 || sim.grid[row - 1]?.[col]) return false;
+  if (row <= 0 || hasLetterBelow(sim, col, row)) return false;
   const letter = sim.grid[row]?.[col];
   if (!letter) return false;
   sim.grid[row][col] = null;
@@ -491,7 +513,7 @@ function dropHeld(sim: Sim) {
     sim.held = null;
     return;
   }
-  if (held.row === 0 || sim.grid[held.row - 1][held.col]) return;
+  if (held.row === 0 || hasLetterBelow(sim, held.col, held.row)) return;
   sim.grid[held.row][held.col] = null;
   bump(sim, held.row, held.col);
   const landRow = Math.round(landY(sim, held.col) / sim.A);
@@ -532,7 +554,7 @@ export function moveToColumn(sim: Sim, col: number) {
 }
 
 export function hardDrop(sim: Sim) {
-  if (sim.paused || sim.phase !== 'fall') return;
+  if (sim.paused || sim.phase !== 'fall' || dropBlocked(sim)) return;
   const piece = selectedPiece(sim);
   if (!piece) {
     dropHeld(sim);

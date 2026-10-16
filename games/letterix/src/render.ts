@@ -1,4 +1,4 @@
-import { offerPoints, type Sim } from './sim.ts';
+import { dropBlocked, offerPoints, type Sim } from './sim.ts';
 import { PARAMS } from './params.ts';
 import { fieldPixels } from './params.ts';
 
@@ -50,12 +50,14 @@ export function drawField(ctx: CanvasRenderingContext2D, sim: Sim, now: number) 
       if (!letter) continue;
       const selected = sim.held?.row === r && sim.held?.col === c;
       const word = wordOn && words.has(`${r},${c}`);
-      paintTile(ctx, wall + c * sim.A, floor - (r + 1) * sim.A, sim.A, letter, selected, word);
+      const blocked = selected && dropBlocked(sim);
+      paintTile(ctx, wall + c * sim.A, floor - (r + 1) * sim.A, sim.A, letter, selected, word, blocked);
     }
   }
 
   for (const piece of sim.falling) {
-    paintTile(ctx, wall + piece.col * sim.A, floor - (piece.yPx + sim.A), sim.A, piece.letter, piece.selected, false);
+    const blocked = piece.selected && dropBlocked(sim);
+    paintTile(ctx, wall + piece.col * sim.A, floor - (piece.yPx + sim.A), sim.A, piece.letter, piece.selected, false, blocked);
   }
 
   if (sim.phase === 'decide') {
@@ -78,6 +80,7 @@ function paintTile(
   letter: string,
   selected: boolean,
   word: boolean,
+  blocked: boolean,
 ) {
   const pad = Math.max(1, Math.round(A * 0.06));
   ctx.fillStyle = word ? '#f0c400' : selected ? '#1a5f86' : '#f4f0e6';
@@ -88,7 +91,7 @@ function paintTile(
     ctx.lineWidth = Math.max(2, A * 0.08);
     ctx.stroke();
   }
-  ctx.fillStyle = word || !selected ? '#1a1d27' : '#fff';
+  ctx.fillStyle = blocked ? '#f0c400' : word || !selected ? '#1a1d27' : '#fff';
   ctx.font = `700 ${Math.round(A * 0.58)}px "DM Sans", sans-serif`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
