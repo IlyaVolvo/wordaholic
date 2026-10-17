@@ -93,7 +93,7 @@ function gateErr(msg) {
 function openAdmin() {
   document.getElementById('gate').classList.add('hidden');
   document.getElementById('controls').classList.remove('hidden');
-  import('./admin.js')
+  import('/games/transword/admin/admin.js')
     .then((m) => m.bootAdmin())
     .catch((e) => {
       gateErr(e && e.message ? e.message : 'Admin failed to load');
