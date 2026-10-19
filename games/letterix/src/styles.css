@@ -64,15 +64,30 @@ a.header-brand-home {
 }
 .letterix-score-tip { justify-content: center; width: 100%; }
 .letterix-score {
-  text-align: center;
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 6px;
+  overflow: hidden;
   font-variant-numeric: tabular-nums;
   min-width: 0;
 }
+.letterix-score-word {
+  display: flex;
+  align-items: center;
+  background: #000;
+  color: #fff;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
 .letterix-score strong {
-  display: block;
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  color: #fff;
+  padding: 0.2rem 0.7rem;
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--text);
 }
 .best-score {
   font-size: 1.15rem;
@@ -124,6 +139,8 @@ a.header-brand-home {
 .field.is-paused canvas { filter: blur(22px); }
 .field canvas { display: block; touch-action: none; background: transparent; }
 .settings {
+  position: relative;
+  z-index: 6;
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -150,7 +167,7 @@ a.header-brand-home {
 .language-dropdown-chevron { font-size: 0.55rem; color: var(--text-dim); }
 .language-dropdown-list {
   position: absolute;
-  top: calc(100% + 4px);
+  bottom: calc(100% + 4px);
   left: 0;
   z-index: 30;
   margin: 0;
@@ -159,7 +176,10 @@ a.header-brand-home {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  min-width: 140px;
+  min-width: 100%;
+  width: max-content;
+  max-height: calc(100vh - 10rem);
+  overflow-y: auto;
 }
 .language-dropdown-option {
   display: flex;

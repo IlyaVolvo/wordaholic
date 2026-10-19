@@ -70,6 +70,16 @@ function shellDataPlugin(): Plugin {
           res.end(JSON.stringify(buildLanguagesCatalog(), null, 2));
           return;
         }
+        const registration = url.match(/^\/games\/([^/]+)\/registration\.js$/);
+        if (registration) {
+          const gamesRoot = path.resolve(repoRoot, 'games');
+          const file = path.resolve(gamesRoot, registration[1], 'registration.js');
+          const fromGames = path.relative(gamesRoot, file);
+          if (!fromGames.startsWith('..') && !path.isAbsolute(fromGames) && fs.existsSync(file) && fs.statSync(file).isFile()) {
+            send(res, file);
+            return;
+          }
+        }
         if (url.startsWith('/word-data/')) {
           const rel = decodeURIComponent(url.slice('/word-data/'.length));
           const file = path.resolve(wordDataRoot, rel);

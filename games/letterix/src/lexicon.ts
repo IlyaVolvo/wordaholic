@@ -8,16 +8,19 @@ export type Lexicon = {
   values: Record<string, number>;
   table: LetterRow[];
   total: number;
+  /** Folds a board word before the dictionary lookup. Letter draws stay unfolded. */
+  normalize: (word: string) => string;
 };
 
 export function buildLexicon(words: string[], normalize: (word: string) => string): Lexicon {
   const dict = new Set<string>();
   const freq = new Map<string, number>();
   for (const raw of words) {
-    const word = Array.from(normalize(String(raw || '').trim().toLowerCase())).join('');
-    if (!word) continue;
-    for (const ch of word) freq.set(ch, (freq.get(ch) || 0) + 1);
-    if (Array.from(word).length >= PARAMS.Nmin) dict.add(word);
+    const surface = Array.from(String(raw || '').trim().toLowerCase()).join('');
+    if (!surface) continue;
+    for (const ch of surface) freq.set(ch, (freq.get(ch) || 0) + 1);
+    const word = Array.from(normalize(surface)).join('');
+    if (Array.from(surface).length >= PARAMS.Nmin && word) dict.add(word);
   }
 
   const letters = [...freq.keys()].sort((a, b) => (a.codePointAt(0) || 0) - (b.codePointAt(0) || 0));
@@ -43,7 +46,7 @@ export function buildLexicon(words: string[], normalize: (word: string) => strin
     return { letter, freq: freq.get(letter) || 0, cum };
   });
 
-  return { dict, values, table, total: cum };
+  return { dict, values, table, total: cum, normalize };
 }
 
 export function pickLetter(u: number, table: LetterRow[], total: number): string {

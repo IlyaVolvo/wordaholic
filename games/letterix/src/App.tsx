@@ -89,10 +89,8 @@ export const App: React.FC = () => {
         await initFavorites();
         const playable = await loadPlayableLanguages();
         const preferred = getPreferredLanguageCodes();
-        const inFavorites = playable.filter((lang) => preferred.includes(lang.code));
-        const choices = inFavorites.length ? inFavorites : playable;
-        const active = pickActiveLanguage(preferred, choices.map((lang) => lang.code));
-        const chosen = choices.find((lang) => lang.code === active) || choices[0];
+        const active = pickActiveLanguage(preferred, playable.map((lang) => lang.code));
+        const chosen = playable.find((lang) => lang.code === active) || playable[0];
         const urlLangs = new URLSearchParams(window.location.search).get('langs');
         const favoriteCodes = urlLangs
           ? urlLangs.split(',').map((code) => code.trim()).filter(Boolean)
@@ -104,7 +102,7 @@ export const App: React.FC = () => {
         const H = Math.min(PARAMS.Hmax, Math.max(PARAMS.Hmin, prefs?.H || open.H));
         if (cancel) return;
         publishLanguageUrl(chosen.code, favoriteCodes);
-        setLanguages(choices);
+        setLanguages(playable);
         setFavorites(favoriteCodes);
         setLanguage(chosen.code);
         setLex(built);

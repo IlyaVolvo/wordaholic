@@ -50,6 +50,7 @@ export type Sim = {
   values: Record<string, number>;
   table: Lexicon['table'];
   total: number;
+  normalize: (word: string) => string;
 };
 
 export type PersistedSim = {
@@ -80,11 +81,12 @@ export type PersistedSim = {
   aborted: boolean;
 };
 
-const EMPTY_LEX: Pick<Lexicon, 'dict' | 'values' | 'table' | 'total'> = {
+const EMPTY_LEX: Pick<Lexicon, 'dict' | 'values' | 'table' | 'total' | 'normalize'> = {
   dict: new Set(),
   values: {},
   table: [],
   total: 0,
+  normalize: (word) => word,
 };
 
 function touch(sim: Sim) {
@@ -365,6 +367,7 @@ export function createSim(opts: {
     values: opts.lex.values,
     table: opts.lex.table,
     total: opts.lex.total,
+    normalize: opts.lex.normalize,
   };
   return sim;
 }
@@ -536,12 +539,20 @@ export function tryMove(sim: Sim, dir: -1 | 1): boolean {
   if (!piece) return shiftHeld(sim, dir);
   const col = piece.col + dir;
   if (col < 0 || col >= sim.W) return false;
-  const [r0, r1] = rowsOverlapped(piece.yPx, sim.A);
+  const y0 = piece.yPx;
+  const y1 = y0 + sim.A;
+  const [r0, r1] = rowsOverlapped(y0, sim.A);
   for (let r = r0; r <= r1; r++) {
     if (r < 0 || r >= rowsOf(sim)) continue;
     if (sim.grid[r][col]) return false;
-    if (overlapsFalling(sim, r, col)) return false;
   }
+  const hitsFalling = sim.falling.some((other) =>
+    other.id !== piece.id &&
+    other.col === col &&
+    other.yPx < y1 - 1e-6 &&
+    y0 < other.yPx + sim.A - 1e-6
+  );
+  if (hitsFalling) return false;
   piece.col = col;
   touch(sim);
   return true;
@@ -697,6 +708,7 @@ export function attachLexicon(sim: Sim, lex: Lexicon) {
   sim.values = lex.values;
   sim.table = lex.table;
   sim.total = lex.total;
+  sim.normalize = lex.normalize;
 }
 
 export function exportState(sim: Sim): PersistedSim {

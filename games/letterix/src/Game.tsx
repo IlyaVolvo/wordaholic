@@ -105,7 +105,7 @@ export const Game: React.FC<{
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => calendarMonthForSelection(localCalendarDate()));
   const [showStats, setShowStats] = useState(false);
-  const [langOpen, setLangOpen] = useState(false);
+  const [openMenu, setOpenMenu] = useState<'language' | 'width' | 'height' | null>(null);
   const [speedTipOff, setSpeedTipOff] = useState(false);
   const speedPrefRef = useRef(0);
   const [speedPref, setSpeedPref] = useState(0);
@@ -420,6 +420,7 @@ export const Game: React.FC<{
           </div>
           <Tip label="Current score" className="letterix-score-tip">
             <div className="letterix-score">
+              <span className="letterix-score-word">Score</span>
               <strong data-score>{hud?.score ?? 0}</strong>
             </div>
           </Tip>
@@ -467,52 +468,51 @@ export const Game: React.FC<{
       <div className="settings">
         <div className="toolbar-picks">
           <Tip label="Language">
-            <div className="language-dropdown">
-              <button
-                type="button"
-                className="language-dropdown-trigger"
-                aria-label={`Language: ${languages.find((lang) => lang.code === language)?.name || language}`}
-                aria-haspopup="listbox"
-                aria-expanded={langOpen}
-                disabled={locked}
-                onClick={() => setLangOpen((open) => !open)}
-              >
-                <span className="language-dropdown-flag" aria-hidden="true">{languages.find((lang) => lang.code === language)?.flag || '🇺🇸'}</span>
-                <span className="language-dropdown-chevron" aria-hidden="true">{langOpen ? '▲' : '▼'}</span>
-              </button>
-              {langOpen && !locked && (
-                <ul className="language-dropdown-list" role="listbox" aria-label="Select language">
-                  {languages.map((lang) => (
-                    <li
-                      key={lang.code}
-                      className={`language-dropdown-option${lang.code === language ? ' selected' : ''}`}
-                      role="option"
-                      aria-selected={lang.code === language}
-                      onClick={() => {
-                        setLangOpen(false);
-                        if (lang.code === language) return;
-                        const sim = simRef.current;
-                        if (sim && sim.phase !== 'ready') void saveRun(sim);
-                        onLanguageChange(lang.code);
-                      }}
-                    >
-                      <span className="language-dropdown-flag" aria-hidden="true">{lang.flag}</span>
-                      <span>{lang.name}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            <PickMenu
+              label={`Language: ${languages.find((lang) => lang.code === language)?.name || language}`}
+              open={openMenu === 'language'}
+              disabled={locked}
+              onToggle={() => setOpenMenu((menu) => (menu === 'language' ? null : 'language'))}
+              trigger={<span className="language-dropdown-flag" aria-hidden="true">{languages.find((lang) => lang.code === language)?.flag || '🇺🇸'}</span>}
+              options={languages.map((lang) => ({
+                value: lang.code,
+                selected: lang.code === language,
+                label: (
+                  <>
+                    <span className="language-dropdown-flag" aria-hidden="true">{lang.flag}</span>
+                    <span>{lang.name}</span>
+                  </>
+                ),
+              }))}
+              onPick={(code) => {
+                if (code === language) return;
+                const sim = simRef.current;
+                if (sim && sim.phase !== 'ready') void saveRun(sim);
+                onLanguageChange(code);
+              }}
+            />
           </Tip>
           <Tip label="Width">
-            <select aria-label="Width" value={W} disabled={locked} onChange={(event) => setSize('W', Number(event.target.value))}>
-              {widths.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+            <PickMenu
+              label="Width"
+              open={openMenu === 'width'}
+              disabled={locked}
+              onToggle={() => setOpenMenu((menu) => (menu === 'width' ? null : 'width'))}
+              trigger={<span>{W}</span>}
+              options={widths.map((n) => ({ value: String(n), selected: n === W, label: <span>{n}</span> }))}
+              onPick={(value) => setSize('W', Number(value))}
+            />
           </Tip>
           <Tip label="Height">
-            <select aria-label="Height" value={H} disabled={locked} onChange={(event) => setSize('H', Number(event.target.value))}>
-              {heights.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+            <PickMenu
+              label="Height"
+              open={openMenu === 'height'}
+              disabled={locked}
+              onToggle={() => setOpenMenu((menu) => (menu === 'height' ? null : 'height'))}
+              trigger={<span>{H}</span>}
+              options={heights.map((n) => ({ value: String(n), selected: n === H, label: <span>{n}</span> }))}
+              onPick={(value) => setSize('H', Number(value))}
+            />
           </Tip>
         </div>
         <div className="toolbar-mode">
@@ -701,6 +701,59 @@ export const Game: React.FC<{
     setHud(readHud(sim));
   }
 };
+
+function PickMenu({
+  label,
+  open,
+  disabled,
+  trigger,
+  options,
+  onToggle,
+  onPick,
+}: {
+  label: string;
+  open: boolean;
+  disabled?: boolean;
+  trigger: React.ReactNode;
+  options: { value: string; selected: boolean; label: React.ReactNode }[];
+  onToggle: () => void;
+  onPick: (value: string) => void;
+}) {
+  return (
+    <div className="language-dropdown">
+      <button
+        type="button"
+        className="language-dropdown-trigger"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={onToggle}
+      >
+        {trigger}
+        <span className="language-dropdown-chevron" aria-hidden="true">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && !disabled && (
+        <ul className="language-dropdown-list" role="listbox" aria-label={label}>
+          {options.map((option) => (
+            <li
+              key={option.value}
+              className={`language-dropdown-option${option.selected ? ' selected' : ''}`}
+              role="option"
+              aria-selected={option.selected}
+              onClick={() => {
+                onToggle();
+                if (!option.selected) onPick(option.value);
+              }}
+            >
+              {option.label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 function Tip({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (

@@ -43,6 +43,7 @@ function scanLine(
   at: (i: number) => string | null,
   dict: Set<string>,
   values: Record<string, number>,
+  normalize: (word: string) => string,
   found: Match[],
 ) {
   let i = 0;
@@ -58,7 +59,7 @@ function scanLine(
     for (let a = 0; a < chars.length; a++) {
       for (let b = a + PARAMS.Nmin; b <= chars.length; b++) {
         const sub = chars.slice(a, b).join('');
-        if (!dict.has(sub)) continue;
+        if (!dict.has(normalize(sub))) continue;
         const start = seg + a;
         const end = seg + b;
         found.push({
@@ -82,13 +83,14 @@ export function findMatches(
   rows: number,
   dict: Set<string>,
   values: Record<string, number>,
+  normalize: (word: string) => string = (word) => word,
 ): Match[] {
   const found: Match[] = [];
   for (let r = 0; r < rows; r++) {
-    scanLine('h', r, W, (i) => grid[r][i], dict, values, found);
+    scanLine('h', r, W, (i) => grid[r][i], dict, values, normalize, found);
   }
   for (let c = 0; c < W; c++) {
-    scanLine('v', c, rows, (i) => grid[i][c], dict, values, found);
+    scanLine('v', c, rows, (i) => grid[i][c], dict, values, normalize, found);
   }
   return found.filter(
     (m) =>
@@ -112,12 +114,12 @@ export function offeredMatches(
   grid: (string | null)[][],
   W: number,
   rows: number,
-  lex: Pick<Lexicon, 'dict' | 'values'>,
+  lex: Pick<Lexicon, 'dict' | 'values' | 'normalize'>,
   suppressed: Suppression[],
   rowGen: number[],
   colGen: number[],
 ): Match[] {
-  return findMatches(grid, W, rows, lex.dict, lex.values).filter((m) => {
+  return findMatches(grid, W, rows, lex.dict, lex.values, lex.normalize).filter((m) => {
     const gen = lineGen(m.dir, m.line, rowGen, colGen);
     const key = matchKey(m);
     return !suppressed.some((s) => s.key === key && s.gen === gen);

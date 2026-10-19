@@ -128,6 +128,24 @@ test('letter values reverse frequency into 1..Vmax', () => {
   assert.equal(buildLexicon(['qqqq'], (w) => w).values.q, 1);
 });
 
+test('a folded letter keeps its own frequency and still matches', () => {
+  const fold = (word: string) => word.replaceAll('ё', 'е');
+  const dictionary = buildLexicon(['ёлка', 'ель', 'ель'], fold);
+  const freq = Object.fromEntries(dictionary.table.map((row) => [row.letter, row.freq]));
+  assert.equal(freq['ё'], 1);
+  assert.equal(freq['е'], 2);
+  assert.notEqual(dictionary.values['ё'], dictionary.values['е']);
+  assert.equal(dictionary.dict.has('елка'), true);
+  assert.equal(dictionary.dict.has('ёлка'), false);
+  const sim = createSim({ W: 4, H: 10, language: 'ru', date: '2026-10-03', lex: dictionary, A: 28 });
+  placeFrozen(sim, 6, 0, 'ё');
+  placeFrozen(sim, 7, 0, 'л');
+  placeFrozen(sim, 8, 0, 'к');
+  placeFrozen(sim, 9, 0, 'а');
+  assert.ok(matches(sim).some((m) => m.text === 'ёлка'));
+  assert.equal(wordValue('ёлка', dictionary.values) !== wordValue('елка', dictionary.values), true);
+});
+
 test('frequency intervals prefer the more common letter', () => {
   const dictionary = buildLexicon(['aaa', 'b'], (w) => w);
   const draws = lettersFromSeed('interval-check|6|10', dictionary, 400);
@@ -265,6 +283,37 @@ test('removing the top letter lets a letter with a gap below start falling', () 
   assert.equal(moved.col, 1);
   assert.equal(moved.selected, true);
   assert.equal(dropBlocked(sim), false);
+});
+
+test('two falling letters a cell apart can move into the same column', () => {
+  const sim = board();
+  sim.phase = 'fall';
+  sim.dict = new Set();
+  sim.spawnWaitPx = 80000;
+  injectFalling(sim, 'a', 0, 4 * sim.A);
+  const lower = sim.falling.find((f) => f.letter === 'a');
+  injectFalling(sim, 'b', 1, 5 * sim.A);
+  const upper = sim.falling.find((f) => f.letter === 'b');
+  assert.ok(lower);
+  assert.ok(upper);
+  tick(sim, pixelInterval(sim.A));
+  assert.equal(upper.yPx - lower.yPx, sim.A);
+  assert.equal(tryMove(sim, -1), true);
+  assert.equal(upper.col, 0);
+  assert.equal(lower.col, 0);
+});
+
+test('falling letters cannot share a column when their pixels overlap', () => {
+  const sim = board();
+  sim.phase = 'fall';
+  sim.dict = new Set();
+  sim.spawnWaitPx = 80000;
+  injectFalling(sim, 'a', 0, 4 * sim.A);
+  injectFalling(sim, 'b', 1, 4 * sim.A + sim.A / 2);
+  const upper = sim.falling.find((f) => f.letter === 'b');
+  assert.ok(upper);
+  assert.equal(tryMove(sim, -1), false);
+  assert.equal(upper.col, 1);
 });
 
 test('a falling letter blocks a move into its cell, and blocks the drop of a letter above it', () => {
