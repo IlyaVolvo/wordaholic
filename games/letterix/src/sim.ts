@@ -305,6 +305,7 @@ function stepDown(sim: Sim, piece: Piece): boolean {
 }
 
 function stepPlay(sim: Sim) {
+  releaseFloating(sim);
   const pieces = sim.falling.filter((f) => f.kind === 'play');
   let locked = false;
   for (const piece of pieces) {
@@ -406,26 +407,18 @@ function columnTopRow(sim: Sim, col: number): number {
   return -1;
 }
 
-/** A settled letter occupies this column somewhere under `row`. */
-function hasLetterBelow(sim: Sim, col: number, row: number): boolean {
-  for (let r = 0; r < row; r++) {
-    if (sim.grid[r]?.[col]) return true;
-  }
-  return false;
-}
-
 /** Another letter is still in the air under this one, in the same column. */
 function fallingLetterBelow(sim: Sim, piece: Piece): boolean {
   return sim.falling.some((other) => other.id !== piece.id && other.col === piece.col && other.yPx < piece.yPx - 1e-6);
 }
 
-/** Drop is refused while a letter under the selection is still falling, or a resting selection has a settled letter under it. */
+/** Drop is refused while a letter under the selection is still falling. */
 export function dropBlocked(sim: Sim): boolean {
   const piece = selectedPiece(sim);
   if (piece) return fallingLetterBelow(sim, piece);
   const held = sim.held;
   if (!held || !sim.grid[held.row]?.[held.col]) return false;
-  return hasLetterBelow(sim, held.col, held.row);
+  return sim.falling.some((f) => f.col === held.col && f.yPx < held.row * sim.A - 1e-6);
 }
 
 function overlapsFalling(sim: Sim, row: number, col: number): boolean {
@@ -445,9 +438,9 @@ export function selectTop(sim: Sim, row: number, col: number): boolean {
   return true;
 }
 
-/** A moved top letter becomes a falling letter only when the column below it is empty. */
+/** A letter with an empty cell under it becomes a falling letter, even when another letter sits further down. */
 function releaseUnsupported(sim: Sim, row: number, col: number, select: boolean): boolean {
-  if (row <= 0 || hasLetterBelow(sim, col, row)) return false;
+  if (row <= 0 || sim.grid[row - 1]?.[col] || overlapsFalling(sim, row, col)) return false;
   const letter = sim.grid[row]?.[col];
   if (!letter) return false;
   sim.grid[row][col] = null;
@@ -464,6 +457,18 @@ function releaseUnsupported(sim: Sim, row: number, col: number, select: boolean)
     kind: 'play',
   });
   return true;
+}
+
+/** Bottom-up, so a letter uncovered by one that starts falling is released in the same pass. */
+function releaseFloating(sim: Sim) {
+  const rows = rowsOf(sim);
+  for (let c = 0; c < sim.W; c++) {
+    for (let r = 1; r < rows; r++) {
+      const select = Boolean(sim.held && sim.held.row === r && sim.held.col === c);
+      if (!releaseUnsupported(sim, r, c, select)) continue;
+      if (select) sim.held = null;
+    }
+  }
 }
 
 function shiftHeld(sim: Sim, dir: -1 | 1): boolean {
@@ -493,12 +498,8 @@ function shiftHeld(sim: Sim, dir: -1 | 1): boolean {
     bump(sim, held.row, from);
     bump(sim, held.row, to);
   }
-  const heldDest = held.col + dir;
-  let heldReleased = false;
-  for (const col of moving.map((from) => from + dir)) {
-    if (releaseUnsupported(sim, held.row, col, col === heldDest) && col === heldDest) heldReleased = true;
-  }
-  sim.held = heldReleased ? null : { row: held.row, col: heldDest };
+  sim.held = { row: held.row, col: held.col + dir };
+  releaseFloating(sim);
   const offer = scanOffer(sim);
   if (offer.length) beginDecide(sim, offer);
   touch(sim);
@@ -513,7 +514,7 @@ function dropHeld(sim: Sim) {
     sim.held = null;
     return;
   }
-  if (held.row === 0 || hasLetterBelow(sim, held.col, held.row)) return;
+  if (held.row === 0 || sim.grid[held.row - 1]?.[held.col]) return;
   sim.grid[held.row][held.col] = null;
   bump(sim, held.row, held.col);
   const landRow = Math.round(landY(sim, held.col) / sim.A);
@@ -539,6 +540,7 @@ export function tryMove(sim: Sim, dir: -1 | 1): boolean {
   for (let r = r0; r <= r1; r++) {
     if (r < 0 || r >= rowsOf(sim)) continue;
     if (sim.grid[r][col]) return false;
+    if (overlapsFalling(sim, r, col)) return false;
   }
   piece.col = col;
   touch(sim);

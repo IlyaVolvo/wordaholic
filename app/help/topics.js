@@ -387,7 +387,8 @@ export const HELP_TOPICS = {
           'Only a falling letter, and the top letter of a column, can be moved. A letter with something above it stays put.\n\n' +
           'Select a letter by pointing at it. Then drag it across its row, or move it with the arrow keys. ' +
           'A sideways move stays at the same height and can push other top letters along that row. ' +
-          'If you move a top letter onto a cell with nothing under it, that letter starts falling.\n\n' +
+          'If you move a top letter onto a cell with nothing directly under it, that letter starts falling, even when another letter sits further down the column. A letter sitting on the one below stays where it is. ' +
+          'A falling letter in the way blocks the move. A falling letter below the selected one stops the drop, and that letter keeps falling.\n\n' +
           'The next letter appears after a short random wait, from one row up to the open rows above the bucket. ' +
           'If nothing is falling, the next letter appears at once.\n\n' +
           'When a word is on the board its letters flash and the fall stops. Use and Skip appear, and Use starts selected. ' +
