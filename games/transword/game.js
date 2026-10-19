@@ -17,7 +17,7 @@ import {
 } from '../../app/i18n-prefs/preferred.js';
 import { languageDirForTranswordDir } from '../../app/shell/locales.js';
 import { getGame } from '../../app/games-contract.js';
-import '../../app/game-registry.js';
+import './registration.js';
 import { normalizeWithMappings } from '../../app/i18n/normalize.js';
 import { openHelp } from '../../app/help/dialog.js';
 import { mountPortraitGate } from '../../app/play/portrait-gate.js';

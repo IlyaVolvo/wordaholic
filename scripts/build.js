@@ -25,6 +25,18 @@ function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
 
+/** Vite empties its outDir, so each game's registration.js is copied afterward. */
+function copyGameRegistrations() {
+  const gamesDir = path.join(ROOT, 'games');
+  for (const name of fs.readdirSync(gamesDir)) {
+    const src = path.join(gamesDir, name, 'registration.js');
+    if (!fs.existsSync(src)) continue;
+    const destDir = path.join(DIST, 'games', name);
+    ensureDir(destDir);
+    fs.copyFileSync(src, path.join(destDir, 'registration.js'));
+  }
+}
+
 function rmrf(p) {
   fs.rmSync(p, { recursive: true, force: true });
 }
@@ -131,6 +143,7 @@ function main() {
     cwd: ROOT,
     stdio: 'inherit',
   });
+  copyGameRegistrations();
 
   console.log('Building Letterix…');
   execSync('npx vite build --config games/letterix/vite.config.ts', {
