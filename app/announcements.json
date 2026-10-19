@@ -14,5 +14,9 @@
   {
     "commit": "5d7d620",
     "body": "PolyHydra is now Hydra. Its Summary mode has significantly changed.\n\n The reason: the old algorithm revealed more information that intended. \n\n Please, carefully read the explanation for this mode in the game manual. Standard mode is still available."
+  },
+  {
+    "commit": "HEAD",
+    "body": "New game: Letterix. Falling letters score as words until one sticks above the bucket."
   }
 ]
