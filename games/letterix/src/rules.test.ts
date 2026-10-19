@@ -6,7 +6,6 @@ import { drawField } from './render.ts';
 import { PARAMS, pixelInterval } from './params.ts';
 import { dropBonus, earlyBonus, wordValue } from './score.ts';
 import {
-  abort,
   createSim,
   confirmChoice,
   dropBlocked,
@@ -412,24 +411,6 @@ test('a top letter pushes other top letters in the same row', () => {
   assert.equal(tryMove(sim, 1), false);
   assert.equal(sim.grid[2][1], 'a');
   assert.equal(sim.grid[2][4], 'd');
-});
-
-test('abort ends the run and keeps the score already earned', () => {
-  const sim = makeTestDrop();
-  assert.equal(sim.phase, 'decide');
-  const earned = sim.score;
-  const pending = sim.offer.reduce((sum, match) => sum + match.value, 0);
-  assert.ok(pending > 0);
-  abort(sim);
-  assert.equal(sim.phase, 'decide');
-  setPaused(sim, true);
-  abort(sim);
-  assert.equal(sim.phase, 'over');
-  assert.equal(sim.aborted, true);
-  assert.equal(sim.score, earned);
-  tick(sim, PARAMS.N * 1000 + 50);
-  assert.equal(sim.score, earned);
-  assert.equal(sim.phase, 'over');
 });
 
 test('gravity closes a gap', () => {

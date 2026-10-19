@@ -58,10 +58,15 @@ export async function saveRun(sim: Sim) {
 }
 
 export async function listVariantScores(language: string, W: number, H: number): Promise<ScoreRecord[]> {
-  const rows = (await storage.listRecords(GAME_ID)) as ScoreRecord[];
+  const rows = await listLanguageScores(language);
   return rows
-    .filter((row) => row.language === language && Number(row.W) === W && Number(row.H) === H && row.game_date)
+    .filter((row) => Number(row.W) === W && Number(row.H) === H)
     .sort((a, b) => String(b.game_date).localeCompare(String(a.game_date)));
+}
+
+export async function listLanguageScores(language: string): Promise<ScoreRecord[]> {
+  const rows = (await storage.listRecords(GAME_ID)) as ScoreRecord[];
+  return rows.filter((row) => row.language === language && row.game_date);
 }
 
 export async function loadScores(language: string, W: number, H: number, date: string): Promise<ScoreRecord | null> {

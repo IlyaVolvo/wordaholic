@@ -7,7 +7,7 @@ function formatLocalDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-type DayResult = { plays: number; best: number };
+type DayResult = { score: number };
 
 type Day = {
   date: Date;
@@ -98,7 +98,7 @@ export const Calendar: React.FC<{
           if (clickable) classes.push('calendar-day-clickable', cell.result ? 'calendar-day-played' : 'calendar-day-empty');
           const label = clickable
             ? cell.result
-              ? `${cell.day}, ${cell.result.plays} played, best ${cell.result.best}`
+              ? `${cell.day}, score ${cell.result.score}`
               : String(cell.day)
             : undefined;
           return (
@@ -111,12 +111,7 @@ export const Calendar: React.FC<{
               {clickable && (
                 <>
                   <span className="calendar-day-num">{cell.day}</span>
-                  {cell.result && (
-                    <span className="calendar-day-stats">
-                      <span>{cell.result.plays}</span>
-                      <span>{cell.result.best}</span>
-                    </span>
-                  )}
+                  {cell.result && <span className="calendar-day-stats">{cell.result.score}</span>}
                 </>
               )}
             </div>
@@ -125,7 +120,7 @@ export const Calendar: React.FC<{
       </div>
       <div className="calendar-legend">
         <div className="legend-item"><div className="legend-color legend-empty" /><span>Not played</span></div>
-        <div className="legend-item"><div className="legend-color legend-played" /><span>Games, best</span></div>
+        <div className="legend-item"><div className="legend-color legend-played" /><span>Score</span></div>
       </div>
     </div>
   );

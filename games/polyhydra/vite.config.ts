@@ -110,6 +110,7 @@ export default defineConfig({
   define: {
     __GIT_COMMIT_HASH__: JSON.stringify(getGitCommitHash()),
   },
+  cacheDir: path.resolve(repoRoot, 'node_modules/.vite-polyhydra'),
   build: {
     outDir: path.resolve(repoRoot, 'dist/games/polyhydra'),
     emptyOutDir: true,

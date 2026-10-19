@@ -586,14 +586,6 @@ export function hardDrop(sim: Sim) {
   touch(sim);
 }
 
-export function abort(sim: Sim) {
-  if (!sim.paused || sim.phase === 'ready' || sim.phase === 'over') return;
-  sim.phase = 'over';
-  sim.paused = false;
-  sim.aborted = true;
-  touch(sim);
-}
-
 export function selectChoice(sim: Sim, choice: DecideChoice) {
   if (sim.paused || sim.phase !== 'decide' || sim.choice === choice) return;
   sim.choice = choice;

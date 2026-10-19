@@ -378,8 +378,8 @@ export const HELP_TOPICS = {
           '• Building words. A word of three or more letters can run across a row or down a column. Longer words are worth more.\n' +
           '• Raising the fall speed. A faster game pays more for each word.\n' +
           '• Dropping a letter from above. Sending it straight down skips rows and adds a small bonus.\n\n' +
-          'Press Start in the middle of the board to begin. When the game is over, Replay starts the same day again. ' +
-          'The first finished score stays, and the best score updates when you beat it.\n\n' +
+          'Press Start in the middle of the board to begin. Each day can be played once. ' +
+          'When the game ends, that score stays. A past day that has not been finished can still be started from the calendar.\n\n' +
           'The game ends after any pending words settle, if a letter is still above the bucket.',
       },
       {
@@ -411,16 +411,14 @@ export const HELP_TOPICS = {
           'Use removes the flashing word and takes the points. Skip leaves it on the board.',
       },
       {
-        title: 'Pause, resume, and abort',
+        title: 'Pause and resume',
         screenshot: '/help/letterix/pause.png',
         wide: true,
         body:
           'Pause stops the fall and blurs the board. Resume continues from the same place. ' +
           'The P key does the same. Pause is not available before Start or after the game is over.\n\n' +
           'The speed slider appears before the game starts, after it ends and while it is paused; during play it is hidden. On small screens it takes the place of the arrows. It goes from 0% to 400% in steps of 10%, and the last setting carries over to the next game. ' +
-          '0% is the normal fall. 100% is twice as fast, and the points from words rise by the same amount.\n\n' +
-          'Abort appears only while the game is paused. It ends the run and keeps the points already scored. ' +
-          'A word still on the countdown is not included.',
+          '0% is the normal fall. 100% is twice as fast, and the points from words rise by the same amount.',
       },
       {
         title: 'Game configuration',
@@ -434,7 +432,7 @@ export const HELP_TOPICS = {
           '• Height is the number of rows in the bucket, from 10 to 20.\n' +
           '• The date is the daily. The same language, width, height, and date give everyone the same letters.\n\n' +
           'A first visit opens at 8 by 12. After that, this browser remembers the last width and height.\n\n' +
-          'Language, width, and height stay locked while a game is in progress. Choose them before Start, or after the game is over.',
+          'Language, width, height, and the date stay locked while a game is in progress. Choose them before Start, or after the game is over.',
       },
       {
         title: 'The top line',

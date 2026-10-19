@@ -8,7 +8,6 @@ import { fitCell, localCalendarDate, PARAMS } from './params.ts';
 import { Calendar } from './Calendar.tsx';
 import { drawField, pointerToCell } from './render.ts';
 import {
-  abort,
   confirmChoice,
   dropBlocked,
   hardDrop,
@@ -30,6 +29,7 @@ import {
 import {
   freshSim,
   GAME_ID,
+  listLanguageScores,
   listVariantScores,
   loadRun,
   playCount,
@@ -49,7 +49,6 @@ type Hud = {
   column: number | null;
   letter: string;
   dropBlocked: boolean;
-  aborted: boolean;
   choice: Sim['choice'];
   speedPct: number;
 };
@@ -70,7 +69,6 @@ function readHud(sim: Sim): Hud {
     column: piece ? piece.col + 1 : sim.held && heldLetter ? sim.held.col + 1 : null,
     letter: piece?.letter || heldLetter || '',
     dropBlocked: dropBlocked(sim),
-    aborted: sim.aborted,
     choice: sim.choice,
     speedPct: sim.speedPct,
   };
@@ -110,6 +108,8 @@ export const Game: React.FC<{
   const speedPrefRef = useRef(0);
   const [speedPref, setSpeedPref] = useState(0);
   const [history, setHistory] = useState<ScoreRecord[]>([]);
+  const [statsLanguage, setStatsLanguage] = useState(language);
+  const [statsRows, setStatsRows] = useState<ScoreRecord[]>([]);
 
   useEffect(() => {
     let cancel = false;
@@ -195,7 +195,7 @@ export const Game: React.FC<{
           drawField(ctx, sim, now);
         }
         const next = readHud(sim);
-        const sig = `${next.phase}|${next.paused}|${next.score}|${next.points}|${next.seconds}|${next.column}|${next.letter}|${next.dropBlocked}|${next.aborted}|${next.choice}|${next.speedPct}`;
+        const sig = `${next.phase}|${next.paused}|${next.score}|${next.points}|${next.seconds}|${next.column}|${next.letter}|${next.dropBlocked}|${next.choice}|${next.speedPct}`;
         if (sig !== lastSig) {
           lastSig = sig;
           setHud(next);
@@ -304,17 +304,19 @@ export const Game: React.FC<{
   const locked = hud?.phase === 'fall' || hud?.phase === 'decide' || hud?.phase === 'settle';
   const showBest = playedAgain(scores, hud?.phase);
   const dayResults = useMemo(() => {
-    const map = new Map<string, { plays: number; best: number }>();
+    const map = new Map<string, { score: number }>();
     for (const row of history) {
-      const plays = playCount(row);
-      const best = row.best_score ?? row.first_score;
-      if (plays > 0 && best != null) map.set(row.game_date, { plays, best: Number(best) });
+      const score = row.best_score ?? row.first_score;
+      if (playCount(row) > 0 && score != null) map.set(row.game_date, { score: Number(score) });
     }
     return map;
   }, [history]);
+  const statTable = useMemo(() => buildStatTable(statsRows, localCalendarDate()), [statsRows]);
+  const statWidths = useMemo(() => axisValues(PARAMS.Wmin, PARAMS.Wmax), []);
+  const statHeights = useMemo(() => axisValues(PARAMS.Hmin, PARAMS.Hmax), []);
 
   useEffect(() => {
-    if (!showCalendar && !showStats) return;
+    if (!showCalendar) return;
     let cancel = false;
     void listVariantScores(language, W, H).then((rows) => {
       if (!cancel) setHistory(rows);
@@ -322,7 +324,18 @@ export const Game: React.FC<{
     return () => {
       cancel = true;
     };
-  }, [showCalendar, showStats, language, W, H, scores]);
+  }, [showCalendar, language, W, H, scores]);
+
+  useEffect(() => {
+    if (!showStats) return;
+    let cancel = false;
+    void listLanguageScores(statsLanguage).then((rows) => {
+      if (!cancel) setStatsRows(rows);
+    });
+    return () => {
+      cancel = true;
+    };
+  }, [showStats, statsLanguage]);
 
   function nudge(dir: -1 | 1) {
     const sim = simRef.current;
@@ -337,6 +350,7 @@ export const Game: React.FC<{
   }
 
   function pickDate(next: string) {
+    if (locked) return;
     if (!next || next > localCalendarDate()) return;
     const sim = simRef.current;
     if (sim && sim.date !== next && sim.phase !== 'ready') void saveRun(sim);
@@ -431,7 +445,7 @@ export const Game: React.FC<{
               </Tip>
             )}
             <Tip label="Statistics">
-              <button type="button" className="header-icon-button" aria-label="Statistics" onClick={() => setShowStats(true)}>
+              <button type="button" className="header-icon-button" aria-label="Statistics" onClick={() => { setStatsLanguage(language); setShowStats(true); }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <line x1="18" y1="20" x2="18" y2="10" />
                   <line x1="12" y1="20" x2="12" y2="4" />
@@ -460,9 +474,10 @@ export const Game: React.FC<{
           </button>
         )}
         {hud?.phase === 'over' && (
-          <button type="button" className="letterix-start" data-action="replay" onClick={() => replay()}>
-            Replay
-          </button>
+          <div className="letterix-end" role="status">
+            <span>Game over</span>
+            <strong>{hud.score}</strong>
+          </div>
         )}
       </div>
       <div className="settings">
@@ -521,7 +536,9 @@ export const Game: React.FC<{
               type="button"
               className="date-picker-btn"
               aria-label="Choose daily date"
+              disabled={locked}
               onClick={() => {
+                if (locked) return;
                 setCalendarMonth(calendarMonthForSelection(date));
                 setShowCalendar(true);
               }}
@@ -614,11 +631,6 @@ export const Game: React.FC<{
         )}
         </div>
         <div className="keys-corner">
-          {hud?.paused && (
-            <button type="button" className="text-btn" data-action="abort" onClick={() => { const sim = simRef.current; if (sim) abort(sim); }}>
-              Abort
-            </button>
-          )}
           <button
             type="button"
             className="text-btn"
@@ -634,7 +646,15 @@ export const Game: React.FC<{
         <div className="game-modal-overlay" onClick={() => setShowCalendar(false)} role="presentation">
           <div className="game-modal-card calendar-modal-card" role="dialog" aria-modal="true" aria-label="Daily games" onClick={(event) => event.stopPropagation()}>
             <div className="game-modal-header">
-              <h2>Daily games</h2>
+              <div className="calendar-heading">
+                <h2>Daily games</h2>
+                <p className="calendar-config">
+                  {languages.find((lang) => lang.code === language)?.flag || ''}{' '}
+                  {languages.find((lang) => lang.code === language)?.name || language}
+                  {' · '}
+                  {W} × {H}
+                </p>
+              </div>
               <div className="game-modal-header-actions">
                 <button type="button" className="calendar-today-button" onClick={() => pickDate(localCalendarDate())}>Today</button>
                 <button type="button" className="game-modal-close" aria-label="Close calendar" onClick={() => setShowCalendar(false)}>×</button>
@@ -646,24 +666,58 @@ export const Game: React.FC<{
       )}
       {showStats && (
         <div className="game-modal-overlay" onClick={() => setShowStats(false)} role="presentation">
-          <div className="game-modal-card" role="dialog" aria-modal="true" aria-label="Statistics" onClick={(event) => event.stopPropagation()}>
+          <div className="game-modal-card stats-modal-card" role="dialog" aria-modal="true" aria-label="Statistics" onClick={(event) => event.stopPropagation()}>
             <div className="game-modal-header">
               <h2>Statistics</h2>
               <button type="button" className="game-modal-close" aria-label="Close statistics" onClick={() => setShowStats(false)}>×</button>
             </div>
-            <div className="stats-summary">
-              <span>First <strong data-first>{scores?.first_score ?? '—'}</strong></span>
-              <span>Best <strong>{scores?.best_score ?? '—'}</strong></span>
+            <div className="stats-lang">
+              <select
+                aria-label="Statistics language"
+                value={statsLanguage}
+                onChange={(event) => setStatsLanguage(event.target.value)}
+              >
+                {languages.map((lang) => (
+                  <option key={lang.code} value={lang.code}>{lang.flag} {lang.name}</option>
+                ))}
+              </select>
             </div>
-            <ul className="stats-list">
-              {history.map((row) => (
-                <li key={row.id}>
-                  <span>{row.game_date}</span>
-                  <span>{row.best_score ?? '—'}</span>
-                </li>
-              ))}
-              {history.length === 0 && <li><span>No finished games for this size.</span></li>}
-            </ul>
+            <p className="stats-legend">Each cell, top to bottom: 2 weeks, 4 weeks, life</p>
+            <div className="stats-scroll">
+            <table className="stats-table">
+              <thead>
+                <tr>
+                  <th rowSpan={2} scope="col">Height</th>
+                  <th colSpan={statWidths.length} scope="colgroup">Width</th>
+                </tr>
+                <tr>
+                  {statWidths.map((width) => (
+                    <th key={width} scope="col">{width}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {statHeights.map((height) => (
+                  <tr key={height}>
+                    <th scope="row">{height}</th>
+                    {statWidths.map((width) => {
+                      const cell = statTable.find((row) => row.W === width && row.H === height);
+                      const values = [cell?.twoWeeks, cell?.fourWeeks, cell?.forever];
+                      return (
+                        <td key={width} aria-label={`Width ${width}, height ${height}`}>
+                          <span className="stats-cell">
+                            {values.map((value, index) => (
+                              <span key={index}>{value ?? ''}</span>
+                            ))}
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
           </div>
         </div>
       )}
@@ -684,22 +738,6 @@ export const Game: React.FC<{
     setSpeedPref(pct);
   }
 
-  function replay() {
-    const sim = freshSim({
-      W,
-      H,
-      language,
-      date,
-      lex,
-      A: simRef.current?.A || PARAMS.Amin,
-    });
-    setSpeedPercent(sim, speedPrefRef.current);
-    simRef.current = sim;
-    liveRef.current = true;
-    savedRev.current = -1;
-    start(sim);
-    setHud(readHud(sim));
-  }
 };
 
 function PickMenu({
@@ -762,6 +800,56 @@ function Tip({ label, className, children }: { label: string; className?: string
       <span className="tip-label" role="tooltip">{label}</span>
     </span>
   );
+}
+
+type StatAverages = { W: number; H: number; twoWeeks: number | null; fourWeeks: number | null; forever: number | null };
+
+function dayScore(row: ScoreRecord): number | null {
+  const score = row.best_score ?? row.first_score;
+  return score == null ? null : Number(score);
+}
+
+function shiftIsoDate(iso: string, days: number): string {
+  const [year, month, day] = iso.split('-').map(Number);
+  const date = new Date(year, (month || 1) - 1, day || 1);
+  date.setDate(date.getDate() + days);
+  const nextMonth = String(date.getMonth() + 1).padStart(2, '0');
+  const nextDay = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${nextMonth}-${nextDay}`;
+}
+
+function axisValues(min: number, max: number): number[] {
+  const values: number[] = [];
+  for (let n = min; n <= max; n++) values.push(n);
+  return values;
+}
+
+function mean(values: number[]): number | null {
+  if (values.length === 0) return null;
+  return Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+}
+
+function buildStatTable(rows: ScoreRecord[], today: string): StatAverages[] {
+  const twoWeeks = shiftIsoDate(today, -13);
+  const fourWeeks = shiftIsoDate(today, -27);
+  const table: StatAverages[] = [];
+  for (let W = PARAMS.Wmin; W <= PARAMS.Wmax; W++) {
+    for (let H = PARAMS.Hmin; H <= PARAMS.Hmax; H++) {
+      const scores = rows
+        .filter((row) => Number(row.W) === W && Number(row.H) === H)
+        .map((row) => ({ date: String(row.game_date), score: dayScore(row) }))
+        .filter((row): row is { date: string; score: number } => row.score != null && row.date <= today);
+      const windowMean = (from: string) => mean(scores.filter((row) => row.date >= from).map((row) => row.score));
+      table.push({
+        W,
+        H,
+        twoWeeks: windowMean(twoWeeks),
+        fourWeeks: windowMean(fourWeeks),
+        forever: mean(scores.map((row) => row.score)),
+      });
+    }
+  }
+  return table;
 }
 
 function playedAgain(scores: ScoreRecord | null, phase: Hud['phase'] | undefined): boolean {
