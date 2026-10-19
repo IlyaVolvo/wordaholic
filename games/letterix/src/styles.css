@@ -83,17 +83,11 @@ a.header-brand-home {
 .letterix-score strong {
   display: flex;
   align-items: center;
-  background: var(--surface);
-  color: #fff;
+  background: var(--water);
+  color: #111;
   padding: 0.2rem 0.7rem;
   font-size: 1.25rem;
   font-weight: 700;
-}
-.best-score {
-  font-size: 1.15rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--text);
 }
 .header-icon-button {
   width: 34px;

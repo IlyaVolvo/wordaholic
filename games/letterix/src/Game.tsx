@@ -302,7 +302,6 @@ export const Game: React.FC<{
   }, []);
 
   const locked = hud?.phase === 'fall' || hud?.phase === 'decide' || hud?.phase === 'settle';
-  const showBest = playedAgain(scores, hud?.phase);
   const dayResults = useMemo(() => {
     const map = new Map<string, { score: number }>();
     for (const row of history) {
@@ -439,11 +438,6 @@ export const Game: React.FC<{
             </div>
           </Tip>
           <div className="header-right">
-            {showBest && (
-              <Tip label="Best score">
-                <strong className="best-score" data-best>{scores?.best_score ?? 0}</strong>
-              </Tip>
-            )}
             <Tip label="Statistics">
               <button type="button" className="header-icon-button" aria-label="Statistics" onClick={() => { setStatsLanguage(language); setShowStats(true); }}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -850,12 +844,6 @@ function buildStatTable(rows: ScoreRecord[], today: string): StatAverages[] {
     }
   }
   return table;
-}
-
-function playedAgain(scores: ScoreRecord | null, phase: Hud['phase'] | undefined): boolean {
-  if (scores?.first_score == null) return false;
-  if (scores.updated_at && scores.completed_at && scores.updated_at !== scores.completed_at) return true;
-  return phase != null && phase !== 'ready' && phase !== 'over';
 }
 
 function sizeOptions(min: number, max: number, current: number): number[] {
