@@ -629,8 +629,6 @@ main {
 .world-map-layer {
   position: absolute;
   inset: 0;
-  transform-origin: 0 0;
-  will-change: transform;
 }
 .map-corner-left {
   position: absolute;
@@ -829,6 +827,14 @@ main {
 .world-map-svg #ocean {
   fill: #6fa8c9 !important;
   pointer-events: none;
+}
+.world-map-svg .map-gap-path {
+  fill: #9aa38a !important;
+  stroke: #9aa38a !important;
+  stroke-width: 1.2 !important;
+  stroke-linejoin: round;
+  pointer-events: none;
+  transition: none;
 }
 .world-map-svg .map-country {
   pointer-events: all;
