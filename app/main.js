@@ -104,6 +104,7 @@ function renderFavoritesChrome() {
   renderGameRail($('#game-rail'), {
     games: listGames(),
     favoriteLanguages: favorites,
+    languages: allLanguages,
     onGameSelect: (gameId, langCodes) => openGame(gameId, langCodes),
   });
 }

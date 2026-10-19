@@ -1046,17 +1046,20 @@ export const GAME_ICONS = {
 
 /**
  * @param {HTMLElement} rail
- * @param {{ games: {id:string,name:string}[], favoriteLanguages: {code:string,menu:string,games:string[]}[], onGameSelect: (gameId: string, langCodes: string[]) => void }} opts
+ * @param {{ games: {id:string,name:string,languages?:string[]}[], favoriteLanguages: {code:string,menu:string,games:string[]}[], languages?: {code:string,menu:string,games:string[]}[], onGameSelect: (gameId: string, langCodes: string[]) => void }} opts
  */
 export function renderGameRail(rail, opts) {
-  const { games, favoriteLanguages, onGameSelect } = opts;
+  const { games, favoriteLanguages, languages, onGameSelect } = opts;
+  const catalog = languages || favoriteLanguages;
+  const byCode = new Map(catalog.map((l) => [l.code, l]));
   const playable = games
     .map((game) => {
-      const langs = favoriteLanguages.filter(
-        (l) => (l.games || []).includes(game.id) && (game.languages || []).includes(l.code)
-      );
+      const supported = (game.languages || [])
+        .map((code) => byCode.get(code))
+        .filter((l) => l && (l.games || []).includes(game.id));
+      const langs = supported.filter((l) => favoriteLanguages.some((f) => f.code === l.code));
       if (!langs.length) return null;
-      return { game, langs };
+      return { game, langs, supported };
     })
     .filter(Boolean);
 
@@ -1066,10 +1069,10 @@ export function renderGameRail(rail, opts) {
   }
 
   rail.innerHTML = playable
-    .map(({ game, langs }) => {
-      const langLabel = langs.map((l) => l.menu).join(', ');
+    .map(({ game, supported }) => {
+      const langLabel = supported.map((l) => l.menu).join(', ');
       const icon = GAME_ICONS[game.id] || GAME_ICONS.polywordlot;
-      const tipLangs = langs
+      const tipLangs = supported
         .map((l) => `<span class="rail-game-tip-lang">${l.menu}</span>`)
         .join('');
       return `
