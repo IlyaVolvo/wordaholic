@@ -7,15 +7,15 @@ import react from '@vitejs/plugin-react';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
-const dictRoot = path.join(__dirname, 'dict');
+const languagesRoot = path.join(__dirname, 'data/languages');
 
-function letterixDictPlugin(): Plugin {
+function letterixLanguagesPlugin(): Plugin {
   const serve = (url: string, res: import('node:http').ServerResponse, next: () => void) => {
-    const prefix = '/games/letterix/dict/';
+    const prefix = '/games/letterix/data/languages/';
     if (!url.startsWith(prefix)) return next();
     const rel = decodeURIComponent(url.slice(prefix.length));
-    const file = path.resolve(dictRoot, rel);
-    const fromRoot = path.relative(dictRoot, file);
+    const file = path.resolve(languagesRoot, rel);
+    const fromRoot = path.relative(languagesRoot, file);
     if (fromRoot.startsWith('..') || path.isAbsolute(fromRoot) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
       res.statusCode = 404;
       res.end('Not found');
@@ -25,15 +25,15 @@ function letterixDictPlugin(): Plugin {
     fs.createReadStream(file).pipe(res);
   };
   return {
-    name: 'letterix-dict',
+    name: 'letterix-languages',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         serve((req.url || '').split('?')[0], res, next);
       });
     },
     closeBundle() {
-      const out = path.resolve(repoRoot, 'dist/games/letterix/dict');
-      fs.cpSync(dictRoot, out, { recursive: true });
+      const out = path.resolve(repoRoot, 'dist/games/letterix/data/languages');
+      fs.cpSync(languagesRoot, out, { recursive: true });
     },
   };
 }
@@ -134,7 +134,7 @@ function getGitCommitHash(): string {
 
 export default defineConfig({
   root: __dirname,
-  plugins: [react(), letterixDictPlugin(), shellDataPlugin()],
+  plugins: [react(), letterixLanguagesPlugin(), shellDataPlugin()],
   base: '/games/letterix/',
   resolve: {
     alias: {

@@ -143,13 +143,13 @@ function main() {
     cwd: ROOT,
     stdio: 'inherit',
   });
-  copyGameRegistrations();
 
   console.log('Building Letterix…');
   execSync('npx vite build --config games/letterix/vite.config.ts', {
     cwd: ROOT,
     stdio: 'inherit',
   });
+  copyGameRegistrations();
 
   const catalog = buildLanguagesCatalog();
   ensureDir(path.join(DIST, 'data'));
@@ -185,7 +185,7 @@ function main() {
     }
     if (lang.transwordDir) words[`transword:${lang.code}`] = gameHashes.transword[`data/languages/${lang.transwordDir}/corpus.txt`] || siteHash;
     if (lang.letterixDir) {
-      words[`letterix:${lang.code}`] = gameHashes.letterix[`dict/${lang.letterixDir}/words.txt`] || siteHash;
+      words[`letterix:${lang.code}`] = gameHashes.letterix[`data/languages/${lang.letterixDir}/corpus.txt`] || siteHash;
     }
     if (langHash) words[`language:${lang.code}`] = langHash;
   }

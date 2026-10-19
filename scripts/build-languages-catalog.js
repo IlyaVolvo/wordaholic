@@ -55,9 +55,9 @@ export function buildLanguagesCatalog() {
     const games = [];
     if (lengths.length && supportsLanguage('polywordlot', code)) games.push('polywordlot');
     if (lengths.length && supportsLanguage('polyhydra', code)) games.push('polyhydra');
-    const letterixFile = path.join(ROOT, 'games/letterix/dict', language, locale, 'words.txt');
+    const letterixFile = path.join(ROOT, 'games/letterix/data/languages', language, 'corpus.txt');
     const letterixDir =
-      fs.existsSync(letterixFile) && fs.statSync(letterixFile).size > 0 ? `${language}/${locale}` : '';
+      fs.existsSync(letterixFile) && fs.statSync(letterixFile).size > 0 ? language : '';
     if (letterixDir && supportsLanguage('letterix', code)) games.push('letterix');
     const coords = MAP_COORDS[code] || { lat: 0, lon: 0 };
     byCode.set(code, {

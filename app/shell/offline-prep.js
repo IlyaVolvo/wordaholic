@@ -101,7 +101,7 @@ export async function prepareOffline(onProgress) {
       }
     }
     if ((lang.games || []).includes('letterix') && lang.letterixDir) {
-      wordUrls.push(`/games/letterix/dict/${lang.letterixDir}/words.txt`);
+      wordUrls.push(`/games/letterix/data/languages/${lang.letterixDir}/corpus.txt`);
     }
   }
 

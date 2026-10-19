@@ -4,7 +4,7 @@ registerGame({
   id: 'polyhydra',
   name: 'Hydra',
   storageSchema: 1,
-  languages: ['en', 'ru', 'fr', 'es', 'he', 'hy', 'de'],
+  languages: ['en', 'ru', 'fr', 'es', 'he', 'hy'],
   async initialize() {},
   start() {},
   saveState() { return null; },

@@ -12,6 +12,7 @@ export type LetterixLanguage = {
   name: string;
   flag: string;
   dir: string;
+  wordDir: string;
 };
 
 type CatalogLanguage = {
@@ -20,9 +21,16 @@ type CatalogLanguage = {
   flag?: string;
   games?: string[];
   letterixDir?: string;
+  wordDir?: string;
 };
 
-const ENGLISH: LetterixLanguage = { code: 'en', name: 'English', flag: '🇺🇸', dir: 'English/en' };
+const ENGLISH: LetterixLanguage = {
+  code: 'en',
+  name: 'English',
+  flag: '🇺🇸',
+  dir: 'English',
+  wordDir: 'English/en',
+};
 
 function publishLanguageUrl(lang: string, langs: string[]) {
   const params = new URLSearchParams(window.location.search);
@@ -45,19 +53,20 @@ async function loadPlayableLanguages(): Promise<LetterixLanguage[]> {
       name: lang.menu || String(lang.code),
       flag: lang.flag || '',
       dir: String(lang.letterixDir),
+      wordDir: String(lang.wordDir || ''),
     }));
   return playable.length ? playable : [ENGLISH];
 }
 
-async function loadLexicon(dir: string): Promise<Lexicon> {
+async function loadLexicon(lang: Pick<LetterixLanguage, 'dir' | 'wordDir'>): Promise<Lexicon> {
   const [wordsRes, langRes] = await Promise.all([
-    fetch(`/games/letterix/dict/${dir}/words.txt`),
-    fetch(`/word-data/${dir}/language.json`),
+    fetch(`/games/letterix/data/languages/${lang.dir}/corpus.txt`),
+    fetch(`/word-data/${lang.wordDir}/language.json`),
   ]);
   if (!wordsRes.ok) throw new Error('Word list is missing');
   const text = await wordsRes.text();
-  const lang = langRes.ok ? await langRes.json() : {};
-  const mappings = lang.normalization && typeof lang.normalization === 'object' ? lang.normalization : {};
+  const config = langRes.ok ? await langRes.json() : {};
+  const mappings = config.normalization && typeof config.normalization === 'object' ? config.normalization : {};
   const words = text
     .split(/\n/)
     .map((line: string) => line.trim())
@@ -88,7 +97,7 @@ export const App: React.FC = () => {
         const favoriteCodes = urlLangs
           ? urlLangs.split(',').map((code) => code.trim()).filter(Boolean)
           : preferred;
-        const built = await loadLexicon(chosen.dir);
+        const built = await loadLexicon(chosen);
         const prefs = await loadPrefs();
         const open = openingSize();
         const W = Math.min(PARAMS.Wmax, Math.max(PARAMS.Wmin, prefs?.W || open.W));
@@ -114,7 +123,7 @@ export const App: React.FC = () => {
     if (!next || next.code === language) return;
     setError('');
     try {
-      const built = await loadLexicon(next.dir);
+      const built = await loadLexicon(next);
       void setLastLanguage(next.code);
       publishLanguageUrl(next.code, favorites);
       setLanguage(next.code);

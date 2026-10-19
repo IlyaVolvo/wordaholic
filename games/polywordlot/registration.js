@@ -4,7 +4,7 @@ registerGame({
   id: 'polywordlot',
   name: 'PolyWordlot',
   storageSchema: 1,
-  languages: ['en', 'ru', 'fr', 'es', 'he', 'hy', 'de'],
+  languages: ['en', 'ru', 'fr', 'es', 'he', 'hy'],
   async initialize() {},
   start() {},
   saveState() { return null; },
