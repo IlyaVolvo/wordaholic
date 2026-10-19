@@ -18,6 +18,18 @@ function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
 
+/** Vite empties its outDir, so each game's registration.js is copied afterward. */
+function copyGameRegistrations() {
+  const gamesDir = path.join(ROOT, 'games');
+  for (const name of fs.readdirSync(gamesDir)) {
+    const src = path.join(gamesDir, name, 'registration.js');
+    if (!fs.existsSync(src)) continue;
+    const destDir = path.join(DIST, 'games', name);
+    ensureDir(destDir);
+    fs.copyFileSync(src, path.join(destDir, 'registration.js'));
+  }
+}
+
 function copyDir(src, dest, { skipNames = ['.DS_Store'] } = {}) {
   if (!fs.existsSync(src)) return;
   ensureDir(dest);
@@ -49,6 +61,7 @@ function syncStatic(reason) {
   });
   copyDir(path.join(ROOT, 'games/transword'), path.join(DIST, 'games/transword'));
   embedAdminPassword(path.join(DIST, 'games/transword/admin'));
+  copyGameRegistrations();
   ensureDir(path.join(DIST, 'data'));
   fs.writeFileSync(
     path.join(DIST, 'data/languages.json'),
