@@ -4,6 +4,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getGame } from '../app/games-contract.js';
+import '../app/game-registry.js';
 import { LOCALE_PATHS, languageDirForCode } from '../app/shell/locales.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -19,16 +21,9 @@ const MAP_COORDS = {
   hy: { lat: 40.2, lon: 44.5 },
 };
 
-/** @param {unknown} raw */
-function blockedGameIds(raw) {
-  if (raw === true) return ['transword'];
-  if (typeof raw === 'string') {
-    const v = raw.trim().toLowerCase();
-    if (v === 'yes' || v === 'true') return ['transword'];
-    return v ? [v] : [];
-  }
-  if (Array.isArray(raw)) return raw.map((id) => String(id)).filter(Boolean);
-  return [];
+/** @param {string} gameId @param {string} code */
+function supportsLanguage(gameId, code) {
+  return (getGame(gameId)?.languages || []).includes(code);
 }
 
 function polyLengths(dictRoot, language, locale) {
@@ -57,11 +52,13 @@ export function buildLanguagesCatalog() {
     if (fs.existsSync(langJsonPath)) {
       meta = { ...meta, ...JSON.parse(fs.readFileSync(langJsonPath, 'utf8')) };
     }
-    const games = lengths.length ? ['polywordlot', 'polyhydra'] : [];
+    const games = [];
+    if (lengths.length && supportsLanguage('polywordlot', code)) games.push('polywordlot');
+    if (lengths.length && supportsLanguage('polyhydra', code)) games.push('polyhydra');
     const letterixFile = path.join(ROOT, 'games/letterix/dict', language, locale, 'words.txt');
     const letterixDir =
       fs.existsSync(letterixFile) && fs.statSync(letterixFile).size > 0 ? `${language}/${locale}` : '';
-    if (letterixDir) games.push('letterix');
+    if (letterixDir && supportsLanguage('letterix', code)) games.push('letterix');
     const coords = MAP_COORDS[code] || { lat: 0, lon: 0 };
     byCode.set(code, {
       code,
@@ -74,7 +71,6 @@ export function buildLanguagesCatalog() {
       polyDir: `${language}/${locale}`,
       ...(letterixDir ? { letterixDir } : {}),
       wordDir,
-      blockedIds: blockedGameIds(meta.blocked),
     });
   }
 
@@ -84,7 +80,7 @@ export function buildLanguagesCatalog() {
       const code = entry.code;
       const corpusPath = path.join(ROOT, 'games/transword/data/languages', entry.dir, 'corpus.txt');
       const hasWords = fs.existsSync(corpusPath) && fs.statSync(corpusPath).size > 0;
-      if (!hasWords) continue;
+      if (!hasWords || !supportsLanguage('transword', code)) continue;
       const wordDir = languageDirForCode(code) || `${entry.dir}/${code}`;
       const existing = byCode.get(code) || {
         code,
@@ -101,29 +97,11 @@ export function buildLanguagesCatalog() {
       existing.wordDir = existing.wordDir || wordDir;
       existing.menu = existing.menu || entry.menu;
       existing.flag = existing.flag || entry.flag || '';
-      if (!existing.blockedIds) {
-        const langJsonPath = path.join(wordData, wordDir, 'language.json');
-        if (fs.existsSync(langJsonPath)) {
-          const meta = JSON.parse(fs.readFileSync(langJsonPath, 'utf8'));
-          existing.blockedIds = blockedGameIds(meta.blocked);
-        } else {
-          existing.blockedIds = [];
-        }
-      }
       byCode.set(code, existing);
     }
   }
 
-  return [...byCode.values()]
-    .map((l) => {
-      const blocked = l.blockedIds || [];
-      const { blockedIds, ...rest } = l;
-      return {
-        ...rest,
-        games: (l.games || []).filter((g) => !blocked.includes(g)),
-      };
-    })
-    .filter((l) => l.games.length > 0);
+  return [...byCode.values()].filter((l) => l.games.length > 0);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

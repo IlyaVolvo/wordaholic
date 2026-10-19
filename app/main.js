@@ -1,4 +1,5 @@
-import { registerGame, listGames } from './games-contract.js';
+import { listGames } from './games-contract.js';
+import './game-registry.js';
 import { loadLanguages } from './shell/languages.js';
 import { renderWorldMap, renderGameRail } from './shell/map.js';
 import { prepareOffline } from './shell/offline-prep.js';
@@ -11,7 +12,7 @@ import {
   getLastLanguage,
   setLastLanguage,
 } from './i18n-prefs/favorites.js';
-import { AUTHOR_EMAIL } from './shell/author.js';
+import { TELEGRAM_GROUP_URL } from './shell/author.js';
 import { downloadSiteBackup, exportSiteBackup, importSiteBackup } from './shell/site-backup.js';
 import {
   AUTO_EXPORT_STATUS_EVENT,
@@ -24,54 +25,6 @@ import {
 import { reloadLatestFromServer } from './updates/reload-latest.js';
 import { openHelp } from './help/dialog.js';
 import { reportStats } from './stats/report.js';
-
-registerGame({
-  id: 'polywordlot',
-  name: 'PolyWordlot',
-  storageSchema: 1,
-  languages: ['en', 'ru', 'fr', 'es', 'he', 'hy', 'de'],
-  async initialize() {},
-  start() {},
-  saveState() { return null; },
-  restoreState() {},
-  getStatistics() { return null; },
-});
-
-registerGame({
-  id: 'transword',
-  name: 'TransWord',
-  storageSchema: 1,
-  languages: ['en', 'es', 'fr', 'ru', 'de'],
-  async initialize() {},
-  start() {},
-  saveState() { return null; },
-  restoreState() {},
-  getStatistics() { return null; },
-});
-
-registerGame({
-  id: 'polyhydra',
-  name: 'Hydra',
-  storageSchema: 1,
-  languages: ['en', 'ru', 'fr', 'es', 'he', 'hy', 'de'],
-  async initialize() {},
-  start() {},
-  saveState() { return null; },
-  restoreState() {},
-  getStatistics() { return null; },
-});
-
-registerGame({
-  id: 'letterix',
-  name: 'Letterix',
-  storageSchema: 1,
-  languages: ['en'],
-  async initialize() {},
-  start() {},
-  saveState() { return null; },
-  restoreState() {},
-  getStatistics() { return null; },
-});
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -116,6 +69,7 @@ function renderFavoritesChrome() {
   renderGameRail($('#game-rail'), {
     games: listGames(),
     favoriteLanguages: favorites,
+    languages: allLanguages,
     onGameSelect: (gameId, langCodes) => openGame(gameId, langCodes),
   });
 }
@@ -233,18 +187,7 @@ async function renderGateway() {
       }
     },
     onFeedback: () => {
-      const dialog = $('#feedback-dialog');
-      const text = $('#feedback-text');
-      const status = $('#feedback-status');
-      const emailEl = $('#feedback-author-email');
-      if (emailEl) emailEl.textContent = AUTHOR_EMAIL;
-      if (text) text.value = '';
-      if (status) {
-        status.hidden = true;
-        status.textContent = '';
-        status.classList.remove('feedback-status--hint');
-      }
-      if (dialog) dialog.hidden = false;
+      window.open(TELEGRAM_GROUP_URL, '_blank', 'noopener,noreferrer');
     },
   });
 }
@@ -317,42 +260,15 @@ function bindChrome() {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (aboutDialog && !aboutDialog.hidden) closeAbout();
-    const feedbackDialog = $('#feedback-dialog');
-    if (feedbackDialog && !feedbackDialog.hidden) feedbackDialog.hidden = true;
     document.querySelector('[data-auto-export-panel]')?.remove();
   });
 
-  const feedbackDialog = $('#feedback-dialog');
-  const feedbackText = /** @type {HTMLTextAreaElement | null} */ ($('#feedback-text'));
-  const feedbackStatus = $('#feedback-status');
-
-  const closeFeedback = () => {
-    if (feedbackDialog) feedbackDialog.hidden = true;
-  };
-  feedbackDialog?.querySelectorAll('[data-feedback-close]').forEach((el) => {
-    el.addEventListener('click', closeFeedback);
-  });
   window.addEventListener(AUTO_EXPORT_STATUS_EVENT, () => {
     void getAutoExportStatus()
       .then((status) => {
         applyAutoExportBadge(document.querySelector('[data-transfer="auto-export"]'), status);
       })
       .catch(() => {});
-  });
-
-  $('#btn-feedback-send')?.addEventListener('click', () => {
-    const note = (feedbackText?.value || '').trim();
-    const params = new URLSearchParams();
-    params.set('subject', 'Wordaholic feedback');
-    if (note) params.set('body', note);
-    // URLSearchParams encodes spaces as '+'; mailto prefers '%20'
-    const qs = params.toString().replace(/\+/g, '%20');
-    location.href = `mailto:${AUTHOR_EMAIL}?${qs}`;
-    if (feedbackStatus) {
-      feedbackStatus.hidden = false;
-      feedbackStatus.textContent = 'If nothing opened, set a default mail app on this device.';
-      feedbackStatus.classList.add('feedback-status--hint');
-    }
   });
 }
 

@@ -1,5 +1,7 @@
 import type { Guess, LetterEvaluation } from './types';
 import { normalizeForLanguage } from './characterNormalization';
+import { getInputPlugins } from './languageLoader';
+import { letterWithFinalForm } from './inputPlugins';
 
 function letterKey(letter: string, language: string): string {
   return normalizeForLanguage(letter.toLowerCase(), language);
@@ -18,24 +20,67 @@ function lockedGreens(guesses: Guess[], wordLength: number): Array<string | null
 }
 
 /**
- * Known multiplicity of each letter: the highest (correct + present) count
- * seen in any single guess. Appearances across later guesses are not added.
+ * Proven minimum copies of each letter in the word: max of
+ * (highest green+yellow count in any one guess) and (distinct green columns).
+ * Yellows across separate guesses are not added; greens in separate guesses are.
  */
 function knownCountByLetter(guesses: Guess[], language: string): Map<string, number> {
   const known = new Map<string, number>();
+  const greenCols = new Map<string, Set<number>>();
   for (const guess of guesses) {
     const inGuess = new Map<string, number>();
-    for (const ev of guess.evaluations || []) {
-      if (ev?.state === 'correct' || ev.state === 'present') {
-        const key = letterKey(ev.letter, language);
+    const evals = guess.evaluations || [];
+    for (let col = 0; col < evals.length; col++) {
+      const ev = evals[col];
+      if (!ev) continue;
+      const key = letterKey(ev.letter, language);
+      if (ev.state === 'correct' || ev.state === 'present') {
         inGuess.set(key, (inGuess.get(key) || 0) + 1);
+      }
+      if (ev.state === 'correct') {
+        let cols = greenCols.get(key);
+        if (!cols) {
+          cols = new Set();
+          greenCols.set(key, cols);
+        }
+        cols.add(col);
       }
     }
     for (const [key, n] of inGuess) {
       known.set(key, Math.max(known.get(key) || 0, n));
     }
   }
+  for (const [key, cols] of greenCols) {
+    known.set(key, Math.max(known.get(key) || 0, cols.size));
+  }
   return known;
+}
+
+/**
+ * Exact multiplicity when a guess used the letter more times than it scored
+ * green/yellow (leftover tiles were gray). "At least n" is not enough.
+ */
+function exactCountByLetter(guesses: Guess[], language: string): Map<string, number> {
+  const exact = new Map<string, number>();
+  for (const guess of guesses) {
+    const scored = new Map<string, number>();
+    const total = new Map<string, number>();
+    for (const ev of guess.evaluations || []) {
+      if (!ev) continue;
+      const key = letterKey(ev.letter, language);
+      total.set(key, (total.get(key) || 0) + 1);
+      if (ev.state === 'correct' || ev.state === 'present') {
+        scored.set(key, (scored.get(key) || 0) + 1);
+      }
+    }
+    for (const [key, n] of total) {
+      const hit = scored.get(key) || 0;
+      if (n <= hit) continue;
+      const prev = exact.get(key);
+      exact.set(key, prev == null ? hit : Math.min(prev, hit));
+    }
+  }
+  return exact;
 }
 
 function knowledgeParts(
@@ -129,7 +174,7 @@ function columnsByDisplayLeft(cols, wordLength, rtl) {
 
 /**
  * Columns that get a glyph: greens first (visual left), then yellows.
- * Count is the max yellow+green hits for this letter in any one guess.
+ * Count is the proven minimum copies of this letter in the word.
  * @param {Array<'correct' | 'present' | null>} states
  * @param {number} wordLength
  * @param {boolean} rtl
@@ -157,8 +202,11 @@ function glyphColumns(states, wordLength, rtl, maxGlyphs) {
  * Summary known grid: one row per discovered letter (yellow or green on the
  * board), in discovery order, up to word length. Each row colors every column
  * where that letter was present or correct. The letter is written as many
- * times as it lit up in a single guess (greens first, then leftmost yellows).
- * A later gray of that letter still marks the column yellow (ruled out).
+ * times as we can prove it occurs (greens first, then leftmost yellows).
+ * A later gray of that letter still marks the column yellow (tried, not there).
+ * If a gray also proves every copy is already green, leftover columns are absent.
+ * A final-form pair (Hebrew מ/ם and the rest) stays on that one row: the glyph
+ * in the last column is the final form, and every other glyph is the regular form.
  */
 export function layoutSummaryKnown(
   guesses: Guess[],
@@ -172,10 +220,12 @@ export function layoutSummaryKnown(
     () => Array(wordLength).fill(null)
   );
   const knownByLetter = knownCountByLetter(guesses, language);
+  const exactByLetter = exactCountByLetter(guesses, language);
+  const inputPlugins = getInputPlugins(language);
 
   type LetterTrack = {
     letter: string;
-    states: Array<'correct' | 'present' | null>;
+    states: Array<'correct' | 'present' | 'absent' | null>;
   };
   const order: string[] = [];
   const byKey = new Map<string, LetterTrack>();
@@ -209,6 +259,15 @@ export function layoutSummaryKnown(
     }
   }
 
+  for (const [key, track] of byKey) {
+    const greens = track.states.filter((st) => st === 'correct').length;
+    const exact = exactByLetter.get(key);
+    if (exact == null || exact !== greens) continue;
+    for (let col = 0; col < wordLength; col++) {
+      if (!track.states[col]) track.states[col] = 'absent';
+    }
+  }
+
   for (let i = 0; i < order.length && i < knownRowCount; i++) {
     const key = order[i];
     const track = byKey.get(key);
@@ -218,7 +277,9 @@ export function layoutSummaryKnown(
       const state = track.states[col];
       if (!state) continue;
       rows[i][col] = {
-        letter: glyphCols.has(col) ? track.letter : '',
+        letter: glyphCols.has(col)
+          ? letterWithFinalForm(track.letter, col === wordLength - 1, inputPlugins)
+          : '',
         state,
       };
     }
