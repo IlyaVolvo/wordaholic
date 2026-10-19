@@ -1,4 +1,5 @@
-import { registerGame, listGames } from './games-contract.js';
+import { listGames } from './games-contract.js';
+import './game-registry.js';
 import { loadLanguages } from './shell/languages.js';
 import { renderWorldMap, renderGameRail } from './shell/map.js';
 import { prepareOffline } from './shell/offline-prep.js';
@@ -24,42 +25,6 @@ import {
 import { reloadLatestFromServer } from './updates/reload-latest.js';
 import { openHelp } from './help/dialog.js';
 import { reportStats } from './stats/report.js';
-
-registerGame({
-  id: 'polywordlot',
-  name: 'PolyWordlot',
-  storageSchema: 1,
-  languages: ['en', 'ru', 'fr', 'es', 'he', 'hy', 'de'],
-  async initialize() {},
-  start() {},
-  saveState() { return null; },
-  restoreState() {},
-  getStatistics() { return null; },
-});
-
-registerGame({
-  id: 'transword',
-  name: 'TransWord',
-  storageSchema: 1,
-  languages: ['en', 'es', 'fr', 'ru', 'de'],
-  async initialize() {},
-  start() {},
-  saveState() { return null; },
-  restoreState() {},
-  getStatistics() { return null; },
-});
-
-registerGame({
-  id: 'polyhydra',
-  name: 'Hydra',
-  storageSchema: 1,
-  languages: ['en', 'ru', 'fr', 'es', 'he', 'hy', 'de'],
-  async initialize() {},
-  start() {},
-  saveState() { return null; },
-  restoreState() {},
-  getStatistics() { return null; },
-});
 
 const $ = (sel) => document.querySelector(sel);
 

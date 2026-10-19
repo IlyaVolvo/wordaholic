@@ -77,7 +77,8 @@
     "lon": 34.8,
     "games": [
       "polywordlot",
-      "polyhydra"
+      "polyhydra",
+      "transword"
     ],
     "polywordlotLengths": [
       4,

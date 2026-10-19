@@ -16,6 +16,8 @@ import {
   setLastLanguage,
 } from '../../app/i18n-prefs/preferred.js';
 import { languageDirForTranswordDir } from '../../app/shell/locales.js';
+import { getGame } from '../../app/games-contract.js';
+import '../../app/game-registry.js';
 import { normalizeWithMappings } from '../../app/i18n/normalize.js';
 import { openHelp } from '../../app/help/dialog.js';
 import { mountPortraitGate } from '../../app/play/portrait-gate.js';
@@ -350,20 +352,8 @@ async function loadLanguageConfig(dir) {
   return res.json();
 }
 
-function blockedGameIds(cfg) {
-  const raw = cfg?.blocked;
-  if (raw === true) return ['transword'];
-  if (typeof raw === 'string') {
-    const v = raw.trim().toLowerCase();
-    if (v === 'yes' || v === 'true') return ['transword'];
-    return v ? [v] : [];
-  }
-  if (Array.isArray(raw)) return raw.map((id) => String(id));
-  return [];
-}
-
-function isBlockedInGame(cfg) {
-  return blockedGameIds(cfg).includes(GAME_ID);
+function isRegisteredLanguage(code) {
+  return (getGame(GAME_ID)?.languages || []).includes(code);
 }
 
 async function loadLanguagesCatalog() {
@@ -380,14 +370,15 @@ async function loadLanguagesCatalog() {
     if (!entry?.dir || !(Number(entry.words || 0) > 0)) continue;
     try {
       const cfg = await loadLanguageConfig(entry.dir);
-      if (isBlockedInGame(cfg)) continue;
+      const code = entry.code || cfg.code || entry.dir.slice(0, 2).toLowerCase();
+      if (!isRegisteredLanguage(code)) continue;
       const corpusRes = await fetch(`${LANG_BASE}/${entry.dir}/corpus.txt`);
       if (!corpusRes.ok) continue;
       const text = await corpusRes.text();
       if (!text.trim()) continue;
       playable.push({
         dir: entry.dir,
-        code: entry.code || cfg.code || entry.dir.slice(0, 2).toLowerCase(),
+        code,
         menu: entry.menu || cfg.menu || entry.dir,
         flag: entry.flag || cfg.flag || '',
       });
