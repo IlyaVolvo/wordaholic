@@ -31,12 +31,6 @@ export interface KeyboardActions {
   };
 }
 
-/** Input plugin config: id + optional language-specific config */
-export interface InputPluginConfig {
-  id: string;
-  config?: Record<string, unknown>;
-}
-
 interface KeyboardConfig {
   layout: string[][];
   actions?: KeyboardActions;
@@ -48,8 +42,6 @@ interface KeyboardConfig {
   flag?: string;
   /** Character normalization mappings (e.g. {"ä": "a", "ß": "ss"}). */
   normalization?: Record<string, string>;
-  /** Optional input plugins invoked on every letter entry. */
-  plugins?: InputPluginConfig[];
   /** Localized message shown on win. */
   winMessage?: string;
   /** Localized help tip text. */
@@ -68,7 +60,6 @@ const keyboardActionsCache = new Map<string, KeyboardActions>();
 const keyboardRtlCache = new Map<string, boolean>();
 const keyboardMenuCache = new Map<string, string>();
 const normalizationCache = new Map<string, Record<string, string>>();
-const inputPluginsCache = new Map<string, InputPluginConfig[]>();
 const winMessageCache = new Map<string, string>();
 const helpTipCache = new Map<string, string>();
 const loseMessageCache = new Map<string, string>();
@@ -334,14 +325,6 @@ export async function loadKeyboard(language: string): Promise<string[][] | null>
         if (config.about && typeof config.about === 'object') {
           aboutCache.set(language, config.about);
         }
-        if (Array.isArray(config.plugins) && config.plugins.length > 0) {
-          const valid = config.plugins.filter(
-            (p): p is InputPluginConfig => p && typeof p === 'object' && typeof (p as InputPluginConfig).id === 'string'
-          );
-          inputPluginsCache.set(language, valid);
-        } else {
-          inputPluginsCache.set(language, []);
-        }
         return config.layout;
       }
     }
@@ -350,7 +333,6 @@ export async function loadKeyboard(language: string): Promise<string[][] | null>
     if (Array.isArray(keyboardData) && keyboardData.every(row => Array.isArray(row))) {
       keyboardCache.set(language, keyboardData);
       keyboardRtlCache.set(language, false);
-      inputPluginsCache.set(language, []);
       return keyboardData;
     }
 
@@ -394,17 +376,6 @@ export async function loadKeyboardActions(language: string): Promise<KeyboardAct
  */
 export function getNormalization(language: string): Record<string, string> | null {
   return normalizationCache.get(language) || null;
-}
-
-/**
- * Returns the input plugins for a language, loaded from language.json.
- * Must be called after loadKeyboard() has been called for this language.
- */
-export function getInputPlugins(language: string): InputPluginConfig[] {
-  if (inputPluginsCache.has(language)) {
-    return inputPluginsCache.get(language)!;
-  }
-  return [];
 }
 
 /**

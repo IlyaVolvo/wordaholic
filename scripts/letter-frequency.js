@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { getGame } from '../app/games-contract.js';
 import '../app/game-registry.js';
 import { languageDirForCode } from '../app/shell/locales.js';
+import { languageHooks } from '../app/i18n/languages/index.js';
 import { buildLexicon } from '../games/letterix/src/lexicon.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -26,8 +27,10 @@ const GAMES = {
     file: (languageName) => `games/letterix/data/languages/${languageName}/corpus.txt`,
     /** Same as loadLexicon in games/letterix/src/App.tsx: every non-empty trimmed line is a word. */
     words: (text) => text.split(/\n/).map((line) => line.trim()).filter(Boolean),
-    count(words) {
-      const lex = buildLexicon(words, (word) => word);
+    /** Same options as loadLexicon: the language's base letters (Hebrew final forms count as regular). */
+    count(words, langJson, langCode) {
+      const { baseLetter } = languageHooks(langCode);
+      const lex = buildLexicon(words, (word) => word, { baseLetter, rtl: langJson.rtl === true });
       return {
         counts: new Map(lex.table.map((row) => [row.letter, row.freq])),
         values: lex.values,
@@ -67,16 +70,16 @@ function analyze(langCode) {
   const words = game.words(fs.readFileSync(absFile, 'utf8'));
   if (!words.length) return { error: `${relFile} is empty.` };
 
-  const { counts, values } = game.count(words);
+  const langJsonPath = path.join(ROOT, 'word-data', wordDir, 'language.json');
+  const langJson = fs.existsSync(langJsonPath) ? JSON.parse(fs.readFileSync(langJsonPath, 'utf8')) : {};
+  const { counts, values } = game.count(words, langJson, langCode);
   const total = [...counts.values()].reduce((sum, n) => sum + n, 0);
   const rows = [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   const strays = rows.filter(([ch]) => !/\p{L}/u.test(ch));
 
-  const langJsonPath = path.join(ROOT, 'word-data', wordDir, 'language.json');
-  const langJson = fs.existsSync(langJsonPath) ? JSON.parse(fs.readFileSync(langJsonPath, 'utf8')) : {};
   const merged = new Map();
   for (const [from, to] of Object.entries(langJson.normalization || {})) {
-    if (from === to) continue;
+    if (from === to || !counts.has(from)) continue;
     const group = merged.get(to) || [to];
     group.push(from);
     merged.set(to, group);
@@ -85,7 +88,11 @@ function analyze(langCode) {
     .map((group) => ({ group, n: group.reduce((sum, ch) => sum + (counts.get(ch) || 0), 0) }))
     .sort((a, b) => b.n - a.n);
 
-  return { langCode, languageName, relFile, words, counts, values, total, rows, strays, groups };
+  const { baseLetter } = languageHooks(langCode);
+  const finals = [...new Set(words.flatMap((word) => Array.from(word.toLowerCase())))]
+    .filter((ch) => baseLetter(ch) !== ch)
+    .sort((a, b) => a.localeCompare(b));
+  return { langCode, languageName, relFile, words, counts, values, total, rows, strays, groups, finals };
 }
 
 const reports = codes.map(analyze);
@@ -136,6 +143,9 @@ for (const r of ok) {
     '',
     `Source: \`${r.relFile}\` — ${num(r.words.length)} words, ${num(r.total)} letters, ${r.rows.length} distinct.`,
   );
+  if (r.finals.length) {
+    lines.push('', `Positional forms (${r.finals.join(' ')}) never fall; each is counted as its base letter.`);
+  }
   if (r.strays.length) {
     lines.push('', `**Warning:** the file has characters that are not letters, and ${game.name} counts them as letters: ${r.strays.map(([ch]) => shown(ch)).join(', ')}.`);
   }

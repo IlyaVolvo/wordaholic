@@ -27,10 +27,15 @@ export function drawField(ctx: CanvasRenderingContext2D, sim: Sim, now: number) 
   ctx.stroke();
 
   const wordOn = sim.phase === 'decide' && Math.floor(now / 280) % 2 === 0;
-  const words = new Set<string>();
+  const words = new Map<string, string | null>();
   if (sim.phase === 'decide') {
     for (const match of sim.offer) {
-      for (const cell of match.cells) words.add(`${cell.r},${cell.c}`);
+      const spelled = match.display ? Array.from(match.display) : null;
+      match.cells.forEach((cell, i) => {
+        const key = `${cell.r},${cell.c}`;
+        const letter = spelled?.[i] ?? null;
+        if (!words.has(key) || letter) words.set(key, letter);
+      });
     }
   }
 
@@ -49,9 +54,11 @@ export function drawField(ctx: CanvasRenderingContext2D, sim: Sim, now: number) 
       const letter = sim.grid[r][c];
       if (!letter) continue;
       const selected = sim.held?.row === r && sim.held?.col === c;
-      const word = wordOn && words.has(`${r},${c}`);
+      const key = `${r},${c}`;
+      const word = wordOn && words.has(key);
+      const shown = (words.has(key) && words.get(key)) || letter;
       const blocked = selected && dropBlocked(sim);
-      paintTile(ctx, wall + c * sim.A, floor - (r + 1) * sim.A, sim.A, letter, selected, word, blocked);
+      paintTile(ctx, wall + c * sim.A, floor - (r + 1) * sim.A, sim.A, shown, selected, word, blocked);
     }
   }
 

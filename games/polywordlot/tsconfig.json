@@ -19,6 +19,7 @@
     "paths": {
       "@wordaholic/locales": ["../../app/shell/locales.js"],
       "@wordaholic/normalize": ["../../app/i18n/normalize.js"],
+      "@wordaholic/languages": ["../../app/i18n/languages/index.js"],
       "@wordaholic/storage": ["../../app/storage/idb.js"],
       "@wordaholic/stats": ["../../app/stats/report.js"],
       "@wordaholic/wordle-core": ["../../packages/wordle-core/src/index.ts"]
@@ -29,6 +30,7 @@
     "../../packages/wordle-core/src",
     "../../app/shell/locales.js",
     "../../app/i18n/normalize.js",
+    "../../app/i18n/languages",
     "../../app/storage/idb.js"
   ]
 }

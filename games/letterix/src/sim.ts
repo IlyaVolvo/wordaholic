@@ -51,6 +51,8 @@ export type Sim = {
   table: Lexicon['table'];
   total: number;
   normalize: (word: string) => string;
+  spell: (word: string) => string;
+  rtl: boolean;
 };
 
 export type PersistedSim = {
@@ -81,12 +83,14 @@ export type PersistedSim = {
   aborted: boolean;
 };
 
-const EMPTY_LEX: Pick<Lexicon, 'dict' | 'values' | 'table' | 'total' | 'normalize'> = {
+const EMPTY_LEX: Pick<Lexicon, 'dict' | 'values' | 'table' | 'total' | 'normalize' | 'spell' | 'rtl'> = {
   dict: new Set(),
   values: {},
   table: [],
   total: 0,
   normalize: (word) => word,
+  spell: (word) => word,
+  rtl: false,
 };
 
 function touch(sim: Sim) {
@@ -368,6 +372,8 @@ export function createSim(opts: {
     table: opts.lex.table,
     total: opts.lex.total,
     normalize: opts.lex.normalize,
+    spell: opts.lex.spell ?? ((word) => word),
+    rtl: Boolean(opts.lex.rtl),
   };
   return sim;
 }
@@ -701,6 +707,8 @@ export function attachLexicon(sim: Sim, lex: Lexicon) {
   sim.table = lex.table;
   sim.total = lex.total;
   sim.normalize = lex.normalize;
+  sim.spell = lex.spell ?? ((word) => word);
+  sim.rtl = Boolean(lex.rtl);
 }
 
 export function exportState(sim: Sim): PersistedSim {

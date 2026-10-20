@@ -8,17 +8,37 @@ export type Lexicon = {
   values: Record<string, number>;
   table: LetterRow[];
   total: number;
-  /** Folds a board word before the dictionary lookup. Letter draws stay unfolded. */
+  /** Folds a board word before the dictionary lookup. Letter draws use base letters. */
   normalize: (word: string) => string;
+  /** A board word (reading order) as the language writes it in place, e.g. a Hebrew final letter at the end. */
+  spell: (word: string) => string;
+  /** Horizontal words read right to left. */
+  rtl: boolean;
 };
 
-export function buildLexicon(words: string[], normalize: (word: string) => string): Lexicon {
+/** Language hooks from app/i18n/languages; each defaults to no change. */
+export type LexiconOptions = {
+  /** The letter a positional form stands for (Hebrew ם → מ). Only base letters fall, and forms count toward them. */
+  baseLetter?: (letter: string) => string;
+  spell?: (word: string) => string;
+  rtl?: boolean;
+};
+
+export function buildLexicon(
+  words: string[],
+  normalize: (word: string) => string,
+  options: LexiconOptions = {},
+): Lexicon {
+  const baseLetter = options.baseLetter ?? ((letter: string) => letter);
   const dict = new Set<string>();
   const freq = new Map<string, number>();
   for (const raw of words) {
     const surface = Array.from(String(raw || '').trim().toLowerCase()).join('');
     if (!surface) continue;
-    for (const ch of surface) freq.set(ch, (freq.get(ch) || 0) + 1);
+    for (const ch of surface) {
+      const drawn = baseLetter(ch);
+      freq.set(drawn, (freq.get(drawn) || 0) + 1);
+    }
     const word = Array.from(normalize(surface)).join('');
     if (Array.from(surface).length >= PARAMS.Nmin && word) dict.add(word);
   }
@@ -46,7 +66,15 @@ export function buildLexicon(words: string[], normalize: (word: string) => strin
     return { letter, freq: freq.get(letter) || 0, cum };
   });
 
-  return { dict, values, table, total: cum, normalize };
+  return {
+    dict,
+    values,
+    table,
+    total: cum,
+    normalize,
+    spell: options.spell ?? ((word: string) => word),
+    rtl: Boolean(options.rtl),
+  };
 }
 
 export function pickLetter(u: number, table: LetterRow[], total: number): string {

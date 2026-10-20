@@ -73,6 +73,7 @@ export default defineConfig({
     alias: {
       '@wordaholic/locales': path.resolve(__dirname, '../../app/shell/locales.js'),
       '@wordaholic/normalize': path.resolve(__dirname, '../../app/i18n/normalize.js'),
+      '@wordaholic/languages': path.resolve(__dirname, '../../app/i18n/languages/index.js'),
       '@wordaholic/storage': path.resolve(__dirname, '../../app/storage/idb.js'),
       '@wordaholic/help': path.resolve(__dirname, '../../app/help/dialog.js'),
       '@wordaholic/stats': path.resolve(__dirname, '../../app/stats/report.js'),

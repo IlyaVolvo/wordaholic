@@ -1,7 +1,6 @@
 import type { Guess, LetterEvaluation } from './types';
 import { normalizeForLanguage } from './characterNormalization';
-import { getInputPlugins } from './languageLoader';
-import { letterWithFinalForm } from './inputPlugins';
+import { letterInPlace } from './languageForms';
 
 function letterKey(letter: string, language: string): string {
   return normalizeForLanguage(letter.toLowerCase(), language);
@@ -221,7 +220,6 @@ export function layoutSummaryKnown(
   );
   const knownByLetter = knownCountByLetter(guesses, language);
   const exactByLetter = exactCountByLetter(guesses, language);
-  const inputPlugins = getInputPlugins(language);
 
   type LetterTrack = {
     letter: string;
@@ -278,7 +276,7 @@ export function layoutSummaryKnown(
       if (!state) continue;
       rows[i][col] = {
         letter: glyphCols.has(col)
-          ? letterWithFinalForm(track.letter, col === wordLength - 1, inputPlugins)
+          ? letterInPlace(track.letter, col === wordLength - 1, language)
           : '',
         state,
       };

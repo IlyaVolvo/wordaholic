@@ -1,13 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
-  applyInputPlugins,
   boardKnowledgeTally,
   clampBoardCount,
   evaluateGuess,
   formatDate,
   getHydraDailyWords,
-  getInputPlugins,
   getKeyboardRtl,
   isValidWord,
   isWinningGuessForLanguage,
@@ -18,6 +16,7 @@ import {
   maxGuessesForBoardCount,
   normalizeForLanguage,
   summaryKnownRows,
+  typedLetter,
 } from '@wordaholic/wordle-core';
 import { openHelp } from '@wordaholic/help';
 import { reportStats } from '@wordaholic/stats';
@@ -715,11 +714,7 @@ export const Game: React.FC<GameProps> = ({
           date: selectedPlayDate,
         });
       }
-      const plugins = getInputPlugins(language);
-      const transformed =
-        plugins.length > 0
-          ? applyInputPlugins(key.toLowerCase(), currentGuess, wordLength, keyboardRtl, plugins)
-          : key.toLowerCase();
+      const transformed = typedLetter(key.toLowerCase(), currentGuess, wordLength, keyboardRtl, language);
       if (currentGuess.length >= wordLength) return;
       const next = keyboardRtl ? transformed + currentGuess : currentGuess + transformed;
       setInvalidPending(false);

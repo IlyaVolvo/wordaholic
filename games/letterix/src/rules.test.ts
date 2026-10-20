@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { languageHooks, spellInPlace } from '../../../app/i18n/languages/index.js';
 import { buildLexicon, lettersFromSeed } from './lexicon.ts';
 import { offeredMatches } from './matches.ts';
 import { drawField } from './render.ts';
@@ -42,8 +43,8 @@ function makeTestDrop(): Sim {
   const sim = board();
   sim.dict = new Set(['test']);
   placeFrozen(sim, 7, 0, 't');
-  placeFrozen(sim, 8, 0, 'e');
-  placeFrozen(sim, 9, 0, 's');
+  placeFrozen(sim, 8, 0, 's');
+  placeFrozen(sim, 9, 0, 'e');
   injectFalling(sim, 't', 0, (sim.H + sim.E - 1) * sim.A);
   hardDrop(sim);
   return sim;
@@ -137,12 +138,87 @@ test('a folded letter keeps its own frequency and still matches', () => {
   assert.equal(dictionary.dict.has('елка'), true);
   assert.equal(dictionary.dict.has('ёлка'), false);
   const sim = createSim({ W: 4, H: 10, language: 'ru', date: '2026-10-03', lex: dictionary, A: 28 });
-  placeFrozen(sim, 6, 0, 'ё');
-  placeFrozen(sim, 7, 0, 'л');
-  placeFrozen(sim, 8, 0, 'к');
-  placeFrozen(sim, 9, 0, 'а');
+  placeFrozen(sim, 9, 0, 'ё');
+  placeFrozen(sim, 8, 0, 'л');
+  placeFrozen(sim, 7, 0, 'к');
+  placeFrozen(sim, 6, 0, 'а');
   assert.ok(matches(sim).some((m) => m.text === 'ёлка'));
   assert.equal(wordValue('ёлка', dictionary.values) !== wordValue('елка', dictionary.values), true);
+});
+
+const HEBREW_FINALS = ['ם', 'ן', 'ץ', 'ף', 'ך'];
+
+function lexiconFor(code: string, words: string[], rtl = false) {
+  const hooks = languageHooks(code);
+  const fold = (word: string) => Array.from(word, hooks.baseLetter).join('');
+  return buildLexicon(words, fold, { baseLetter: hooks.baseLetter, spell: (w) => spellInPlace(w, hooks), rtl });
+}
+
+function hebrew(words: string[]) {
+  return lexiconFor('he', words, true);
+}
+
+test('final letters never fall and count as their regular letter', () => {
+  const dictionary = hebrew(['מלך', 'כלב', 'שלום']);
+  const freq = Object.fromEntries(dictionary.table.map((row) => [row.letter, row.freq]));
+  for (const final of HEBREW_FINALS) {
+    assert.equal(freq[final], undefined);
+    assert.equal(dictionary.values[final], undefined);
+  }
+  assert.equal(freq['כ'], 2);
+  assert.equal(freq['מ'], 2);
+  assert.equal(dictionary.rtl, true);
+  assert.equal(dictionary.spell('מלכ'), 'מלך');
+});
+
+test('a language without its own module changes nothing', () => {
+  const hooks = languageHooks('ru');
+  assert.equal(hooks.baseLetter('ё'), 'ё');
+  assert.equal(spellInPlace('ёлка', hooks), 'ёлка');
+  const sim = createSim({ W: 6, H: 10, language: 'en', date: '2026-10-03', lex: lexiconFor('en', ['cat']), A: 28 });
+  for (const [i, ch] of ['c', 'a', 't'].entries()) placeFrozen(sim, 0, i, ch);
+  const found = matches(sim);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].display, undefined);
+});
+
+test('a Hebrew row reads right to left and shows the final form at its end', () => {
+  const sim = createSim({ W: 6, H: 10, language: 'he', date: '2026-10-03', lex: hebrew(['מלך']), A: 28 });
+  placeFrozen(sim, 0, 5, 'מ');
+  placeFrozen(sim, 0, 4, 'ל');
+  placeFrozen(sim, 0, 3, 'כ');
+  const found = matches(sim);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].text, 'מלכ');
+  assert.equal(found[0].display, 'מלך');
+  assert.deepEqual(found[0].cells.at(-1), { r: 0, c: 3 });
+
+  const mirrored = createSim({ W: 6, H: 10, language: 'he', date: '2026-10-03', lex: hebrew(['מלך']), A: 28 });
+  for (const [i, ch] of ['מ', 'ל', 'כ'].entries()) placeFrozen(mirrored, 0, i, ch);
+  assert.deepEqual(matches(mirrored), []);
+});
+
+test('a word that already ends in its own spelling gets no display', () => {
+  const sim = createSim({ W: 6, H: 10, language: 'he', date: '2026-10-03', lex: hebrew(['כלב']), A: 28 });
+  for (const [c, ch] of [[5, 'כ'], [4, 'ל'], [3, 'ב']] as const) placeFrozen(sim, 0, c, ch);
+  const found = matches(sim);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].display, undefined);
+});
+
+test('a column reads top to bottom', () => {
+  const sim = board();
+  placeFrozen(sim, 0, 0, 't');
+  placeFrozen(sim, 1, 0, 'a');
+  placeFrozen(sim, 2, 0, 'c');
+  const found = matches(sim);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].text, 'cat');
+  assert.deepEqual(found[0].cells, [{ r: 2, c: 0 }, { r: 1, c: 0 }, { r: 0, c: 0 }]);
+
+  const upward = board();
+  for (const [r, ch] of ['c', 'a', 't'].entries()) placeFrozen(upward, r, 0, ch);
+  assert.deepEqual(matches(upward), []);
 });
 
 test('frequency intervals prefer the more common letter', () => {
@@ -488,6 +564,41 @@ test('a discovered word flashes while the choice is held', () => {
   tileFills.length = 0;
   drawField(ctx, sim, 280);
   assert.equal(tileFills.includes('#f0c400'), false);
+});
+
+test('a flashing Hebrew word shows its final form on the last tile', () => {
+  const sim = createSim({ W: 6, H: 10, language: 'he', date: '2026-10-03', lex: hebrew(['מלך']), A: 28 });
+  placeFrozen(sim, 0, 5, 'מ');
+  placeFrozen(sim, 0, 4, 'ל');
+  placeFrozen(sim, 0, 3, 'כ');
+  sim.offer = matches(sim);
+  sim.phase = 'decide';
+  const texts: { text: string; x: number }[] = [];
+  const ctx = {
+    fillStyle: '',
+    strokeStyle: '',
+    lineWidth: 1,
+    font: '',
+    textAlign: 'left',
+    textBaseline: 'alphabetic',
+    clearRect() {},
+    fillRect() {},
+    beginPath() {},
+    moveTo() {},
+    lineTo() {},
+    stroke() {},
+    arcTo() {},
+    closePath() {},
+    fill() {},
+    fillText(text: string, x: number) { texts.push({ text, x }); },
+  } as unknown as CanvasRenderingContext2D;
+  for (const now of [0, 280]) {
+    texts.length = 0;
+    drawField(ctx, sim, now);
+    const tiles = texts.filter((t) => /\p{L}/u.test(t.text)).sort((a, b) => b.x - a.x).map((t) => t.text);
+    assert.deepEqual(tiles, ['מ', 'ל', 'ך']);
+  }
+  assert.equal(sim.grid[0][3], 'כ');
 });
 
 test('timeout uses the word by default; space confirms early and adds a small bonus', () => {

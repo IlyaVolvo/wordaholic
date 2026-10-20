@@ -7,11 +7,23 @@ export type Dir = 'h' | 'v';
 export type Match = {
   dir: Dir;
   line: number;
+  /** Positions along the line in reading order: right to left for RTL rows, top to bottom for columns. */
   start: number;
   end: number;
   text: string;
   value: number;
+  /** In reading order, so the last cell is the end of the word. */
   cells: { r: number; c: number }[];
+  /** The word as the language writes it when that differs from the board letters, e.g. a Hebrew final form at the end. */
+  display?: string;
+};
+
+type Cell = { r: number; c: number };
+
+export type MatchOptions = {
+  normalize?: (word: string) => string;
+  spell?: (word: string) => string;
+  rtl?: boolean;
 };
 
 export type Suppression = {
@@ -28,24 +40,23 @@ export function matchKey(m: Pick<Match, 'dir' | 'line' | 'start' | 'end' | 'text
   return `${m.dir}:${m.line}:${m.start}:${m.end}:${m.text}`;
 }
 
-function cellsOf(dir: Dir, line: number, start: number, end: number): { r: number; c: number }[] {
-  const cells = [];
-  for (let i = start; i < end; i++) {
-    cells.push(dir === 'h' ? { r: line, c: i } : { r: i, c: line });
-  }
-  return cells;
-}
-
+/** `cellAt(i)` is the i-th cell of the line in reading order. */
 function scanLine(
   dir: Dir,
   line: number,
   length: number,
-  at: (i: number) => string | null,
+  cellAt: (i: number) => Cell,
+  grid: (string | null)[][],
   dict: Set<string>,
   values: Record<string, number>,
   normalize: (word: string) => string,
+  spell: ((word: string) => string) | undefined,
   found: Match[],
 ) {
+  const at = (i: number) => {
+    const { r, c } = cellAt(i);
+    return grid[r]?.[c] ?? null;
+  };
   let i = 0;
   while (i < length) {
     while (i < length && !at(i)) i += 1;
@@ -59,18 +70,24 @@ function scanLine(
     for (let a = 0; a < chars.length; a++) {
       for (let b = a + PARAMS.Nmin; b <= chars.length; b++) {
         const sub = chars.slice(a, b).join('');
-        if (!dict.has(normalize(sub))) continue;
+        const folded = normalize(sub);
+        if (!dict.has(folded)) continue;
         const start = seg + a;
         const end = seg + b;
-        found.push({
+        const cells: Cell[] = [];
+        for (let k = start; k < end; k++) cells.push(cellAt(k));
+        const spelled = spell?.(sub);
+        const match: Match = {
           dir,
           line,
           start,
           end,
           text: sub,
           value: wordValue(sub, values),
-          cells: cellsOf(dir, line, start, end),
-        });
+          cells,
+        };
+        if (spelled && spelled !== sub && Array.from(spelled).length === b - a) match.display = spelled;
+        found.push(match);
       }
     }
   }
@@ -83,14 +100,16 @@ export function findMatches(
   rows: number,
   dict: Set<string>,
   values: Record<string, number>,
-  normalize: (word: string) => string = (word) => word,
+  options: MatchOptions = {},
 ): Match[] {
+  const normalize = options.normalize ?? ((word: string) => word);
   const found: Match[] = [];
   for (let r = 0; r < rows; r++) {
-    scanLine('h', r, W, (i) => grid[r][i], dict, values, normalize, found);
+    const cellAt = options.rtl ? (i: number) => ({ r, c: W - 1 - i }) : (i: number) => ({ r, c: i });
+    scanLine('h', r, W, cellAt, grid, dict, values, normalize, options.spell, found);
   }
   for (let c = 0; c < W; c++) {
-    scanLine('v', c, rows, (i) => grid[i][c], dict, values, normalize, found);
+    scanLine('v', c, rows, (i) => ({ r: rows - 1 - i, c }), grid, dict, values, normalize, options.spell, found);
   }
   return found.filter(
     (m) =>
@@ -114,12 +133,13 @@ export function offeredMatches(
   grid: (string | null)[][],
   W: number,
   rows: number,
-  lex: Pick<Lexicon, 'dict' | 'values' | 'normalize'>,
+  lex: Pick<Lexicon, 'dict' | 'values' | 'normalize'> & Partial<Pick<Lexicon, 'spell' | 'rtl'>>,
   suppressed: Suppression[],
   rowGen: number[],
   colGen: number[],
 ): Match[] {
-  return findMatches(grid, W, rows, lex.dict, lex.values, lex.normalize).filter((m) => {
+  const options = { normalize: lex.normalize, spell: lex.spell, rtl: lex.rtl };
+  return findMatches(grid, W, rows, lex.dict, lex.values, options).filter((m) => {
     const gen = lineGen(m.dir, m.line, rowGen, colGen);
     const key = matchKey(m);
     return !suppressed.some((s) => s.key === key && s.gen === gen);

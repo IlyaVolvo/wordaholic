@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { normalizeWithMappings } from '@wordaholic/normalize';
+import { languageHooks, spellInPlace } from '@wordaholic/languages';
 import { getPreferredLanguageCodes, pickActiveLanguage, setLastLanguage } from '@wordaholic/i18n-prefs';
 import { initFavorites } from '../../../app/i18n-prefs/favorites.js';
 import { Game } from './Game';
@@ -58,7 +59,7 @@ async function loadPlayableLanguages(): Promise<LetterixLanguage[]> {
   return playable.length ? playable : [ENGLISH];
 }
 
-async function loadLexicon(lang: Pick<LetterixLanguage, 'dir' | 'wordDir'>): Promise<Lexicon> {
+async function loadLexicon(lang: Pick<LetterixLanguage, 'code' | 'dir' | 'wordDir'>): Promise<Lexicon> {
   const [wordsRes, langRes] = await Promise.all([
     fetch(`/games/letterix/data/languages/${lang.dir}/corpus.txt`),
     fetch(`/word-data/${lang.wordDir}/language.json`),
@@ -67,11 +68,16 @@ async function loadLexicon(lang: Pick<LetterixLanguage, 'dir' | 'wordDir'>): Pro
   const text = await wordsRes.text();
   const config = langRes.ok ? await langRes.json() : {};
   const mappings = config.normalization && typeof config.normalization === 'object' ? config.normalization : {};
+  const hooks = languageHooks(lang.code);
   const words = text
     .split(/\n/)
     .map((line: string) => line.trim())
     .filter(Boolean);
-  return buildLexicon(words, (word) => normalizeWithMappings(word, mappings));
+  return buildLexicon(words, (word) => normalizeWithMappings(word, mappings), {
+    baseLetter: hooks.baseLetter,
+    spell: (word) => spellInPlace(word, hooks),
+    rtl: config.rtl === true,
+  });
 }
 
 export const App: React.FC = () => {

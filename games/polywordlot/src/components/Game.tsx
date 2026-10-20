@@ -4,8 +4,8 @@ import { GameBoard } from './GameBoard';
 import { Keyboard } from './Keyboard';
 import { Settings } from './Settings';
 import { Calendar } from './Calendar';
-import { loadDictionary, loadKeyboard, getKeyboardRtl, getInputPlugins, loadWinMessage, loadLoseMessage } from '../data/languageLoader';
-import { applyInputPlugins } from '../utils/inputPlugins';
+import { loadDictionary, loadKeyboard, getKeyboardRtl, loadWinMessage, loadLoseMessage } from '../data/languageLoader';
+import { typedLetter } from '../utils/inputPlugins';
 import { getDailyWord, getWordFromSeed, formatDate } from '../utils/dailyWord';
 import { evaluateGuess, isValidWord } from '../utils/gameLogic';
 import { normalizeForLanguage, loadNormalization, isWinningGuessForLanguage } from '../utils/characterNormalization';
@@ -906,10 +906,7 @@ export const Game: React.FC<GameProps> = ({
     const normalizedKey = key.toLowerCase();
     const needStart = dictionary && (!gameState || (randomMode && gameState?.isComplete));
     const currentGuess = needStart ? (gameState?.currentGuess ?? '') : (gameState?.currentGuess ?? '');
-    const plugins = getInputPlugins(language);
-    const transformedKey = plugins.length > 0
-      ? applyInputPlugins(normalizedKey, currentGuess, wordLength, keyboardRtl, plugins)
-      : normalizedKey;
+    const transformedKey = typedLetter(normalizedKey, currentGuess, wordLength, keyboardRtl, language);
 
     if (needStart) {
       const keyApplied = await handleStartGame(transformedKey);
@@ -1179,10 +1176,7 @@ export const Game: React.FC<GameProps> = ({
       if (needStart && e.key.length === 1 && /[a-zA-Zа-яА-ЯёЁ\u0590-\u05FF]/.test(e.key)) {
         const normalizedKey = e.key.toLowerCase();
         const currentGuess = gameState?.currentGuess ?? '';
-        const plugins = getInputPlugins(language);
-        const transformedKey = plugins.length > 0
-          ? applyInputPlugins(normalizedKey, currentGuess, wordLength, keyboardRtl, plugins)
-          : normalizedKey;
+        const transformedKey = typedLetter(normalizedKey, currentGuess, wordLength, keyboardRtl, language);
         const keyApplied = await handleStartGame(transformedKey);
         if (!keyApplied) {
           setTimeout(() => {
