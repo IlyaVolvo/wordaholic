@@ -337,7 +337,7 @@ async function loadCorpus(dir) {
   for (const line of text.trim().split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    const parts = trimmed.split('\t');
+    const parts = trimmed.split(/[\t ]+/);
     const word = (parts[0] || '').toLowerCase();
     const level = parseInt(parts[1], 10) || 1;
     if (word) entries.push({ word, level });

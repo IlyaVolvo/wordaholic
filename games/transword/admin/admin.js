@@ -23,7 +23,7 @@ async function loadCorpus(dir) {
   for (const line of text.trim().split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-    words.push(trimmed.split('\t')[0].toLowerCase());
+    words.push(trimmed.split(/[\t ]+/)[0].toLowerCase());
   }
   return words;
 }
