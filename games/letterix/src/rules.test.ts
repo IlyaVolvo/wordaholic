@@ -25,7 +25,7 @@ import {
   type Sim,
 } from './sim.ts';
 
-const WORDS = ['cat', 'cats', 'dog', 'tone', 'stone', 'test'];
+const WORDS = ['cat', 'cats', 'dogs', 'tone', 'stone', 'test', 'tests'];
 
 function lex() {
   return buildLexicon(WORDS, (w) => w);
@@ -175,32 +175,30 @@ test('a language without its own module changes nothing', () => {
   const hooks = languageHooks('ru');
   assert.equal(hooks.baseLetter('ё'), 'ё');
   assert.equal(spellInPlace('ёлка', hooks), 'ёлка');
-  const sim = createSim({ W: 6, H: 10, language: 'en', date: '2026-10-03', lex: lexiconFor('en', ['cat']), A: 28 });
-  for (const [i, ch] of ['c', 'a', 't'].entries()) placeFrozen(sim, 0, i, ch);
+  const sim = createSim({ W: 6, H: 10, language: 'en', date: '2026-10-03', lex: lexiconFor('en', ['cats']), A: 28 });
+  for (const [i, ch] of ['c', 'a', 't', 's'].entries()) placeFrozen(sim, 0, i, ch);
   const found = matches(sim);
   assert.equal(found.length, 1);
   assert.equal(found[0].display, undefined);
 });
 
 test('a Hebrew row reads right to left and shows the final form at its end', () => {
-  const sim = createSim({ W: 6, H: 10, language: 'he', date: '2026-10-03', lex: hebrew(['מלך']), A: 28 });
-  placeFrozen(sim, 0, 5, 'מ');
-  placeFrozen(sim, 0, 4, 'ל');
-  placeFrozen(sim, 0, 3, 'כ');
+  const sim = createSim({ W: 6, H: 10, language: 'he', date: '2026-10-03', lex: hebrew(['שלום']), A: 28 });
+  for (const [c, ch] of [[5, 'ש'], [4, 'ל'], [3, 'ו'], [2, 'מ']] as const) placeFrozen(sim, 0, c, ch);
   const found = matches(sim);
   assert.equal(found.length, 1);
-  assert.equal(found[0].text, 'מלכ');
-  assert.equal(found[0].display, 'מלך');
-  assert.deepEqual(found[0].cells.at(-1), { r: 0, c: 3 });
+  assert.equal(found[0].text, 'שלומ');
+  assert.equal(found[0].display, 'שלום');
+  assert.deepEqual(found[0].cells.at(-1), { r: 0, c: 2 });
 
-  const mirrored = createSim({ W: 6, H: 10, language: 'he', date: '2026-10-03', lex: hebrew(['מלך']), A: 28 });
-  for (const [i, ch] of ['מ', 'ל', 'כ'].entries()) placeFrozen(mirrored, 0, i, ch);
+  const mirrored = createSim({ W: 6, H: 10, language: 'he', date: '2026-10-03', lex: hebrew(['שלום']), A: 28 });
+  for (const [i, ch] of ['ש', 'ל', 'ו', 'מ'].entries()) placeFrozen(mirrored, 0, i, ch);
   assert.deepEqual(matches(mirrored), []);
 });
 
 test('a word that already ends in its own spelling gets no display', () => {
-  const sim = createSim({ W: 6, H: 10, language: 'he', date: '2026-10-03', lex: hebrew(['כלב']), A: 28 });
-  for (const [c, ch] of [[5, 'כ'], [4, 'ל'], [3, 'ב']] as const) placeFrozen(sim, 0, c, ch);
+  const sim = createSim({ W: 6, H: 10, language: 'he', date: '2026-10-03', lex: hebrew(['ילדה']), A: 28 });
+  for (const [c, ch] of [[5, 'י'], [4, 'ל'], [3, 'ד'], [2, 'ה']] as const) placeFrozen(sim, 0, c, ch);
   const found = matches(sim);
   assert.equal(found.length, 1);
   assert.equal(found[0].display, undefined);
@@ -208,16 +206,14 @@ test('a word that already ends in its own spelling gets no display', () => {
 
 test('a column reads top to bottom', () => {
   const sim = board();
-  placeFrozen(sim, 0, 0, 't');
-  placeFrozen(sim, 1, 0, 'a');
-  placeFrozen(sim, 2, 0, 'c');
+  for (const [r, ch] of ['s', 't', 'a', 'c'].entries()) placeFrozen(sim, r, 0, ch);
   const found = matches(sim);
   assert.equal(found.length, 1);
-  assert.equal(found[0].text, 'cat');
-  assert.deepEqual(found[0].cells, [{ r: 2, c: 0 }, { r: 1, c: 0 }, { r: 0, c: 0 }]);
+  assert.equal(found[0].text, 'cats');
+  assert.deepEqual(found[0].cells, [{ r: 3, c: 0 }, { r: 2, c: 0 }, { r: 1, c: 0 }, { r: 0, c: 0 }]);
 
   const upward = board();
-  for (const [r, ch] of ['c', 'a', 't'].entries()) placeFrozen(upward, r, 0, ch);
+  for (const [r, ch] of ['c', 'a', 't', 's'].entries()) placeFrozen(upward, r, 0, ch);
   assert.deepEqual(matches(upward), []);
 });
 
@@ -240,19 +236,19 @@ test('word value and drop bonus', () => {
 
 test('shorter words inside a longer match are dropped; separate words on one row stay', () => {
   const stacked = board();
-  for (const [i, ch] of ['c', 'a', 't', 's'].entries()) placeFrozen(stacked, 0, i, ch);
+  for (const [i, ch] of ['t', 'e', 's', 't', 's'].entries()) placeFrozen(stacked, 0, i, ch);
   assert.deepEqual(
     matches(stacked).map((m) => m.text),
-    ['cats'],
+    ['tests'],
   );
 
-  const wide = board(8);
-  for (const [i, ch] of ['c', 'a', 't', 'x', 'd', 'o', 'g'].entries()) placeFrozen(wide, 0, i, ch);
+  const wide = board(10);
+  for (const [i, ch] of ['c', 'a', 't', 's', 'x', 'd', 'o', 'g', 's'].entries()) placeFrozen(wide, 0, i, ch);
   assert.deepEqual(
     matches(wide)
       .map((m) => m.text)
       .sort(),
-    ['cat', 'dog'],
+    ['cats', 'dogs'],
   );
 
   const stone = board();
@@ -520,17 +516,17 @@ test('clearing the overflow letter continues; keeping it ends the game', () => {
 
 test('a kept match is not offered again until its line changes', () => {
   const sim = board();
-  for (const [i, ch] of ['c', 'a', 't'].entries()) placeFrozen(sim, 0, i, ch);
+  for (const [i, ch] of ['c', 'a', 't', 's'].entries()) placeFrozen(sim, 0, i, ch);
   sim.offer = matches(sim);
   sim.phase = 'decide';
   sim.choice = 'skip';
   leaveWords(sim);
   assert.equal(sim.phase, 'fall');
   assert.deepEqual(matches(sim), []);
-  placeFrozen(sim, 0, 4, 'q');
+  placeFrozen(sim, 0, 5, 'q');
   assert.deepEqual(
     matches(sim).map((m) => m.text),
-    ['cat'],
+    ['cats'],
   );
 });
 
@@ -567,10 +563,8 @@ test('a discovered word flashes while the choice is held', () => {
 });
 
 test('a flashing Hebrew word shows its final form on the last tile', () => {
-  const sim = createSim({ W: 6, H: 10, language: 'he', date: '2026-10-03', lex: hebrew(['מלך']), A: 28 });
-  placeFrozen(sim, 0, 5, 'מ');
-  placeFrozen(sim, 0, 4, 'ל');
-  placeFrozen(sim, 0, 3, 'כ');
+  const sim = createSim({ W: 6, H: 10, language: 'he', date: '2026-10-03', lex: hebrew(['שלום']), A: 28 });
+  for (const [c, ch] of [[5, 'ש'], [4, 'ל'], [3, 'ו'], [2, 'מ']] as const) placeFrozen(sim, 0, c, ch);
   sim.offer = matches(sim);
   sim.phase = 'decide';
   const texts: { text: string; x: number }[] = [];
@@ -596,9 +590,9 @@ test('a flashing Hebrew word shows its final form on the last tile', () => {
     texts.length = 0;
     drawField(ctx, sim, now);
     const tiles = texts.filter((t) => /\p{L}/u.test(t.text)).sort((a, b) => b.x - a.x).map((t) => t.text);
-    assert.deepEqual(tiles, ['מ', 'ל', 'ך']);
+    assert.deepEqual(tiles, ['ש', 'ל', 'ו', 'ם']);
   }
-  assert.equal(sim.grid[0][3], 'כ');
+  assert.equal(sim.grid[0][2], 'מ');
 });
 
 test('timeout uses the word by default; space confirms early and adds a small bonus', () => {

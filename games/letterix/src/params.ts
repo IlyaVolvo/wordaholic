@@ -7,7 +7,7 @@ export const PARAMS = {
   Wmax: 12,
   Hmin: 10,
   Hmax: 20,
-  Nmin: 3,
+  Nmin: 4,
   Vmax: 10,
   Cword: 0.5,
   Cdrop: 0.15,
