@@ -680,10 +680,15 @@ h1 {
 /* -- Error hint --------------------------------------------------- */
 
 .error-hint {
-  font-size: 0.72rem;
-  color: var(--red);
+  /* The longest message must fit within the 220px input box. */
+  max-width: 220px;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #e00000;
   margin-top: 0.35rem;
-  height: 1rem;
+  min-height: 1.1rem;
   opacity: 0;
   transition: opacity 0.2s;
 }
@@ -1320,6 +1325,10 @@ body {
   .input-slot {
     width: min(200px, 86vw);
     padding: 0.55rem 0.75rem;
+  }
+  .error-hint {
+    max-width: min(200px, 86vw);
+    font-size: 0.75rem;
   }
   .op-badge {
     position: static;

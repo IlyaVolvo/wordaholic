@@ -26,21 +26,6 @@
     "ף": "פ",
     "ך": "כ"
   },
-  "plugins": [
-    {
-      "id": "hebrewFinalForms",
-      "config": {
-        "regularToFinal": {
-          "מ": "ם",
-          "נ": "ן",
-          "צ": "ץ",
-          "פ": "ף",
-          "כ": "ך"
-        },
-        "exceptions": []
-      }
-    }
-  ],
   "winMessage": "מזל טוב! ניצחת!",
   "helpTip": "Words are entered right-to-left. Only valid Hebrew words are accepted.",
   "loseMessage": "התשובה הייתה: {word}",

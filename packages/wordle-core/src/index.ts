@@ -14,8 +14,7 @@ export {
   normalizeForLanguage,
   isWinningGuessForLanguage,
 } from './characterNormalization';
-export { registerInputPlugin, applyInputPlugins } from './inputPlugins';
-export type { InputPluginHandler } from './inputPlugins';
+export { typedLetter, letterInPlace } from './languageForms';
 export {
   getLanguageDir,
   loadWinMessage,
@@ -29,10 +28,9 @@ export {
   getKeyboardRtl,
   loadKeyboardActions,
   getNormalization,
-  getInputPlugins,
   preloadAllDictionaries,
 } from './languageLoader';
-export type { KeyboardActions, InputPluginConfig } from './languageLoader';
+export type { KeyboardActions } from './languageLoader';
 export { Keyboard } from './components/Keyboard';
 export {
   boardKnowledgeScore,

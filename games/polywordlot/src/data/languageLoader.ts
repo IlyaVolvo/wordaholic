@@ -11,7 +11,6 @@ export {
   getKeyboardRtl,
   loadKeyboardActions,
   getNormalization,
-  getInputPlugins,
   preloadAllDictionaries,
 } from '@wordaholic/wordle-core';
-export type { KeyboardActions, InputPluginConfig } from '@wordaholic/wordle-core';
+export type { KeyboardActions } from '@wordaholic/wordle-core';
