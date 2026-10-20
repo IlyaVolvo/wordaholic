@@ -45,6 +45,11 @@ body {
   gap: 0.55rem;
   min-width: 0;
 }
+.header-icon-cluster {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+}
 .header-right { justify-content: flex-end; }
 a.header-brand-home {
   display: grid;

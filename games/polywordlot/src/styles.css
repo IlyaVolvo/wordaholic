@@ -1297,6 +1297,18 @@ h1 .logout-wrapper:hover .logout-tooltip {
   justify-content: flex-start;
 }
 
+.header-icon-cluster {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+}
+
+.header-stats-pair {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .game-header-right {
   position: relative;
   justify-content: flex-end;

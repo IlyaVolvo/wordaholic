@@ -1244,62 +1244,61 @@ export const Game: React.FC<GameProps> = ({
               />
             </a>
             <a href="/" className="header-home-link header-game-name">PolyWordlot</a>
-            <button
-              type="button"
-              className="help-trigger help-trigger--game"
-              aria-label="How to play PolyWordlot"
-              onClick={() => openHelp(helpTopic)}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-              </svg>
-              <span className="help-trigger-tip">How to play PolyWordlot</span>
-            </button>
-          </div>
-
-          <div className="game-header-side game-header-right">
-            {onViewChange && (
-              <>
-                <span className="header-icon-with-tooltip">
-                  <span className="header-icon-tooltip">Single Language Statistics</span>
-                  <button
-                    type="button"
-                    className="header-icon-button"
-                    onClick={() => {
-                      setShowCalendar(false);
-                      onViewChange('statistics');
-                    }}
-                    aria-label="Single Language Statistics"
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="18" y1="20" x2="18" y2="10"></line>
-                      <line x1="12" y1="20" x2="12" y2="4"></line>
-                      <line x1="6" y1="20" x2="6" y2="14"></line>
-                    </svg>
-                  </button>
-                </span>
-                <span className="header-icon-with-tooltip">
-                  <span className="header-icon-tooltip">Cross-Language Comparison</span>
-                  <button
-                    type="button"
-                    className="header-icon-button"
-                    onClick={() => {
-                      setShowCalendar(false);
-                      onViewChange('statistics', 'cross-language');
-                    }}
-                    aria-label="Cross-Language Comparison"
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-                      <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-                      <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-                      <rect x="14" y="14" width="7" height="7" rx="1"></rect>
-                    </svg>
-                  </button>
-                </span>
-              </>
-            )}
+            <div className="header-icon-cluster">
+              <button
+                type="button"
+                className="help-trigger help-trigger--game"
+                aria-label="How to play PolyWordlot"
+                onClick={() => openHelp(helpTopic)}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+                <span className="help-trigger-tip">How to play PolyWordlot</span>
+              </button>
+              {onViewChange && (
+                <div className="header-stats-pair">
+                  <span className="header-icon-with-tooltip">
+                    <span className="header-icon-tooltip">Single Language Statistics</span>
+                    <button
+                      type="button"
+                      className="header-icon-button"
+                      onClick={() => {
+                        setShowCalendar(false);
+                        onViewChange('statistics');
+                      }}
+                      aria-label="Single Language Statistics"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                      </svg>
+                    </button>
+                  </span>
+                  <span className="header-icon-with-tooltip">
+                    <span className="header-icon-tooltip">Cross-Language Comparison</span>
+                    <button
+                      type="button"
+                      className="header-icon-button"
+                      onClick={() => {
+                        setShowCalendar(false);
+                        onViewChange('statistics', 'cross-language');
+                      }}
+                      aria-label="Cross-Language Comparison"
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                        <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                        <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                        <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                      </svg>
+                    </button>
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

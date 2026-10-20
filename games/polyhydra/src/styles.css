@@ -1293,6 +1293,12 @@ h1 .logout-wrapper:hover .logout-tooltip {
   justify-content: flex-start;
 }
 
+.header-icon-cluster {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+}
+
 .game-header-right {
   position: relative;
   justify-content: flex-end;
@@ -3290,12 +3296,13 @@ a.header-brand-home:focus-visible {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
-  color: var(--text);
   line-height: 1.15;
   user-select: none;
   text-align: center;
   max-width: min(28rem, 52vw);
   justify-self: center;
+  padding: 0.22rem 0.7rem;
+  border-radius: 8px;
 }
 
 .hydra-attempts-tip {
@@ -3337,13 +3344,8 @@ a.header-brand-home:focus-visible {
 }
 
 .hydra-attempts.is-won {
-  color: #fff;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.06em;
-}
-
-.hydra-attempts.is-lost {
-  color: #dc3545;
 }
 
 .hydra-end-flash {
@@ -3394,23 +3396,14 @@ a.header-brand-home:focus-visible {
 }
 
 @media (max-width: 600px) {
-  .hydra-container .game-header-bar {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.4rem;
-  }
-
   .hydra-attempts {
-    margin-left: auto;
-    margin-right: auto;
-    flex: 1 1 auto;
-    min-width: 0;
-    max-width: none;
+    max-width: min(28rem, 42vw);
     font-size: 0.95rem;
   }
 
   .hydra-attempts.is-message {
     font-size: 1.05rem;
+    max-width: min(40rem, 46vw);
   }
 }
 

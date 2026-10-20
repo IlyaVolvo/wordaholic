@@ -423,14 +423,25 @@ export const Game: React.FC<{
             <Tip label="Letterix">
               <span className="header-game-name">Letterix</span>
             </Tip>
-            <Tip label="Manual">
-              <button type="button" className="help-trigger help-trigger--game" aria-label="Manual" onClick={() => openHelp(helpTopic)}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-                </svg>
-              </button>
-            </Tip>
+            <div className="header-icon-cluster">
+              <Tip label="Manual">
+                <button type="button" className="help-trigger help-trigger--game" aria-label="Manual" onClick={() => openHelp(helpTopic)}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                  </svg>
+                </button>
+              </Tip>
+              <Tip label="Statistics">
+                <button type="button" className="header-icon-button" aria-label="Statistics" onClick={() => { setStatsLanguage(language); setShowStats(true); }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <line x1="18" y1="20" x2="18" y2="10" />
+                    <line x1="12" y1="20" x2="12" y2="4" />
+                    <line x1="6" y1="20" x2="6" y2="14" />
+                  </svg>
+                </button>
+              </Tip>
+            </div>
           </div>
           <Tip label="Current score" className="letterix-score-tip">
             <div className="letterix-score">
@@ -438,17 +449,7 @@ export const Game: React.FC<{
               <strong data-score>{hud?.score ?? 0}</strong>
             </div>
           </Tip>
-          <div className="header-right">
-            <Tip label="Statistics">
-              <button type="button" className="header-icon-button" aria-label="Statistics" onClick={() => { setStatsLanguage(language); setShowStats(true); }}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <line x1="18" y1="20" x2="18" y2="10" />
-                  <line x1="12" y1="20" x2="12" y2="4" />
-                  <line x1="6" y1="20" x2="6" y2="14" />
-                </svg>
-              </button>
-            </Tip>
-          </div>
+          <div className="header-right" aria-hidden="true" />
         </div>
       </header>
       <div className="stage" ref={slotRef}>

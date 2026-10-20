@@ -224,6 +224,16 @@ function formatWinAnnounce(base: string, usedGuesses: number, boards: number): s
   return `${text} ${winExtraLabel(usedGuesses, boards)}`;
 }
 
+/** Stats-bar colors: +3 dark green, +4 green, +5 yellow, +6 loss red. Safer extras use +3. */
+function attemptsTone(usedGuesses: number, boards: number, complete: boolean, won: boolean): 3 | 4 | 5 | 6 {
+  if (complete && !won) return 6;
+  const extra = usedGuesses - boards;
+  if (extra >= 6) return 6;
+  if (extra >= 5) return 5;
+  if (extra >= 4) return 4;
+  return 3;
+}
+
 function usedGuessCount(guessLists: string[][]): number {
   return Math.max(0, ...guessLists.map((g) => g.length));
 }
@@ -1042,21 +1052,40 @@ export const Game: React.FC<GameProps> = ({
               <img className="header-brand-home-svg" src="/brand/wordaholic-mark.svg" width={34} height={34} alt="" />
             </a>
             <span className="header-game-name">Hydra</span>
+            <div className="header-icon-cluster">
+              {onViewChange && (
+                <span className="header-icon-with-tooltip">
+                  <span className="header-icon-tooltip">Statistics</span>
+                  <button
+                    type="button"
+                    className="header-icon-button"
+                    onClick={() => onViewChange('statistics')}
+                    aria-label="Statistics"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="20" x2="18" y2="10"></line>
+                      <line x1="12" y1="20" x2="12" y2="4"></line>
+                      <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                  </button>
+                </span>
+              )}
+              <button
+                type="button"
+                className="help-trigger help-trigger--game"
+                aria-label="How to play Hydra"
+                onClick={() => openHelp(helpTopic)}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+                <span className="help-trigger-tip">How to play Hydra</span>
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            className="help-trigger help-trigger--game"
-            aria-label="How to play Hydra"
-            onClick={() => openHelp(helpTopic)}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-            </svg>
-            <span className="help-trigger-tip">How to play Hydra</span>
-          </button>
           <div
-            className={`hydra-attempts${
+            className={`hydra-attempts extra-${attemptsTone(attemptsUsed, boardCount, isComplete, isWon)}${
               isComplete ? (isWon ? ' is-won' : ' is-lost') : ''
             }${isComplete ? ' is-message' : ''}`}
             title={
@@ -1087,25 +1116,7 @@ export const Game: React.FC<GameProps> = ({
               `${wordsLeft}/${attemptsLeft}`
             )}
           </div>
-          <div className="game-header-side game-header-right">
-            {onViewChange && (
-              <span className="header-icon-with-tooltip">
-                <span className="header-icon-tooltip header-icon-tooltip--left">Statistics</span>
-                <button
-                  type="button"
-                  className="header-icon-button"
-                  onClick={() => onViewChange('statistics')}
-                  aria-label="Statistics"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="20" x2="18" y2="10"></line>
-                    <line x1="12" y1="20" x2="12" y2="4"></line>
-                    <line x1="6" y1="20" x2="6" y2="14"></line>
-                  </svg>
-                </button>
-              </span>
-            )}
-          </div>
+          <div className="game-header-side game-header-right" aria-hidden="true" />
         </div>
         <Scoreboard
           cells={scoreboardCells}
