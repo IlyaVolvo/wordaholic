@@ -18,8 +18,30 @@ export default {
       callouts: [
         {
           x: 63,
-          y: 25.8,
-          text: 'Letters fall into the bucket. The game ends when one sticks above this line.',
+          y: 46.2,
+          text: 'Goal: score as many points as you can by making words from the falling letters.\nA word is 3 or more letters in a line: across, left to right, or up a column, bottom to top.',
+          place: 'right',
+        },
+      ],
+    },
+    {
+      image: SCORE,
+      callouts: [
+        {
+          x: 50,
+          y: 9,
+          text: 'Each letter has a base value from 1 to 10: common letters are worth little, rare ones a lot.\nLonger words pay more: every letter past 3 adds half to each letter’s value.\nDropping a letter adds a bonus for every row it skips.',
+          place: 'bottom',
+        },
+      ],
+    },
+    {
+      image: GAMEOVER,
+      callouts: [
+        {
+          x: 45.5,
+          y: 23.2,
+          text: 'The game ends when a column grows over the line at the top of the bucket.',
           place: 'right',
         },
       ],
@@ -34,16 +56,32 @@ export default {
       callouts: [
         {
           x: 62.2,
-          y: 41.2,
-          text: '← → move the falling letter; Space drops it. Keys or the buttons below both work.',
+          y: 41.1,
+          text: 'One letter is active (blue).\n← → move it one column, if that spot is free.\nSpace drops it straight down. Keys, the buttons below, or dragging all work.',
           place: 'right',
+        },
+      ],
+    },
+    {
+      image: PLAYING,
+      callouts: [
+        {
+          x: 44.5,
+          y: 21.2,
+          text: 'Several letters can fall at once. Tap one to make it active.\nSpace can’t drop a letter while another falling letter is below it in the same column.',
+          place: 'left',
         },
       ],
     },
     {
       image: RULES,
       callouts: [
-        { x: 50, y: 22, text: 'Only the falling letter or the top of a column can move.', place: 'bottom' },
+        {
+          x: 50,
+          y: 22,
+          text: 'The top letter of each column moves the same way: tap it, then ← →. Over an empty spot, it falls.\nLetters covered by another letter can’t move.',
+          place: 'bottom',
+        },
       ],
     },
     {
@@ -54,17 +92,6 @@ export default {
           y: 82,
           text: 'A word of 3+ letters flashes and the fall pauses. ← picks Use (take the points), → picks Skip. Space confirms early for a small bonus; waiting means Use.',
           place: 'top',
-        },
-      ],
-    },
-    {
-      image: SCORE,
-      callouts: [
-        {
-          x: 50,
-          y: 9,
-          text: 'Letters are worth 1–10. A 3-letter word is their sum; each extra letter adds half.',
-          place: 'bottom',
         },
       ],
     },
@@ -90,10 +117,6 @@ export default {
       callouts: [
         { x: 8.6, y: 89.8, text: 'Board width (6–12) and height (10–20). Locked while playing.', place: 'right' },
       ],
-    },
-    {
-      image: GAMEOVER,
-      callouts: [{ x: 56, y: 23, text: 'Game over: a letter stuck above the line.', place: 'right' }],
     },
     {
       image: CALENDAR,

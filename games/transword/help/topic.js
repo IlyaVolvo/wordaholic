@@ -15,7 +15,23 @@ export default {
     {
       image: START,
       callouts: [
-        { x: 50, y: 6.5, text: 'Turn the start word into this target, one move at a time.', place: 'bottom' },
+        {
+          x: 50,
+          y: 6.5,
+          text: 'Goal: transform the start word (terse) into the target (shake), one word at a time, in as few steps as you can.',
+          place: 'bottom',
+        },
+      ],
+    },
+    {
+      image: START,
+      callouts: [
+        {
+          x: 50,
+          y: 24.5,
+          text: 'Each new word must be a real word, made from the previous one by exactly one of 4 rules:\n1. Replace one letter:\nester\u00a0→\u00a0aster.\n2. Add one letter:\nstar\u00a0→\u00a0stare.\n3. Remove one letter:\nstare\u00a0→\u00a0star.\n4. Rearrange all letters:\nterse\u00a0→\u00a0ester.',
+          place: 'bottom',
+        },
       ],
     },
     {
@@ -28,7 +44,7 @@ export default {
         {
           x: 57,
           y: 27.1,
-          text: 'One move = replace a letter, add or remove one, or rearrange them. The badge names the move; changed letters are colored.',
+          text: 'The badge names the rule you used: terse\u00a0→\u00a0ester is anagrammed, ester\u00a0→\u00a0aster is replaced. Changed letters are colored.',
           place: 'right',
         },
       ],
