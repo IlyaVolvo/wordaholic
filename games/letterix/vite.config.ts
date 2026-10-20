@@ -5,6 +5,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
+import { copyGameHelpPlugin } from '../../scripts/vite-copy-game-help.js';
 
 /** Other games keep their own dev servers. This one also serves the home page. */
 const OTHER_DEV_PORTS: Record<string, number> = {
@@ -234,7 +235,7 @@ function getGitCommitHash(): string {
 
 export default defineConfig({
   root: __dirname,
-  plugins: [react(), letterixLanguagesPlugin(), shellDataPlugin()],
+  plugins: [react(), letterixLanguagesPlugin(), shellDataPlugin(), copyGameHelpPlugin(__dirname)],
   base: '/games/letterix/',
   resolve: {
     alias: {

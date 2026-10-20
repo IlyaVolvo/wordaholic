@@ -1,6 +1,18 @@
 import { getFavoriteLanguages } from '../i18n-prefs/favorites.js';
-import { helpScreenshotUrls } from '../help/topics.js';
+import { KNOWN_GAME_IDS } from '../games-contract.js';
+import siteHelp from '../help/site/topic.js';
 import { ensureWordsets } from '../words/loader.js';
+
+function siteHelpAssetUrls() {
+  const urls = [];
+  for (const step of siteHelp.steps || []) {
+    if (step.image) urls.push(step.image);
+    for (const layer of step.overlays || []) {
+      if (layer?.src) urls.push(layer.src);
+    }
+  }
+  return urls;
+}
 
 /**
  * Resolve hashed Vite asset URLs from a built game index.html.
@@ -56,10 +68,11 @@ export async function prepareOffline(onProgress) {
     '/app/main.js',
     '/app/help/help.css',
     '/app/help/dialog.js',
-    '/app/help/topics.js',
+    '/app/help/site/topic.js',
+    ...siteHelpAssetUrls(),
+    ...KNOWN_GAME_IDS.map((id) => `/games/${id}/help/topic.js`),
     '/app/play/portrait-gate.css',
     '/app/play/portrait-gate.js',
-    ...helpScreenshotUrls(),
     '/deployment-manifest.json',
     '/app/announcements.json',
     '/data/languages.json',

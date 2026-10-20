@@ -28,6 +28,8 @@ function copyGameRegistrations() {
     const destDir = path.join(DIST, 'games', name);
     ensureDir(destDir);
     fs.copyFileSync(src, path.join(destDir, 'registration.js'));
+    const helpSrc = path.join(gamesDir, name, 'help');
+    if (fs.existsSync(helpSrc)) copyDir(helpSrc, path.join(destDir, 'help'));
   }
 }
 
@@ -99,8 +101,11 @@ function main() {
   watchTree('app', schedule);
   watchTree('word-data', schedule);
   watchTree('games/transword', schedule);
+  watchTree('games/letterix/help', schedule);
+  watchTree('games/polywordlot/help', schedule);
+  watchTree('games/polyhydra/help', schedule);
 
-  console.log('Watching public/, app/, word-data/, games/transword/');
+  console.log('Watching public/, app/, word-data/, games/transword/, games/*/help');
   console.log('PolyWordlot UI: npm run build:polywordlot (then reload)');
   console.log('PolyHydra UI: npm run build:polyhydra (then reload)');
   console.log('Letterix UI: npm run build:letterix (then reload)');

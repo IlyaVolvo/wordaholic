@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { calendarMonthForSelection } from '../../../app/daily/variantVisit.js';
 import { openHelp } from '@wordaholic/help';
+import helpTopic from '../help/topic.js';
 import { reportStats } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import type { Lexicon } from './lexicon.ts';
@@ -423,7 +424,7 @@ export const Game: React.FC<{
               <span className="header-game-name">Letterix</span>
             </Tip>
             <Tip label="Manual">
-              <button type="button" className="help-trigger help-trigger--game" aria-label="Manual" onClick={() => openHelp('letterix')}>
+              <button type="button" className="help-trigger help-trigger--game" aria-label="Manual" onClick={() => openHelp(helpTopic)}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
                   <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />

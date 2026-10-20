@@ -62,6 +62,8 @@ Routes in `workers/stats/wrangler.toml`:
 - `wordaholic.volvovski.com/api/*` → the Worker
 - `wordaholic.volvovski.com/stats*` → the Worker (`/stats` and `/stats/` are the same path)
 
+Another hostname stays silent until it is proxied and given the same two routes. The steps are in [STATS-NEW-DOMAIN.md](STATS-NEW-DOMAIN.md).
+
 Everything else on the host is the static site. The Worker answers only:
 
 | Method and path | Result |

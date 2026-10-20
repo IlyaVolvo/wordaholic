@@ -24,6 +24,7 @@ import {
 } from './shell/auto-export.js';
 import { reloadLatestFromServer } from './updates/reload-latest.js';
 import { openHelp } from './help/dialog.js';
+import siteHelp from './help/site/topic.js';
 import { reportStats } from './stats/report.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -252,7 +253,7 @@ function bindChrome() {
     void openAbout();
   });
   $('#btn-howto')?.addEventListener('click', () => {
-    openHelp('site');
+    openHelp(siteHelp);
   });
   aboutDialog?.querySelectorAll('[data-about-close]').forEach((el) => {
     el.addEventListener('click', closeAbout);

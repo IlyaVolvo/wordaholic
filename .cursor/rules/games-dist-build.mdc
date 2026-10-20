@@ -11,4 +11,4 @@ After changing a game (or wordle-core used by PolyHydra/PolyWordlot), always run
 - PolyWordlot: `npm run build:polywordlot`
 - TransWord: `npm run build:transword`
 - Letterix: `npm run build:letterix`
-Each writes `dist/games/...` and stamps `dist/sw.js` so `scripts/serve.js` on port 4173 serves the new files. Do not leave the user on a stale dist or only on a Vite dev port. If help copy changed, copy `app/help/topics.js` to `dist/app/help/topics.js` as well.
+Each writes `dist/games/...` and stamps `dist/sw.js` so `scripts/serve.js` on port 4173 serves the new files. Do not leave the user on a stale dist or only on a Vite dev port. Game help lives in `games/<id>/help/` and is copied into `dist/games/<id>/help` by the Vite help plugin (and by `copyGameRegistrations`). Site help is `app/help/site/topic.js`.

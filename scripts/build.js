@@ -34,6 +34,8 @@ function copyGameRegistrations() {
     const destDir = path.join(DIST, 'games', name);
     ensureDir(destDir);
     fs.copyFileSync(src, path.join(destDir, 'registration.js'));
+    const helpSrc = path.join(gamesDir, name, 'help');
+    if (fs.existsSync(helpSrc)) copyDir(helpSrc, path.join(destDir, 'help'));
   }
 }
 

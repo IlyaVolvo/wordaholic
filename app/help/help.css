@@ -16,31 +16,35 @@
 
 .help-dialog-card {
   position: relative;
-  width: min(480px, 100%);
-  max-height: min(90vh, 720px);
-  overflow-y: auto;
-  background: #fff;
+  width: min(920px, 100%);
+  max-height: min(92vh, 900px);
+  overflow: hidden;
+  background: #6fa8c9;
   color: #14232b;
   border-radius: 14px;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
-  padding: 1rem 1.15rem 1.1rem;
-}
-
-.help-dialog-header {
+  padding: 0.55rem 0.75rem 0.65rem;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  flex-direction: column;
 }
 
-.help-dialog-header h2 {
-  margin: 0;
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: #14232b;
+.help-dialog-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .help-dialog-close {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.3rem;
+  z-index: 3;
   border: none;
   background: transparent;
   color: #c62828;
@@ -57,12 +61,15 @@
   outline: none;
 }
 
-.help-dialog-intro {
-  margin: 0.85rem 0 0;
-  font-size: 0.95rem;
-  line-height: 1.5;
-  color: #243848;
-  white-space: pre-wrap;
+.help-dialog-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
 }
 
 .help-dialog-navrow {
@@ -70,7 +77,8 @@
   align-items: center;
   justify-content: center;
   gap: 0.55rem;
-  margin: 0.65rem 0 0;
+  margin: 0.45rem 0 0;
+  flex: 0 0 auto;
 }
 
 .help-dialog-navrow[hidden] {
@@ -81,7 +89,7 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.05rem;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -123,56 +131,277 @@
 }
 
 .help-progress-dot {
+  box-sizing: content-box;
   width: 7px;
   height: 7px;
+  padding: 4px;
+  margin: 0;
+  border: none;
   border-radius: 999px;
-  background: #c5d0d6;
+  background: rgba(255, 255, 255, 0.4);
+  background-clip: content-box;
+  cursor: pointer;
+}
+
+.help-progress-dot:hover,
+.help-progress-dot:focus-visible {
+  background-color: rgba(255, 255, 255, 0.85);
+  outline: none;
 }
 
 .help-progress-dot.active {
-  background: #c45c26;
+  background-color: #fff;
 }
 
 .help-progress-dot.completed {
-  background: #8aa0aa;
+  background-color: rgba(255, 255, 255, 0.7);
 }
 
 .help-dialog-shot {
-  margin: 0.75rem auto 0;
-  max-width: 260px;
-  padding: 0.4rem;
-  border-radius: 10px;
-  overflow: hidden;
-  background: #e8f1f4;
-  border: 1px solid rgba(20, 35, 43, 0.12);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.help-dialog-shot.is-wide {
-  max-width: none;
+  position: relative;
+  isolation: isolate;
+  margin: 0;
   width: 100%;
+  max-width: 100%;
   padding: 0;
+  border-radius: 10px;
+  overflow: visible;
   background: transparent;
   border: none;
-}
-
-.help-dialog-shot.is-wide img {
-  width: 100%;
+  display: block;
 }
 
 .help-dialog-shot[hidden] {
   display: none !important;
 }
 
-.help-dialog-shot img {
+.help-dialog-shot--clickable {
+  cursor: pointer;
+}
+
+.help-dialog-shot > #help-dialog-shot-img {
+  position: relative;
+  z-index: 0;
   display: block;
-  width: auto;
+  width: 100%;
   max-width: 100%;
-  max-height: 380px;
+  max-height: min(72vh, 640px);
   height: auto;
   object-fit: contain;
+  border-radius: 10px;
+}
+
+.help-dialog-overlays,
+.help-dialog-callouts {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.help-dialog-overlays {
+  z-index: 1;
+}
+
+.help-dialog-callouts {
+  z-index: 3;
+}
+
+.help-dialog-overlay {
+  position: absolute;
+  display: block;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  pointer-events: none;
+}
+
+.help-click-circle {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  aspect-ratio: 1;
+  border: 3px solid #c45c26;
+  border-radius: 50%;
+  background: rgba(196, 92, 38, 0.14);
+  box-shadow: 0 0 0 6px rgba(196, 92, 38, 0.18);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  animation: help-click-pulse 1.25s ease-out infinite;
+}
+
+.help-click-circle[hidden] {
+  display: none !important;
+}
+
+.help-click-circle.nudge {
+  animation: help-click-nudge 0.35s ease;
+}
+
+@keyframes help-click-pulse {
+  0% { box-shadow: 0 0 0 4px rgba(196, 92, 38, 0.28); }
+  70% { box-shadow: 0 0 0 14px rgba(196, 92, 38, 0); }
+  100% { box-shadow: 0 0 0 4px rgba(196, 92, 38, 0.28); }
+}
+
+@keyframes help-click-nudge {
+  0%, 100% { transform: translate(-50%, -50%); }
+  25% { transform: translate(calc(-50% - 5px), -50%); }
+  75% { transform: translate(calc(-50% + 5px), -50%); }
+}
+
+.help-callout {
+  position: absolute;
+  z-index: 3;
+  /* Near the right edge, shrink-to-fit would squeeze the bubble into a narrow column. */
+  width: max-content;
+  max-width: 13rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 10px;
+  background: #fff;
+  color: #14232b;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: pre-line;
+  box-shadow: 0 6px 18px rgba(20, 35, 43, 0.22);
+}
+
+.help-callout::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+  border: 8px solid transparent;
+}
+
+.help-callout[data-place="top"] {
+  transform: translate(-50%, calc(-100% - 8px));
+}
+.help-callout[data-place="top"]::after {
+  top: 100%;
+  left: 50%;
+  margin-left: -8px;
+  border-top-color: #fff;
+}
+
+.help-callout[data-place="bottom"] {
+  transform: translate(-50%, 8px);
+}
+.help-callout[data-place="bottom"]::after {
+  bottom: 100%;
+  left: 50%;
+  margin-left: -8px;
+  border-bottom-color: #fff;
+}
+
+.help-callout[data-place="left"] {
+  transform: translate(calc(-100% - 8px), -50%);
+}
+.help-callout[data-place="left"]::after {
+  left: 100%;
+  top: 50%;
+  margin-top: -8px;
+  border-left-color: #fff;
+}
+
+.help-callout[data-place="right"] {
+  transform: translate(8px, -50%);
+}
+.help-callout[data-place="right"]::after {
+  right: 100%;
+  top: 50%;
+  margin-top: -8px;
+  border-right-color: #fff;
+}
+
+.help-dialog-text {
+  margin: 0;
+  max-width: 36rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #14232b;
+  white-space: pre-wrap;
+}
+
+.help-dialog-text a {
+  color: #14232b;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.help-dialog-text a:hover,
+.help-dialog-text a:focus-visible {
+  color: #0c3340;
+}
+
+.help-dialog-text[hidden],
+.help-dialog-menu[hidden] {
+  display: none !important;
+}
+
+.help-dialog-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  min-width: min(16rem, 100%);
+  padding: 1.25rem 0;
+}
+
+.help-dialog-menu-kicker {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(20, 35, 43, 0.72);
+}
+
+.help-dialog-menu-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 11rem;
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.05rem;
+  padding: 0.28rem 0.4rem;
+  border: none;
+  background: none;
+  color: #14232b;
+  cursor: pointer;
+  text-align: left;
+}
+
+.help-dialog-menu-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.help-dialog-menu-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(20, 35, 43, 0.12);
+  display: grid;
+  place-items: center;
+  color: #1a3a4a;
+}
+
+.help-dialog-menu-icon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.help-dialog-menu-item:hover,
+.help-dialog-menu-item:focus-visible {
+  color: #0c3340;
+  outline: none;
 }
 
 .help-trigger {

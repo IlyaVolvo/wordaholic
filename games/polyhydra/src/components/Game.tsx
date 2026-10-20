@@ -20,6 +20,7 @@ import {
   summaryKnownRows,
 } from '@wordaholic/wordle-core';
 import { openHelp } from '@wordaholic/help';
+import helpTopic from '../../help/topic.js';
 import { reportStats } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../app/daily/variantVisit.js';
@@ -1051,7 +1052,7 @@ export const Game: React.FC<GameProps> = ({
             type="button"
             className="help-trigger help-trigger--game"
             aria-label="How to play Hydra"
-            onClick={() => openHelp('polyhydra')}
+            onClick={() => openHelp(helpTopic)}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>

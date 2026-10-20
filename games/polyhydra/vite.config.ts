@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
+import { copyGameHelpPlugin } from '../../scripts/vite-copy-game-help.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -94,7 +95,7 @@ function getGitCommitHash(): string {
 
 export default defineConfig({
   root: __dirname,
-  plugins: [react(), polywordlotDictPlugin(), shellDataPlugin()],
+  plugins: [react(), polywordlotDictPlugin(), shellDataPlugin(), copyGameHelpPlugin(__dirname)],
   base: '/games/polyhydra/',
   resolve: {
     alias: {

@@ -20,6 +20,7 @@ import { getGame } from '../../app/games-contract.js';
 import './registration.js';
 import { normalizeWithMappings } from '../../app/i18n/normalize.js';
 import { openHelp } from '../../app/help/dialog.js';
+import helpTopic from './help/topic.js';
 import { mountPortraitGate } from '../../app/play/portrait-gate.js';
 import { reportStats } from '../../app/stats/report.js';
 import {
@@ -1341,7 +1342,7 @@ async function init() {
     e.stopPropagation();
     toggleDisplay();
   });
-  $('#btn-howto')?.addEventListener('click', () => openHelp('transword'));
+  $('#btn-howto')?.addEventListener('click', () => openHelp(helpTopic));
   $('#header-more-trigger')?.addEventListener('click', (e) => {
     e.stopPropagation();
     closeDisplay();
@@ -1356,7 +1357,7 @@ async function init() {
     const action = item.getAttribute('data-header-action');
     if (action === 'stats') openStats();
     else if (action === 'display') openDisplay();
-    else if (action === 'howto') openHelp('transword');
+    else if (action === 'howto') openHelp(helpTopic);
   });
   $('#language-trigger')?.addEventListener('click', (e) => {
     e.stopPropagation();

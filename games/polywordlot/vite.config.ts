@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
+import { copyGameHelpPlugin } from '../../scripts/vite-copy-game-help.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DICT_SRC = path.join(__dirname, 'dict');
@@ -67,7 +68,7 @@ function getGitCommitHash(): string {
 
 export default defineConfig({
   root: __dirname,
-  plugins: [react(), copyDictPlugin(), shellDataPlugin()],
+  plugins: [react(), copyDictPlugin(), shellDataPlugin(), copyGameHelpPlugin(__dirname)],
   base: '/games/polywordlot/',
   resolve: {
     alias: {

@@ -4,7 +4,7 @@ registerGame({
   id: 'transword',
   name: 'TransWord',
   storageSchema: 1,
-  languages: ['en', 'es', 'fr', 'ru', 'he', 'de'],
+  languages: ['en', 'es', 'fr', 'ru', 'he'],
   async initialize() {},
   start() {},
   saveState() { return null; },

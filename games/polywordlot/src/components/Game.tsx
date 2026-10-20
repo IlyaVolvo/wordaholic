@@ -15,6 +15,7 @@ import { gameCacheUtils } from '../utils/gameCache';
 import { GAME_ID, refreshGamesFromIndexedDb, STORAGE_IMPORTED_EVENT } from '../storage/platform';
 import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../app/daily/variantVisit.js';
 import { openHelp, isHelpOpen } from '@wordaholic/help';
+import helpTopic from '../../help/topic.js';
 import { reportStats } from '@wordaholic/stats';
 
 const MAX_GUESSES = 6;
@@ -1253,7 +1254,7 @@ export const Game: React.FC<GameProps> = ({
               type="button"
               className="help-trigger help-trigger--game"
               aria-label="How to play PolyWordlot"
-              onClick={() => openHelp('polywordlot')}
+              onClick={() => openHelp(helpTopic)}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
