@@ -277,6 +277,9 @@ function renderHelp() {
           ring.style.left = `${hit.x}%`;
           ring.style.top = `${hit.y}%`;
           ring.style.width = `${hit.r * 2}%`;
+          ring.style.animation = 'none';
+          void ring.offsetWidth;
+          ring.style.animation = '';
         } else {
           ring.hidden = true;
           ring.classList.remove('nudge');
