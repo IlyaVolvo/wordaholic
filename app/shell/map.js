@@ -245,10 +245,28 @@ export async function renderWorldMap(container, opts = {}) {
   /** @type {GeoPanelMode} */
   let geoPanelMode = readGeoPanelMode();
 
+  const baseViewBox = (svgEl.getAttribute('viewBox') || '0 0 950 620').split(/[\s,]+/).map(Number);
+  const [baseVx, baseVy, baseVw, baseVh] = baseViewBox;
+
+  /**
+   * Pan/zoom by rewriting the SVG viewBox so the browser redraws vectors at
+   * every scale (a CSS scale on the layer stretches a bitmap and pixelates).
+   * mapView stays in stage pixels: screen' = scale * screen + (x, y).
+   */
   function applyMapView() {
-    if (!layer) return;
-    layer.style.transform = `translate(${mapView.x}px, ${mapView.y}px) scale(${mapView.scale})`;
-    stage?.classList.toggle('map-stage--zoomed', mapView.scale > 1.01);
+    if (!layer || !stage) return;
+    const w = stage.clientWidth;
+    const h = stage.clientHeight;
+    const s = mapView.scale;
+    if (w > 0 && h > 0 && baseVw > 0 && baseVh > 0) {
+      const k = Math.min(w / baseVw, h / baseVh);
+      const ox = (w - baseVw * k) / 2;
+      const oy = (h - baseVh * k) / 2;
+      const vx = baseVx + ((1 - s) * ox - mapView.x) / (s * k);
+      const vy = baseVy + ((1 - s) * oy - mapView.y) / (s * k);
+      svgEl.setAttribute('viewBox', `${vx} ${vy} ${baseVw / s} ${baseVh / s}`);
+    }
+    stage.classList.toggle('map-stage--zoomed', s > 1.01);
   }
 
   /**
@@ -661,6 +679,7 @@ export async function renderWorldMap(container, opts = {}) {
   if (typeof ResizeObserver !== 'undefined' && stage) {
     let resizeTimer = 0;
     const ro = new ResizeObserver(() => {
+      applyMapView();
       window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => {
         if (geoPanelMode !== 'off' && lastGeoMerged.length) renderGeoBubbles(lastGeoMerged);
@@ -707,6 +726,22 @@ export async function renderWorldMap(container, opts = {}) {
     }
     shape.style.cursor = 'pointer';
   }
+
+  // Neighbouring outlines in world.svg leave hairline gaps that show ocean when zoomed.
+  // A copy of every country, slightly fattened and drawn underneath, fills them.
+  const gapFill = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+  gapFill.setAttribute('class', 'map-gap-fill');
+  gapFill.setAttribute('aria-hidden', 'true');
+  for (const shape of shapes) {
+    const copy = /** @type {Element} */ (shape.cloneNode(false));
+    copy.removeAttribute('id');
+    copy.removeAttribute('style');
+    copy.setAttribute('class', 'map-gap-path');
+    gapFill.appendChild(copy);
+  }
+  const ocean = svgEl.querySelector('#ocean');
+  if (ocean) ocean.after(gapFill);
+  else svgEl.prepend(gapFill);
 
   /**
    * @param {import('./country-languages.js').CountryInfo | null} meta
