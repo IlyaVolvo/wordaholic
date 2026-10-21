@@ -1,6 +1,9 @@
 import {
+  combineGameMatrix,
   combineTotals,
   formatCountry,
+  gameCountryLabel,
+  gamePlaceLabel,
   groupStatsRows,
   parseStatsGroup,
   parseStatsTab,
@@ -38,10 +41,11 @@ const STATS_HELP =
   'Export CSV downloads the rows currently visible under those filters (not the totals row).\n' +
   'Clear filters resets Country, Language, Place, ISP, Homehits, and count filters. Group and the date range stay as they are.\n' +
   'Clear Calendar empties From/To and reloads the full range (Safari’s calendar Reset does not).\n' +
-  'Use the arrow on the Totals/Trends row to hide or show Country, Language, Place, ISP, and the count filters. From/To dates and Group (or Interval on Trends) stay visible.\n' +
+  'Use the arrow on the view row to hide or show Country, Language, Place, ISP, and, on Totals and Trends, the count filters. From/To dates and Group (or Interval on Trends) stay visible.\n' +
   'Trends uses the same filters: only events from matching networks are counted. Language limits those counts to games in the selected languages.\n' +
   'Trends shows activity by UTC clock hour (always 24 rows, each hour summed across days in the range), or by day, week, or month for the From/To window (empty = all available).\n' +
   'Under Trends, Table is newest-first with a sticky total row; click a date, week, or month to open Totals for that interval grouped by city. Graph plots games total and each game as separate colored lines (hover for values).\n' +
+  'Games lists each played configuration with the language removed (wordlot,5, hydra,5,16). Columns are languages; a blank cell means that configuration was not played in that language. Hover or tap a count for the places. The Tooltip menu chooses countries, cities, or networks; City is the default. Dates, Country, Language, Place, and ISP apply. Count filters and Homehits only do not.\n' +
   'GET /api/stats is the raw 24h JSON dump.';
 
 /** @typedef {{ key: string, label: string, shortLabel?: string, type: 'text' | 'num' }} StatsColumn */
@@ -734,6 +738,43 @@ const COLLAPSE_SCRIPT = `(function () {
   });
 })();`;
 
+/** Opens a table tooltip downward when the sticky header would cover its first line. */
+const TIP_SCRIPT = `(function () {
+  var table = document.getElementById('stats-table');
+  var wrap = document.querySelector('.stats-table-wrap');
+  if (!table || !wrap) return;
+  function stickyBottom() {
+    var head = table.tHead;
+    var total = head && head.querySelector('tr.total');
+    var el = total || (head && head.rows[0]);
+    return el ? el.getBoundingClientRect().bottom : wrap.getBoundingClientRect().top;
+  }
+  function place(cell) {
+    var tip = cell.querySelector('.tip');
+    if (!tip) return;
+    cell.classList.remove('tip-below');
+    var above = tip.getBoundingClientRect();
+    if (above.height < 1) return;
+    var limit = stickyBottom();
+    if (above.top >= limit - 0.5) return;
+    var cellRect = cell.getBoundingClientRect();
+    var spaceBelow = wrap.getBoundingClientRect().bottom - cellRect.bottom;
+    if (spaceBelow >= 18) cell.classList.add('tip-below');
+  }
+  function cellFrom(target) {
+    var cell = target && target.closest && target.closest('.tip-cell');
+    return cell && table.contains(cell) ? cell : null;
+  }
+  table.addEventListener('mouseover', function (e) { var cell = cellFrom(e.target); if (cell) place(cell); });
+  table.addEventListener('focusin', function (e) { var cell = cellFrom(e.target); if (cell) place(cell); });
+  table.addEventListener('mouseout', function (e) {
+    var cell = cellFrom(e.target);
+    if (!cell) return;
+    if (e.relatedTarget && cell.contains(e.relatedTarget)) return;
+    cell.classList.remove('tip-below');
+  });
+})();`;
+
 const FILTER_SCRIPT = `(function () {
   var form = document.getElementById('stats-filters');
   var table = document.getElementById('stats-table');
@@ -1406,6 +1447,8 @@ const FILTER_SCRIPT = `(function () {
     if (languages.length) params.set('language', languages.join(','));
     if (placeEl && placeEl.value) params.set('place', placeEl.value);
     if (ispEl && ispEl.value) params.set('isp', ispEl.value);
+    var tipNow = new URL(location.href).searchParams.get('tip');
+    if (tipNow === 'country' || tipNow === 'network') params.set('tip', tipNow);
     var groupEl = form.querySelector('[name=group]');
     if (groupEl && groupEl.value && groupEl.value !== 'country') params.set('group', groupEl.value);
     for (var i = 0; i < gtKeys.length; i++) {
@@ -1433,6 +1476,12 @@ const FILTER_SCRIPT = `(function () {
     tr.delete('group');
     if (!tr.get('interval')) tr.set('interval', 'days');
     if (links[1]) links[1].setAttribute('href', '/stats?' + tr.toString());
+    var gm = new URLSearchParams(params);
+    gm.set('tab', 'games');
+    gm.delete('interval');
+    gm.delete('view');
+    gm.delete('group');
+    if (links[2]) links[2].setAttribute('href', '/stats?' + gm.toString());
   }
   function datesChanged() {
     var url = new URL(location.href);
@@ -1691,6 +1740,718 @@ const CSV_SCRIPT = `(function () {
 })();`;
 
 /**
+ * @param {string} gameId
+ */
+function gamesShortLabel(gameId) {
+  return COLUMN_SHORT_LABELS[gameId] || gameId;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {'country' | 'city' | 'network'}
+ */
+function parseGameTip(value) {
+  const v = String(value || '').trim().toLowerCase();
+  if (v === 'country' || v === 'network') return v;
+  return 'city';
+}
+
+/**
+ * @param {{ cities?: string[], countries?: string[], networks?: string[] } | null | undefined} cell
+ * @param {'country' | 'city' | 'network'} mode
+ */
+function gameTipLines(cell, mode) {
+  if (!cell) return [];
+  if (mode === 'country') return cell.countries || [];
+  if (mode === 'network') return cell.networks || [];
+  return cell.cities || [];
+}
+
+/**
+ * Country, place, and ISP only. Count thresholds and Homehits do not apply.
+ * @param {import('./stats-combine.js').StatsRow} row
+ * @param {ReturnType<typeof parseStatsFilters>} filters
+ */
+function rowMatchesGameFilters(row, filters) {
+  if (filters.countries.length) {
+    const code = (row.geo?.country || '').toUpperCase();
+    if (!filters.countries.includes(code)) return false;
+  }
+  if (filters.place) {
+    const geo = row.geo;
+    const placeHay = geo ? `${geo.city} ${geo.region}` : row.location || '';
+    if (!smartMatch(placeHay, filters.place)) return false;
+  }
+  if (filters.isp) {
+    const ispHay = row.geo?.asOrg || row.location || '';
+    if (!smartMatch(ispHay, filters.isp)) return false;
+  }
+  return true;
+}
+
+/**
+ * @param {import('./stats-combine.js').StatsRow[]} rows
+ * @param {ReturnType<typeof parseStatsFilters>} filters
+ */
+function gamesMatrixFor(rows, filters) {
+  const matched = (rows || []).filter((row) => rowMatchesGameFilters(row, filters));
+  return combineGameMatrix(matched, {
+    languages: filters.languages,
+    shortLabel: gamesShortLabel,
+    languageName: languageDisplayName,
+  });
+}
+
+/**
+ * @param {import('./stats-combine.js').StatsRow[]} rows
+ */
+function gamesNetworkPayload(rows) {
+  return (rows || []).map((row) => {
+    const geo = row.geo;
+    return {
+      country: geo?.country || '',
+      place: geo ? `${geo.city} ${geo.region}` : row.location || '',
+      isp: geo?.asOrg || row.location || '',
+      placeLabel: gamePlaceLabel(geo),
+      countryLabel: gameCountryLabel(geo),
+      ip: row.ip || '',
+      counts: row.permCounts || {},
+    };
+  });
+}
+
+/**
+ * Live Games table. Same pivot as combineGameMatrix; count filters stay in the URL and are ignored here.
+ * @param {ReturnType<typeof gamesNetworkPayload>} networks
+ */
+function gamesClientScript(networks) {
+  const payload = JSON.stringify({
+    networks,
+    gameOrder: STATS_GAME_IDS,
+    shortLabels: Object.fromEntries(STATS_GAMES.map((g) => [g.id, gamesShortLabel(g.id)])),
+    langNames: Object.fromEntries(LANGUAGE_MENU),
+  }).replace(/</g, '\\u003c');
+  return `(function () {
+  var payload = ${payload};
+  var form = document.getElementById('stats-filters');
+  var table = document.getElementById('stats-table');
+  if (!form || !table || !table.tHead || !table.tBodies[0]) return;
+  var networks = payload.networks || [];
+  var gameOrder = payload.gameOrder || [];
+  var shortLabels = payload.shortLabels || {};
+  var langNames = payload.langNames || {};
+  var sortKey = '';
+  var sortDir = 1;
+  var debounceTimer = null;
+  var fromEl = form.querySelector('[name=from]');
+  var toEl = form.querySelector('[name=to]');
+
+  function fold(s) {
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');
+  }
+  function compact(s) {
+    return fold(s).replace(/[^a-z0-9]+/g, '');
+  }
+  function smartMatch(hay, query) {
+    var q = fold(query).trim();
+    if (!q) return true;
+    var hayFold = fold(hay);
+    var hayComp = compact(hay);
+    var tokens = q.split(/\\s+/);
+    for (var i = 0; i < tokens.length; i++) {
+      var tok = tokens[i];
+      if (!tok) continue;
+      var tokComp = compact(tok);
+      if (hayFold.indexOf(tok) !== -1) continue;
+      if (tokComp.length >= 2 && hayComp.indexOf(tokComp) !== -1) continue;
+      return false;
+    }
+    return true;
+  }
+  function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function compareRest(a, b) {
+    var as = String(a).split(',');
+    var bs = String(b).split(',');
+    var n = Math.max(as.length, bs.length);
+    var i;
+    for (i = 0; i < n; i++) {
+      if (i >= as.length) return -1;
+      if (i >= bs.length) return 1;
+      var av = Number(as[i]);
+      var bv = Number(bs[i]);
+      if (av !== bv) return av - bv;
+    }
+    return 0;
+  }
+  function countryBoxes() {
+    return form.querySelectorAll('.country-filter-options input[name=country]');
+  }
+  function selectedCountryCodes() {
+    var codes = [];
+    var boxes = countryBoxes();
+    for (var i = 0; i < boxes.length; i++) {
+      if (boxes[i].checked) codes.push(String(boxes[i].value || '').toUpperCase());
+    }
+    return codes;
+  }
+  function setCountrySelection(codes) {
+    var want = {};
+    for (var i = 0; i < codes.length; i++) {
+      var code = String(codes[i] || '').toUpperCase();
+      if (code) want[code] = true;
+    }
+    var boxes = countryBoxes();
+    for (var j = 0; j < boxes.length; j++) {
+      boxes[j].checked = !!want[String(boxes[j].value || '').toUpperCase()];
+    }
+    updateCountrySummary();
+  }
+  function updateCountrySummary() {
+    var el = form.querySelector('[data-country-summary]');
+    if (!el) return;
+    var boxes = countryBoxes();
+    var names = [];
+    for (var i = 0; i < boxes.length; i++) {
+      if (!boxes[i].checked) continue;
+      var lab = boxes[i].closest ? boxes[i].closest('label') : boxes[i].parentNode;
+      names.push(lab ? String(lab.textContent || '').trim() : String(boxes[i].value || ''));
+    }
+    if (!names.length) el.textContent = 'Select countries';
+    else if (names.length === boxes.length) el.textContent = 'All';
+    else if (names.length <= 2) el.textContent = names.join(', ');
+    else el.textContent = names.length + ' countries';
+  }
+  function filterCountryList() {
+    var input = form.querySelector('[data-country-search]');
+    var q = input ? String(input.value || '') : '';
+    var labels = form.querySelectorAll('.country-filter-options label.check');
+    var shown = 0;
+    for (var i = 0; i < labels.length; i++) {
+      var hay = labels[i].getAttribute('data-country-hay') || labels[i].textContent || '';
+      var ok = smartMatch(hay, q);
+      labels[i].hidden = !ok;
+      if (ok) shown += 1;
+    }
+    var empty = form.querySelector('[data-country-empty]');
+    if (empty) empty.classList.toggle('is-on', !shown);
+  }
+  function visibleCountryBoxes() {
+    var out = [];
+    var labels = form.querySelectorAll('.country-filter-options label.check');
+    for (var i = 0; i < labels.length; i++) {
+      if (labels[i].hidden) continue;
+      var box = labels[i].querySelector('input[name=country]');
+      if (box) out.push(box);
+    }
+    return out;
+  }
+  function languageBoxes() {
+    return form.querySelectorAll('input[name=language][type=checkbox]');
+  }
+  function selectedLanguageCodes() {
+    var codes = [];
+    var boxes = languageBoxes();
+    for (var i = 0; i < boxes.length; i++) {
+      if (boxes[i].checked) codes.push(String(boxes[i].value || '').toLowerCase());
+    }
+    return codes;
+  }
+  function setLanguageSelection(codes) {
+    var want = {};
+    for (var i = 0; i < codes.length; i++) {
+      var code = String(codes[i] || '').toLowerCase();
+      if (code) want[code] = true;
+    }
+    var boxes = languageBoxes();
+    for (var j = 0; j < boxes.length; j++) {
+      boxes[j].checked = !!want[String(boxes[j].value || '').toLowerCase()];
+    }
+    updateLanguageSummary();
+  }
+  function updateLanguageSummary() {
+    var el = form.querySelector('[data-language-summary]');
+    if (!el) return;
+    var boxes = languageBoxes();
+    var names = [];
+    for (var i = 0; i < boxes.length; i++) {
+      if (!boxes[i].checked) continue;
+      var lab = boxes[i].closest ? boxes[i].closest('label') : boxes[i].parentNode;
+      names.push(lab ? String(lab.textContent || '').trim() : String(boxes[i].value || ''));
+    }
+    if (!names.length) el.textContent = 'Select languages';
+    else if (names.length === boxes.length) el.textContent = 'All';
+    else if (names.length <= 2) el.textContent = names.join(', ');
+    else el.textContent = names.length + ' languages';
+  }
+  function filterLanguageList() {
+    var input = form.querySelector('[data-language-search]');
+    var q = input ? String(input.value || '') : '';
+    var labels = form.querySelectorAll('.language-filter-options label.check');
+    var shown = 0;
+    for (var i = 0; i < labels.length; i++) {
+      var hay = labels[i].getAttribute('data-language-hay') || labels[i].textContent || '';
+      var ok = smartMatch(hay, q);
+      labels[i].hidden = !ok;
+      if (ok) shown += 1;
+    }
+    var empty = form.querySelector('[data-language-empty]');
+    if (empty) empty.classList.toggle('is-on', !shown);
+  }
+  function visibleLanguageBoxes() {
+    var out = [];
+    var labels = form.querySelectorAll('.language-filter-options label.check');
+    for (var i = 0; i < labels.length; i++) {
+      if (labels[i].hidden) continue;
+      var box = labels[i].querySelector('input[name=language]');
+      if (box) out.push(box);
+    }
+    return out;
+  }
+  function bindDismiss(selector) {
+    var details = form.querySelector(selector);
+    if (!details) return;
+    document.addEventListener('pointerdown', function (e) {
+      if (!details.open) return;
+      if (details.contains(e.target)) return;
+      details.open = false;
+    }, true);
+  }
+  function networkOk(net, countries, place, isp) {
+    if (countries.length && countries.indexOf(String(net.country || '').toUpperCase()) === -1) return false;
+    if (place && !smartMatch(net.place || '', place)) return false;
+    if (isp && !smartMatch(net.isp || '', isp)) return false;
+    return true;
+  }
+  function buildMatrix(countries, languages, place, isp) {
+    var allow = null;
+    if (languages && languages.length) {
+      allow = {};
+      for (var i = 0; i < languages.length; i++) allow[String(languages[i] || '').toLowerCase()] = true;
+    }
+    var configs = {};
+    var langSet = {};
+    for (var n = 0; n < networks.length; n++) {
+      var net = networks[n];
+      if (!networkOk(net, countries, place, isp)) continue;
+      var counts = net.counts || {};
+      for (var key in counts) {
+        if (!Object.prototype.hasOwnProperty.call(counts, key)) continue;
+        var count = Number(counts[key]) || 0;
+        if (count <= 0) continue;
+        var colon = key.indexOf(':');
+        if (colon < 1) continue;
+        var gameId = key.slice(0, colon);
+        if (gameOrder.indexOf(gameId) === -1) continue;
+        var perm = key.slice(colon + 1);
+        var comma = perm.indexOf(',');
+        if (comma < 1) continue;
+        var lang = perm.slice(0, comma).trim().toLowerCase();
+        var rest = perm.slice(comma + 1);
+        if (!lang || !rest) continue;
+        if (allow && !allow[lang]) continue;
+        langSet[lang] = true;
+        var configKey = gameId + ':' + rest;
+        var slot = configs[configKey];
+        if (!slot) {
+          slot = {
+            gameId: gameId,
+            rest: rest,
+            label: (shortLabels[gameId] || gameId) + ',' + rest,
+            byLang: {}
+          };
+          configs[configKey] = slot;
+        }
+        var cell = slot.byLang[lang];
+        if (!cell) {
+          cell = { count: 0, cities: {}, countries: {}, networks: {} };
+          slot.byLang[lang] = cell;
+        }
+        cell.count += count;
+        if (net.placeLabel) cell.cities[net.placeLabel] = true;
+        if (net.countryLabel) cell.countries[net.countryLabel] = true;
+        cell.networks[net.ip || 'Unknown'] = true;
+      }
+    }
+    var columns = Object.keys(langSet).map(function (code) {
+      return { code: code, label: langNames[code] || code };
+    });
+    columns.sort(function (a, b) {
+      return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }) || a.code.localeCompare(b.code);
+    });
+    var rows = Object.keys(configs).map(function (k) { return configs[k]; });
+    rows.sort(function (a, b) {
+      var ga = gameOrder.indexOf(a.gameId);
+      var gb = gameOrder.indexOf(b.gameId);
+      if (ga !== gb) return ga - gb;
+      return compareRest(a.rest, b.rest);
+    });
+    var totals = {};
+    for (var c = 0; c < columns.length; c++) totals[columns[c].code] = 0;
+    var outRows = rows.map(function (slot) {
+      var byLang = {};
+      for (var code in slot.byLang) {
+        if (!Object.prototype.hasOwnProperty.call(slot.byLang, code)) continue;
+        var item = slot.byLang[code];
+        function lines(map) {
+          return Object.keys(map).sort(function (x, y) {
+            return x.localeCompare(y, undefined, { sensitivity: 'base' });
+          });
+        }
+        byLang[code] = {
+          count: item.count,
+          cities: lines(item.cities),
+          countries: lines(item.countries),
+          networks: lines(item.networks)
+        };
+        totals[code] += item.count;
+      }
+      return { label: slot.label, byLang: byLang };
+    });
+    return { columns: columns, rows: outRows, totals: totals };
+  }
+  function tipField() {
+    var el = form.querySelector('[name=tip]');
+    var v = el ? String(el.value || '') : '';
+    if (v === 'country') return 'countries';
+    if (v === 'network') return 'networks';
+    return 'cities';
+  }
+  function tipHtml(visible, tip, id) {
+    return '<span class="tip-cell"><button type="button" class="tip-trigger" aria-describedby="' + id + '" title="' + escHtml(tip) + '">' + escHtml(visible) + '</button><span id="' + id + '" class="tip" role="tooltip">' + escHtml(tip) + '</span></span>';
+  }
+  function cellHtml(num, sort, col, inner) {
+    var cls = num ? ' class="n"' : '';
+    return '<td' + cls + ' data-sort="' + escHtml(sort) + '" data-col="' + escHtml(col) + '">' + inner + '</td>';
+  }
+  function render(matrix) {
+    var cols = [{ key: 'game', label: 'game', type: 'text' }].concat(matrix.columns.map(function (col) {
+      return { key: col.code, label: col.label, type: 'num' };
+    }));
+    var head = '<tr>';
+    for (var h = 0; h < cols.length; h++) {
+      var col = cols[h];
+      var cls = col.type === 'num' ? ' class="n"' : '';
+      head += '<th' + cls + ' data-type="' + col.type + '" data-col="' + escHtml(col.key) + '"><button type="button" class="sort">' + escHtml(col.label) + '</button></th>';
+    }
+    head += '</tr>';
+    var nRows = matrix.rows.length;
+    if (nRows) {
+      head += '<tr class="total">';
+      head += cellHtml(false, '', 'game', escHtml('(' + nRows + ' configuration' + (nRows === 1 ? '' : 's') + ')'));
+      for (var t = 0; t < matrix.columns.length; t++) {
+        var code = matrix.columns[t].code;
+        var total = matrix.totals[code] || 0;
+        head += cellHtml(true, total, code, escHtml(String(total)));
+      }
+      head += '</tr>';
+    }
+    table.tHead.innerHTML = head;
+    var body = '';
+    for (var r = 0; r < matrix.rows.length; r++) {
+      var row = matrix.rows[r];
+      body += '<tr>' + cellHtml(false, row.label, 'game', escHtml(row.label));
+      for (var c = 0; c < matrix.columns.length; c++) {
+        var lang = matrix.columns[c].code;
+        var item = row.byLang[lang];
+        var count = item ? item.count : 0;
+        var tipList = item ? (item[tipField()] || []) : [];
+        var inner = count ? tipHtml(String(count), tipList.join('\\n'), 'g-' + r + '-' + lang) : '';
+        body += cellHtml(true, count, lang, inner);
+      }
+      body += '</tr>';
+    }
+    if (!nRows) body = '<tr data-empty="1"><td colspan="' + cols.length + '">No games in this range.</td></tr>';
+    table.tBodies[0].innerHTML = body;
+  }
+  function cellKey(row, index, type) {
+    var cell = row.cells[index];
+    var raw = cell ? cell.getAttribute('data-sort') : '';
+    if (raw == null) raw = '';
+    if (type === 'num') {
+      var n = Number(raw);
+      return isFinite(n) ? n : 0;
+    }
+    return raw;
+  }
+  function sortBody() {
+    var headRow = table.tHead.rows[0];
+    if (!headRow) return;
+    var index = -1;
+    var type = 'text';
+    var i;
+    for (i = 0; i < headRow.cells.length; i++) {
+      var th = headRow.cells[i];
+      if (sortKey && th.getAttribute('data-col') === sortKey) {
+        index = i;
+        type = th.getAttribute('data-type') || 'text';
+        th.setAttribute('aria-sort', sortDir > 0 ? 'ascending' : 'descending');
+      } else {
+        th.removeAttribute('aria-sort');
+      }
+    }
+    if (index < 0) return;
+    var tbody = table.tBodies[0];
+    var all = Array.prototype.slice.call(tbody.rows);
+    var emptyRow = null;
+    var rows = [];
+    for (i = 0; i < all.length; i++) {
+      if (all[i].getAttribute('data-empty') === '1') emptyRow = all[i];
+      else rows.push(all[i]);
+    }
+    rows.sort(function (a, b) {
+      var av = cellKey(a, index, type);
+      var bv = cellKey(b, index, type);
+      var cmp = type === 'num' ? av - bv : String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: 'base' });
+      if (cmp === 0) cmp = String(cellKey(a, 0, 'text')).localeCompare(String(cellKey(b, 0, 'text')), undefined, { numeric: true });
+      return cmp * sortDir;
+    });
+    for (i = 0; i < rows.length; i++) tbody.appendChild(rows[i]);
+    if (emptyRow) tbody.appendChild(emptyRow);
+  }
+  function bindSort() {
+    var headers = table.tHead.querySelectorAll('th[data-type]');
+    Array.prototype.forEach.call(headers, function (th) {
+      var btn = th.querySelector('button.sort');
+      if (!btn) return;
+      btn.addEventListener('click', function () {
+        var key = th.getAttribute('data-col') || '';
+        var type = th.getAttribute('data-type') || 'text';
+        var firstDir = type === 'num' ? -1 : 1;
+        sortDir = sortKey === key ? -sortDir : firstDir;
+        sortKey = key;
+        paint();
+      });
+    });
+  }
+  function pinTotals() {
+    var legend = table.tHead && table.tHead.rows[0];
+    if (!legend) return;
+    table.style.setProperty('--stats-legend-h', legend.getBoundingClientRect().height + 'px');
+  }
+  function copyPreserved(params, dropCounts) {
+    var current = new URL(location.href).searchParams;
+    current.forEach(function (value, key) {
+      var countKey = key.indexOf('gt_') === 0 || key === 'homeHitsOnly';
+      if (dropCounts && countKey) return;
+      if (countKey || key === 'group' || key === 'interval' || key === 'view') {
+        if (!params.has(key)) params.append(key, value);
+      }
+    });
+  }
+  function pageParams(dropCounts) {
+    var params = new URLSearchParams();
+    params.set('tab', 'games');
+    if (fromEl && fromEl.value) params.set('from', fromEl.value);
+    if (toEl && toEl.value) params.set('to', toEl.value);
+    var countries = selectedCountryCodes();
+    var languages = selectedLanguageCodes();
+    var placeEl = form.querySelector('[name=place]');
+    var ispEl = form.querySelector('[name=isp]');
+    if (countries.length) params.set('country', countries.join(','));
+    if (languages.length) params.set('language', languages.join(','));
+    if (placeEl && placeEl.value) params.set('place', placeEl.value);
+    if (ispEl && ispEl.value) params.set('isp', ispEl.value);
+    var tipEl = form.querySelector('[name=tip]');
+    var tipNow = tipEl ? String(tipEl.value || '') : '';
+    if (tipNow === 'country' || tipNow === 'network') params.set('tip', tipNow);
+    copyPreserved(params, dropCounts);
+    return params;
+  }
+  function syncTabHrefs(params) {
+    var links = document.querySelectorAll('.stats-tabs > a');
+    if (!links.length) return;
+    var tot = new URLSearchParams(params);
+    tot.set('tab', 'totals');
+    tot.delete('interval');
+    tot.delete('view');
+    if (links[0]) links[0].setAttribute('href', '/stats?' + tot.toString());
+    var tr = new URLSearchParams(params);
+    tr.set('tab', 'trends');
+    tr.delete('group');
+    if (!tr.get('interval')) tr.set('interval', 'days');
+    if (links[1]) links[1].setAttribute('href', '/stats?' + tr.toString());
+    var gm = new URLSearchParams(params);
+    gm.set('tab', 'games');
+    gm.delete('interval');
+    gm.delete('view');
+    gm.delete('group');
+    if (links[2]) links[2].setAttribute('href', '/stats?' + gm.toString());
+  }
+  function syncUrl(dropCounts) {
+    var params = pageParams(dropCounts);
+    var qs = params.toString();
+    var next = '/stats' + (qs ? '?' + qs : '');
+    if (next !== location.pathname + location.search) history.replaceState(null, '', next);
+    syncTabHrefs(params);
+  }
+  function paint() {
+    var place = String((form.querySelector('[name=place]') || {}).value || '').trim();
+    var isp = String((form.querySelector('[name=isp]') || {}).value || '').trim();
+    render(buildMatrix(selectedCountryCodes(), selectedLanguageCodes(), place, isp));
+    sortBody();
+    bindSort();
+    pinTotals();
+    syncUrl(false);
+  }
+  function datesChanged() {
+    var url = new URL(location.href);
+    var from = fromEl ? fromEl.value : '';
+    var to = toEl ? toEl.value : '';
+    return from !== (url.searchParams.get('from') || '') || to !== (url.searchParams.get('to') || '');
+  }
+  function goWithDates() {
+    syncUrl(false);
+    location.reload();
+  }
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (datesChanged()) goWithDates();
+    else paint();
+  });
+  form.addEventListener('input', function (e) {
+    var t = e.target;
+    if (t && t.getAttribute && t.getAttribute('data-country-search') != null) {
+      filterCountryList();
+      return;
+    }
+    if (t && t.getAttribute && t.getAttribute('data-language-search') != null) {
+      filterLanguageList();
+      return;
+    }
+    var name = t && t.name;
+    if (name === 'from' || name === 'to') {
+      if (datesChanged()) goWithDates();
+      return;
+    }
+    if (!name) return;
+    if (name === 'place' || name === 'isp') {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(paint, 80);
+      return;
+    }
+    paint();
+  });
+  form.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t && t.getAttribute && (t.getAttribute('data-country-search') != null || t.getAttribute('data-language-search') != null)) return;
+    var name = t && t.name;
+    if (name === 'from' || name === 'to') {
+      if (datesChanged()) goWithDates();
+      return;
+    }
+    paint();
+  });
+  var countryAll = form.querySelector('[data-country-all]');
+  var countryNone = form.querySelector('[data-country-none]');
+  if (countryAll) countryAll.addEventListener('click', function () {
+    var boxes = visibleCountryBoxes();
+    for (var i = 0; i < boxes.length; i++) boxes[i].checked = true;
+    updateCountrySummary();
+    paint();
+  });
+  if (countryNone) countryNone.addEventListener('click', function () {
+    var boxes = visibleCountryBoxes();
+    for (var i = 0; i < boxes.length; i++) boxes[i].checked = false;
+    updateCountrySummary();
+    paint();
+  });
+  var languageAll = form.querySelector('[data-language-all]');
+  var languageNone = form.querySelector('[data-language-none]');
+  if (languageAll) languageAll.addEventListener('click', function () {
+    var boxes = visibleLanguageBoxes();
+    for (var i = 0; i < boxes.length; i++) boxes[i].checked = true;
+    updateLanguageSummary();
+    paint();
+  });
+  if (languageNone) languageNone.addEventListener('click', function () {
+    var boxes = visibleLanguageBoxes();
+    for (var i = 0; i < boxes.length; i++) boxes[i].checked = false;
+    updateLanguageSummary();
+    paint();
+  });
+  bindDismiss('.country-filter');
+  bindDismiss('.language-filter');
+  var clearBtn = form.querySelector('[data-clear-filters]');
+  if (clearBtn) clearBtn.addEventListener('click', function (e) {
+    e.preventDefault();
+    setCountrySelection([]);
+    setLanguageSelection([]);
+    var searchEl = form.querySelector('[data-country-search]');
+    if (searchEl) searchEl.value = '';
+    filterCountryList();
+    var langSearchEl = form.querySelector('[data-language-search]');
+    if (langSearchEl) langSearchEl.value = '';
+    filterLanguageList();
+    var placeEl = form.querySelector('[name=place]');
+    var ispEl = form.querySelector('[name=isp]');
+    if (placeEl) placeEl.value = '';
+    if (ispEl) ispEl.value = '';
+    sortKey = '';
+    sortDir = 1;
+    render(buildMatrix([], [], '', ''));
+    bindSort();
+    pinTotals();
+    syncUrl(true);
+  });
+  var clearCal = form.querySelector('[data-clear-calendar]');
+  if (clearCal) clearCal.addEventListener('click', function (e) {
+    e.preventDefault();
+    var url = new URL(location.href);
+    url.searchParams.delete('from');
+    url.searchParams.delete('to');
+    var next = url.pathname + url.search;
+    if (next === location.pathname + location.search) {
+      if (fromEl) fromEl.value = '';
+      if (toEl) toEl.value = '';
+      return;
+    }
+    location.href = next;
+  });
+  function csvEscape(value) {
+    var s = String(value == null ? '' : value);
+    if (/[",\\n\\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  var exportBtn = document.querySelector('[data-export-csv]');
+  if (exportBtn) exportBtn.addEventListener('click', function () {
+    var head = table.tHead.rows[0];
+    var headers = [];
+    var h;
+    for (h = 0; h < head.cells.length; h++) {
+      var btn = head.cells[h].querySelector('button.sort');
+      headers.push(btn ? btn.textContent : head.cells[h].textContent);
+    }
+    var lines = [headers.map(csvEscape).join(',')];
+    var rows = table.tBodies[0].rows;
+    for (var r = 0; r < rows.length; r++) {
+      if (rows[r].hidden || rows[r].getAttribute('data-empty') === '1') continue;
+      var cells = [];
+      for (var c = 0; c < rows[r].cells.length; c++) {
+        var tipBtn = rows[r].cells[c].querySelector('.tip-trigger');
+        var text = tipBtn ? tipBtn.textContent : rows[r].cells[c].textContent;
+        cells.push(String(text || '').trim());
+      }
+      lines.push(cells.map(csvEscape).join(','));
+    }
+    var from = fromEl && fromEl.value ? fromEl.value : 'all';
+    var to = toEl && toEl.value ? toEl.value : 'all';
+    var blob = new Blob([lines.join('\\n') + '\\n'], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'wordaholic-games-' + from + '-to-' + to + '.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  bindSort();
+  pinTotals();
+  if (window.ResizeObserver) new ResizeObserver(pinTotals).observe(table.tHead);
+  window.addEventListener('resize', pinTotals);
+})();`;
+}
+
+/**
  * @param {ReturnType<typeof parseStatsFilters>} filters
  * @param {string} key
  */
@@ -1736,6 +2497,7 @@ export function renderStatsHtml(opts) {
   }
   const homeHitsOnly = filters.homeHitsOnly;
   const isTrends = tab === 'trends';
+  const isGames = tab === 'games';
 
   const countrySummaryText = !filters.countries.length
     ? 'Select countries'
@@ -1824,11 +2586,20 @@ ${languageOptions
           </span>
         </div>`;
 
+  const browseFilters = `<div id="stats-filter-entries" class="stats-filter-entries">
+          ${countryFilter}
+          ${languageFilter}
+          <label>Place<input type="text" name="place" value="${esc(filters.place)}" autocomplete="off"/></label>
+          <label>ISP<input type="text" name="isp" value="${esc(filters.isp)}" autocomplete="off"/></label>
+        </div>`;
+
   const qsBase = (extra = {}) => {
     const p = new URLSearchParams();
     if (from) p.set('from', from);
     if (to) p.set('to', to);
     writeStatsFilterParams(p, filters);
+    const gameTip = parseGameTip(opts.params?.get?.('tip'));
+    if (gameTip !== 'city') p.set('tip', gameTip);
     for (const [k, v] of Object.entries(extra)) {
       if (v) p.set(k, String(v));
     }
@@ -1837,8 +2608,9 @@ ${languageOptions
   };
 
   const tabs = `<nav class="stats-tabs" aria-label="Stats views">
-      <a href="/stats${qsBase({ tab: 'totals' })}"${isTrends ? '' : ' aria-current="page"'}>Totals</a>
+      <a href="/stats${qsBase({ tab: 'totals' })}"${isTrends || isGames ? '' : ' aria-current="page"'}>Totals</a>
       <a href="/stats${qsBase({ tab: 'trends', interval })}"${isTrends ? ' aria-current="page"' : ''}>Trends</a>
+      <a href="/stats${qsBase({ tab: 'games' })}"${isGames ? ' aria-current="page"' : ''}>Games</a>
       <span class="stats-tabs-end">
         <button type="button" data-clear-filters>Clear filters</button>
         <button type="button" data-toggle-filters aria-expanded="true" aria-controls="stats-filter-entries" title="Hide filters">▾</button>
@@ -2073,6 +2845,9 @@ ${languageOptions
     }
     .gt-field { display: flex; align-items: center; gap: 0.2rem; }
     table { border-collapse: separate; border-spacing: 0; width: 100%; }
+    #stats-table.stats-games { width: max-content; max-width: 100%; }
+    #stats-table.stats-games th,
+    #stats-table.stats-games td { white-space: nowrap; }
     #stats-table.group-language th[data-col="languages"],
     #stats-table.group-language td[data-col="languages"] { display: none; }
     th, td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent); vertical-align: top; }
@@ -2142,6 +2917,7 @@ ${languageOptions
       z-index: 8;
     }
     td.n .tip { left: auto; right: 0; }
+    .tip-cell.tip-below .tip { top: calc(100% + 0.25rem); bottom: auto; }
     .tip-cell:hover .tip, .tip-cell:focus-within .tip { display: block; }
     button.group-drill {
       background: none;
@@ -2595,6 +3371,8 @@ ${STATS_GAME_IDS.map(
     if (languages.length) params.set('language', languages.join(','));
     if (placeEl && placeEl.value) params.set('place', placeEl.value);
     if (ispEl && ispEl.value) params.set('isp', ispEl.value);
+    var tipNow = new URL(location.href).searchParams.get('tip');
+    if (tipNow === 'country' || tipNow === 'network') params.set('tip', tipNow);
     for (var i = 0; i < gtKeys.length; i++) {
       var el = form.querySelector('[name="gt_' + gtKeys[i] + '"]');
       if (!el || el.disabled) continue;
@@ -2621,6 +3399,12 @@ ${STATS_GAME_IDS.map(
     tr.delete('group');
     if (!tr.get('interval')) tr.set('interval', 'days');
     if (links[1]) links[1].setAttribute('href', '/stats?' + tr.toString());
+    var gm = new URLSearchParams(params);
+    gm.set('tab', 'games');
+    gm.delete('interval');
+    gm.delete('view');
+    gm.delete('group');
+    if (links[2]) links[2].setAttribute('href', '/stats?' + gm.toString());
   }
   function clearCalendar(e) {
     e.preventDefault();
@@ -2996,6 +3780,7 @@ ${emptyRow}
   <script>${TRENDS_CHART}</script>`
       : `<script>${SORT_SCRIPT}</script>
   <script>${COLLAPSE_SCRIPT}</script>
+  <script>${TIP_SCRIPT}</script>
   <script>${TRENDS_NAV}</script>
   <script>${TRENDS_CSV}</script>`;
 
@@ -3032,6 +3817,102 @@ ${emptyRow}
   </div>
   ${mainPane}
   ${scripts}
+</body>
+</html>
+`;
+  }
+
+  if (isGames) {
+    const matrix = gamesMatrixFor(allRows, filters);
+    const gameCols = [
+      /** @type {StatsColumn} */ ({ key: 'game', label: 'game', type: 'text' }),
+      ...matrix.columns.map((col) => /** @type {StatsColumn} */ ({ key: col.code, label: col.label, type: 'num' })),
+    ];
+    const headerRow = gameCols
+      .map((col) => {
+        const cls = col.type === 'num' ? ' class="n"' : '';
+        return `        <th${cls} data-type="${col.type}" data-col="${esc(col.key)}"><button type="button" class="sort">${esc(col.label)}</button></th>`;
+      })
+      .join('\n');
+    const bodyRows = matrix.rows
+      .map((row, i) => {
+        const cells = [
+          dataCell(gameCols[0], esc(row.label), row.label),
+          ...matrix.columns.map((col, j) => {
+            const cell = row.byLang[col.code];
+            const count = cell?.count || 0;
+            const tipLines = gameTipLines(cell, parseGameTip(opts.params?.get?.('tip')));
+            const inner = count ? tipCell(String(count), tipLines.join('\n'), `g-${i}-${col.code}`) : '';
+            return dataCell(gameCols[j + 1], inner, count);
+          }),
+        ].join('\n');
+        return `<tr>\n${cells}\n</tr>`;
+      })
+      .join('\n');
+    const nRows = matrix.rows.length;
+    const totalRow = nRows
+      ? `<tr class="total">
+${dataCell(gameCols[0], esc(`(${nRows} configuration${nRows === 1 ? '' : 's'})`), '')}
+${matrix.columns
+  .map((col, j) => dataCell(gameCols[j + 1], esc(String(matrix.totals[col.code] || 0)), matrix.totals[col.code] || 0))
+  .join('\n')}
+</tr>`
+      : '';
+    const emptyRow = nRows
+      ? ''
+      : `<tr data-empty="1"><td colspan="${gameCols.length}">No games in this range.</td></tr>`;
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Wordaholic stats — Games</title>
+  <link rel="icon" href="/brand/wordaholic-stats.svg" type="image/svg+xml"/>
+  <style>${styles}</style>
+</head>
+<body>
+  <div class="stats-chrome">
+    <form id="stats-filters" method="get" action="/stats">
+      <div class="stats-head">
+        <h1>${tipCell('Stats', STATS_HELP, 'stats-help')}</h1>
+        <div class="stats-actions">
+          <button type="button" data-export-csv>Export CSV</button>
+        </div>
+      </div>
+      ${tabs}
+      <div id="stats-filter-body" class="stats-filter-body stats-filter-body-split">
+        <div class="stats-filter-range">
+          ${sharedDates}
+          <button type="button" data-clear-calendar>Clear Calendar</button>
+          <label>Tooltip<select name="tip" aria-label="Tooltip">
+            <option value="country"${parseGameTip(opts.params?.get?.('tip')) === 'country' ? ' selected' : ''}>Country</option>
+            <option value="city"${parseGameTip(opts.params?.get?.('tip')) === 'city' ? ' selected' : ''}>City</option>
+            <option value="network"${parseGameTip(opts.params?.get?.('tip')) === 'network' ? ' selected' : ''}>Network</option>
+          </select></label>
+        </div>
+        ${browseFilters}
+      </div>
+    </form>
+    ${notice}
+  </div>
+  <div class="stats-table-wrap">
+  <table id="stats-table" class="stats-games">
+    <thead>
+      <tr>
+${headerRow}
+      </tr>
+      ${totalRow}
+    </thead>
+    <tbody>
+${bodyRows}
+${emptyRow}
+    </tbody>
+  </table>
+  </div>
+  <script>${gamesClientScript(gamesNetworkPayload(allRows))}</script>
+  <script>${COLLAPSE_SCRIPT}</script>
+  <script>${TIP_SCRIPT}</script>
 </body>
 </html>
 `;
@@ -3155,6 +4036,7 @@ ${emptyRow}
   </div>
   <script>${SORT_SCRIPT}</script>
   <script>${COLLAPSE_SCRIPT}</script>
+  <script>${TIP_SCRIPT}</script>
   <script>${FILTER_SCRIPT}</script>
   <script>${CSV_SCRIPT}</script>
 </body>
