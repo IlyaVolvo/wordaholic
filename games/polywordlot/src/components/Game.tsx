@@ -15,6 +15,7 @@ import { gameCacheUtils } from '../utils/gameCache';
 import { GAME_ID, refreshGamesFromIndexedDb, STORAGE_IMPORTED_EVENT } from '../storage/platform';
 import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../app/daily/variantVisit.js';
 import { openHelp, isHelpOpen } from '@wordaholic/help';
+import { mountHeaderChrome } from '../../../../app/play/header-chrome.js';
 import helpTopic from '../../help/topic.js';
 import { reportStats } from '@wordaholic/stats';
 
@@ -164,6 +165,7 @@ export const Game: React.FC<GameProps> = ({
   const [showWordIndexPopup, setShowWordIndexPopup] = useState(false);
   const [wordIndexInput, setWordIndexInput] = useState('');
   const wordIndexGameStartedRef = useRef(false);
+  const headerBarRef = useRef<HTMLDivElement>(null);
   const [calendarGames, setCalendarGames] = useState<any[]>([]);
   const [calendarBlinkingDates, setCalendarBlinkingDates] = useState<Set<string>>(new Set());
   const [winMessage, setWinMessage] = useState<string>('Congratulations! You won!');
@@ -186,13 +188,13 @@ export const Game: React.FC<GameProps> = ({
   const swipeStartDateRef = useRef<string | null>(null); // Capture date at swipe start
   const minSwipeDistance = 100;
 
-  // Load preferences on mount - default to Daily mode (not Training)
   useEffect(() => {
     const prefs = loadPreferences();
-    // Default to Daily (not Training) if not set
-    setRandomMode(prefs.randomMode === true);
-    // Initialize selected date - will be set properly when language/wordLength are available
-    // in the changeSettings useEffect
+    if (prefs.randomMode) {
+      prefs.randomMode = false;
+      savePreferences(prefs);
+    }
+    setRandomMode(false);
   }, []);
 
   const updateLetterStates = useCallback((state: GameState) => {
@@ -1208,6 +1210,11 @@ export const Game: React.FC<GameProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [loading, gameState, randomMode, dictionary, wordLength, language, keyboardRtl, handleEnter, handleBackspace, handleKeyPress, handleStartGame, showWordIndexPopup, showCalendar, view]);
 
+  useEffect(() => {
+    const bar = headerBarRef.current;
+    return bar ? mountHeaderChrome(bar) : undefined;
+  }, [loading, error]);
+
   if (loading) {
     return <div className="loading">Loading...</div>;
   }
@@ -1227,8 +1234,8 @@ export const Game: React.FC<GameProps> = ({
       onTouchEnd={onTouchEnd}
     >
       <div className="header-section">
-        <div className="game-header-bar">
-          <div className="game-header-side game-header-left">
+        <div className="game-header-bar" ref={headerBarRef}>
+          <div className="game-header-side game-header-left" data-header-fit>
             <a
               href="/"
               className="header-brand-home"
@@ -1244,7 +1251,7 @@ export const Game: React.FC<GameProps> = ({
               />
             </a>
             <a href="/" className="header-home-link header-game-name">PolyWordlot</a>
-            <div className="header-icon-cluster">
+            <div className="header-icon-cluster" data-header-chrome="icons">
               <button
                 type="button"
                 className="help-trigger help-trigger--game"
@@ -1299,6 +1306,72 @@ export const Game: React.FC<GameProps> = ({
                 </div>
               )}
             </div>
+            <div className="header-more" data-header-chrome="more">
+              <button type="button" className="header-icon-button" title="Game menu" aria-label="Game menu" aria-haspopup="menu" aria-expanded="false">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <circle cx="12" cy="5" r="2"></circle>
+                  <circle cx="12" cy="12" r="2"></circle>
+                  <circle cx="12" cy="19" r="2"></circle>
+                </svg>
+              </button>
+              <ul className="header-more-menu hidden" role="menu" aria-label="Game menu">
+                <li role="none">
+                  <button type="button" role="menuitem" onClick={() => openHelp(helpTopic)}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                    </svg>
+                    <span>How to play</span>
+                  </button>
+                </li>
+                {onViewChange ? (
+                  <>
+                    <li role="none">
+                      <button type="button" role="menuitem" onClick={() => { setShowCalendar(false); onViewChange('statistics'); }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <line x1="18" y1="20" x2="18" y2="10"></line>
+                          <line x1="12" y1="20" x2="12" y2="4"></line>
+                          <line x1="6" y1="20" x2="6" y2="14"></line>
+                        </svg>
+                        <span>Single Language Statistics</span>
+                      </button>
+                    </li>
+                    <li role="none">
+                      <button type="button" role="menuitem" onClick={() => { setShowCalendar(false); onViewChange('statistics', 'cross-language'); }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+                          <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+                          <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+                          <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+                        </svg>
+                        <span>Cross-Language Comparison</span>
+                      </button>
+                    </li>
+                  </>
+                ) : null}
+              </ul>
+            </div>
+          </div>
+          <div className="game-header-center" aria-hidden="true" />
+          <div className="game-header-side game-header-right" data-header-fit>
+            <Settings
+              userId={userId}
+              language={language}
+              wordLength={wordLength}
+              availableLanguages={availableLanguages}
+              selectedDate={selectedPlayDate || formatDate()}
+              onLanguageChange={handleLanguageChange}
+              onWordLengthChange={handleWordLengthChange}
+              onDateChange={handleDateChange}
+              showCalendar={showCalendar}
+              onShowCalendarChange={(open) => {
+                if (open) setCalendarMonth(calendarMonthForSelection(selectedPlayDate || formatDate()));
+                setShowCalendar(open);
+              }}
+              calendarGames={calendarGames}
+              calendarMonth={calendarMonth}
+              onCalendarMonthChange={setCalendarMonth}
+            />
           </div>
         </div>
       </div>
@@ -1366,27 +1439,6 @@ export const Game: React.FC<GameProps> = ({
           )}
         </div>
       </div>
-      <Settings
-        userId={userId}
-        language={language}
-        wordLength={wordLength}
-        randomMode={randomMode}
-        availableLanguages={availableLanguages}
-        selectedDate={selectedPlayDate || formatDate()}
-        onLanguageChange={handleLanguageChange}
-        onWordLengthChange={handleWordLengthChange}
-        onRandomModeChange={handleRandomModeChange}
-        onRestartPractice={handleRestartPractice}
-        onDateChange={handleDateChange}
-        showCalendar={showCalendar}
-        onShowCalendarChange={(open) => {
-          if (open) setCalendarMonth(calendarMonthForSelection(selectedPlayDate || formatDate()));
-          setShowCalendar(open);
-        }}
-        calendarGames={calendarGames}
-        calendarMonth={calendarMonth}
-        onCalendarMonthChange={setCalendarMonth}
-      />
       {showKeyboard ? (
         <Keyboard
           onKeyPress={handleKeyPress}

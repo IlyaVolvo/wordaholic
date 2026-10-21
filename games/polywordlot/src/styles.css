@@ -164,6 +164,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--accent);
+  white-space: nowrap;
 }
 
 .statistics-container .header-section h1 {
@@ -1111,15 +1112,15 @@ h1 .logout-wrapper:hover .logout-tooltip {
     padding: 0.65rem 0.85rem;
   }
 
-  .settings {
-    flex-wrap: wrap;
-    gap: 0.45rem;
-    padding: 0.55rem 0.85rem;
+  .game-header-bar .settings {
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    padding: 0;
   }
 
   .toolbar-picks,
   .toolbar-mode {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .toolbar-mode {
@@ -1227,9 +1228,9 @@ h1 .logout-wrapper:hover .logout-tooltip {
     font-size: 0.95rem;
   }
 
-  .settings {
-    gap: 0.35rem;
-    padding: 0.45rem 0.7rem;
+  .game-header-bar .settings {
+    gap: 0.3rem;
+    padding: 0;
   }
 
   .key {
@@ -1278,12 +1279,32 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .game-header-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   padding: 0.8rem 1.5rem;
   width: 100%;
   min-height: 44px;
+}
+
+.game-header-center {
+  justify-self: center;
+}
+
+.game-header-bar .settings {
+  padding: 0;
+  background: transparent;
+  border: none;
+  gap: 0.45rem;
+}
+
+.game-header-bar .toolbar-mode {
+  margin-left: 0;
+}
+
+.game-header-bar .toolbar-tip-label {
+  bottom: auto;
+  top: calc(100% + 6px);
 }
 
 .game-header-side {
@@ -1312,7 +1333,10 @@ h1 .logout-wrapper:hover .logout-tooltip {
 .game-header-right {
   position: relative;
   justify-content: flex-end;
+  justify-self: end;
   gap: 0.5rem;
+  overflow: visible;
+  z-index: 6;
 }
 
 a.header-brand-home {
@@ -2768,10 +2792,10 @@ a.header-brand-home:focus-visible {
   color: var(--text);
 }
 
-.settings .language-dropdown-list {
-  top: auto;
-  bottom: calc(100% + 4px);
-  margin: 0;
+.game-header-bar .settings .language-dropdown-list {
+  top: 100%;
+  bottom: auto;
+  margin: 4px 0 0;
 }
 
 .language-dropdown-option {

@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="./game.css">
   <link rel="stylesheet" href="/app/help/help.css">
   <link rel="stylesheet" href="/app/play/portrait-gate.css">
+  <link rel="stylesheet" href="/app/play/header-chrome.css">
 </head>
 <body>
 
@@ -23,12 +24,28 @@
   <div id="game" class="hidden">
 
     <header id="header">
-      <div class="header-left">
+      <div class="header-left" data-header-fit>
         <a href="/" class="header-brand-home" title="Wordaholic home" aria-label="Wordaholic home">
           <img class="header-brand-home-svg" src="/brand/wordaholic-mark.svg" width="34" height="34" alt="" />
         </a>
         <span class="header-game-name">TransWord</span>
-        <div class="header-more" id="header-more">
+        <div class="header-icon-cluster" data-header-chrome="icons">
+          <button type="button" id="btn-howto" class="help-trigger help-trigger--game" aria-label="How to play TransWord">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+            </svg>
+            <span class="help-trigger-tip">How to play TransWord</span>
+          </button>
+          <button type="button" id="btn-stats" class="icon-btn" title="Statistics" aria-label="Statistics">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+          </button>
+        </div>
+        <div class="header-more" id="header-more" data-header-chrome="more">
           <button type="button" id="header-more-trigger" class="icon-btn" title="Game menu" aria-label="Game menu" aria-haspopup="menu" aria-expanded="false">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <circle cx="12" cy="5" r="2"></circle>
@@ -37,6 +54,15 @@
             </svg>
           </button>
           <ul class="header-more-menu hidden" id="header-more-menu" role="menu" aria-label="Game menu">
+            <li role="none">
+              <button type="button" role="menuitem" data-header-action="howto">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+                <span>How to play</span>
+              </button>
+            </li>
             <li role="none">
               <button type="button" role="menuitem" data-header-action="stats">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -47,71 +73,76 @@
                 <span>Statistics</span>
               </button>
             </li>
-            <li role="none">
-              <button type="button" role="menuitem" data-header-action="display">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <circle cx="12" cy="12" r="3"></circle>
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"></path>
-                </svg>
-                <span>Display</span>
-              </button>
-            </li>
-            <li role="none">
-              <button type="button" role="menuitem" data-header-action="howto">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                </svg>
-                <span>How to play</span>
-              </button>
-            </li>
           </ul>
         </div>
-        <button type="button" id="btn-howto" class="help-trigger help-trigger--game" aria-label="How to play TransWord">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-          </svg>
-          <span class="help-trigger-tip">How to play TransWord</span>
-        </button>
-        <button type="button" id="btn-display" class="icon-btn" title="Display settings" aria-label="Display settings">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"></path>
-          </svg>
-        </button>
-        <button type="button" id="btn-stats" class="icon-btn" title="Statistics" aria-label="Statistics">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="18" y1="20" x2="18" y2="10"></line>
-            <line x1="12" y1="20" x2="12" y2="4"></line>
-            <line x1="6" y1="20" x2="6" y2="14"></line>
-          </svg>
-        </button>
       </div>
       <div class="header-center">
-        <div class="target-label">Target</div>
-        <div id="target-word" class="target-word"></div>
+        <div class="header-optional-cluster" data-header-fit>
+          <button type="button" id="btn-display" class="icon-btn" title="Display settings" aria-label="Display settings">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l-.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09A1.65 1.65 0 0 0 19.4 15z"></path>
+            </svg>
+          </button>
+          <div class="header-optional">
+            <div class="stat" id="stat-time" data-pref="showTime" title="Time">
+              <span class="stat-label">Time</span>
+              <span id="timer" class="stat-value">0:00</span>
+            </div>
+            <div class="stat" id="stat-optimal" data-pref="showOptimal" title="Optimal">
+              <span class="stat-label">Optimal</span>
+              <span id="optimal-count" class="stat-value">–</span>
+            </div>
+          </div>
+        </div>
+        <div class="header-target" data-header-fit>
+          <div class="target-label">Target</div>
+          <div id="target-word" class="target-word"></div>
+        </div>
+        <div class="play-scoreboard" data-header-fit aria-label="Game scoreboard">
+          <div class="stat" title="Steps">
+            <span class="stat-label">Steps</span>
+            <span id="step-count" class="stat-value">0</span>
+          </div>
+          <div class="stat" title="Dead ends">
+            <span class="stat-label">Dead ends</span>
+            <span id="deadend-count" class="stat-value">0</span>
+          </div>
+          <div class="stat" title="Helps">
+            <span class="stat-label">Helps</span>
+            <span id="help-count" class="stat-value">0</span>
+          </div>
+        </div>
       </div>
-      <div class="header-right">
-        <div class="stat" id="stat-time" data-pref="showTime" title="Time">
-          <span class="stat-label">Time</span>
-          <span id="timer" class="stat-value">0:00</span>
+      <div class="header-right" data-header-fit>
+        <div class="toolbar-picks">
+          <select id="difficulty" title="Difficulty" aria-label="Difficulty">
+            <option value="3" title="2–3 steps">Easy</option>
+            <option value="4" selected title="4–5 steps">Medium</option>
+            <option value="6" title="6–8 steps">Hard</option>
+          </select>
+          <select id="level-select" title="Vocabulary" aria-label="Vocabulary">
+            <option value="1">Basic</option>
+            <option value="2" selected>Standard</option>
+          </select>
+          <div class="language-dropdown" id="language-dropdown">
+            <button type="button" class="language-dropdown-trigger" id="language-trigger" title="Language" aria-label="Language" aria-haspopup="listbox" aria-expanded="false">
+              <span class="language-dropdown-flag" id="language-flag" aria-hidden="true"></span>
+              <span class="language-dropdown-chevron" aria-hidden="true">▼</span>
+            </button>
+            <ul class="language-dropdown-list hidden" id="language-list" role="listbox" aria-label="Select language"></ul>
+          </div>
         </div>
-        <div class="stat" title="Steps">
-          <span class="stat-label">Steps</span>
-          <span id="step-count" class="stat-value">0</span>
-        </div>
-        <div class="stat" id="stat-optimal" data-pref="showOptimal" title="Optimal">
-          <span class="stat-label">Optimal</span>
-          <span id="optimal-count" class="stat-value">–</span>
-        </div>
-        <div class="stat" title="Dead ends">
-          <span class="stat-label">Dead ends</span>
-          <span id="deadend-count" class="stat-value">0</span>
-        </div>
-        <div class="stat" title="Helps">
-          <span class="stat-label">Helps</span>
-          <span id="help-count" class="stat-value">0</span>
+        <div class="toolbar-mode">
+          <button type="button" id="btn-calendar" class="date-picker-btn" title="Calendar" aria-label="Choose daily date">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" stroke-width="1.5"/>
+              <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+            <span id="date-display">today</span>
+          </button>
         </div>
       </div>
     </header>
@@ -123,53 +154,6 @@
       Dead end — this word cannot reach the target. Undo to continue.
     </div>
 
-    <footer id="toolbar">
-      <div class="toolbar-picks">
-        <select id="difficulty" title="Difficulty" aria-label="Difficulty">
-          <option value="3" title="2–3 steps">Easy</option>
-          <option value="4" selected title="4–5 steps">Medium</option>
-          <option value="6" title="6–8 steps">Hard</option>
-        </select>
-        <select id="level-select" title="Vocabulary" aria-label="Vocabulary">
-          <option value="1">Basic</option>
-          <option value="2" selected>Standard</option>
-        </select>
-        <div class="language-dropdown" id="language-dropdown">
-          <button type="button" class="language-dropdown-trigger" id="language-trigger" title="Language" aria-label="Language" aria-haspopup="listbox" aria-expanded="false">
-            <span class="language-dropdown-flag" id="language-flag" aria-hidden="true"></span>
-            <span class="language-dropdown-chevron" aria-hidden="true">▼</span>
-          </button>
-          <ul class="language-dropdown-list hidden" id="language-list" role="listbox" aria-label="Select language"></ul>
-        </div>
-      </div>
-      <div class="toolbar-mode">
-        <div class="mode-dropdown" id="mode-dropdown">
-          <button type="button" class="mode-select mode-dropdown-trigger" id="mode-trigger" aria-label="Game mode: Daily or Practice" aria-haspopup="listbox" aria-expanded="false">
-            <span id="mode-trigger-label">Daily</span>
-            <span class="language-dropdown-chevron" aria-hidden="true">▼</span>
-          </button>
-          <ul class="mode-dropdown-list hidden" id="mode-list" role="listbox" aria-label="Game mode: Daily or Practice">
-            <li role="option" class="language-dropdown-option selected" data-mode="daily" aria-selected="true">Daily</li>
-            <li role="option" class="language-dropdown-option" data-mode="practice" aria-selected="false">Practice</li>
-          </ul>
-        </div>
-        <button type="button" id="btn-new-practice" class="restart-practice-button hidden" title="New practice game" aria-label="New practice game">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-          </svg>
-        </button>
-        <button type="button" id="btn-calendar" class="date-picker-btn" title="Calendar" aria-label="Choose daily date">
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" stroke-width="1.5"/>
-            <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
-          <span id="date-display">today</span>
-        </button>
-      </div>
-    </footer>
     <div id="keyboard" class="keyboard"></div>
 
   </div>

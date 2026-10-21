@@ -73,6 +73,8 @@ export async function prepareOffline(onProgress) {
     ...KNOWN_GAME_IDS.map((id) => `/games/${id}/help/topic.js`),
     '/app/play/portrait-gate.css',
     '/app/play/portrait-gate.js',
+    '/app/play/header-chrome.css',
+    '/app/play/header-chrome.js',
     '/deployment-manifest.json',
     '/app/announcements.json',
     '/data/languages.json',

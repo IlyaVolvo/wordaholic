@@ -4,20 +4,16 @@ import { formatDate } from '../utils/dailyWord';
 import { calendarMonthForSelection } from '../../../../app/daily/variantVisit.js';
 import { apiClient } from '../api/client';
 import { LanguageDropdown } from './LanguageDropdown';
-import { ModeDropdown } from './ModeDropdown';
 
 interface SettingsProps {
   userId: number;
   language: string;
   wordLength: number;
-  randomMode: boolean;
   availableLanguages: LanguageConfig[];
   selectedDate: string;
   onLanguageChange: (language: string) => void;
   onWordLengthChange: (length: number) => void;
-  onRandomModeChange: (randomMode: boolean) => void;
   onDateChange: (date: string) => void;
-  onRestartPractice?: () => void;
   disabled?: boolean;
   onShowCalendarChange?: (show: boolean) => void;
   showCalendar?: boolean;
@@ -75,14 +71,11 @@ export const Settings: React.FC<SettingsProps> = ({
   userId,
   language,
   wordLength,
-  randomMode,
   availableLanguages,
   selectedDate,
   onLanguageChange,
   onWordLengthChange,
-  onRandomModeChange,
   onDateChange: _onDateChange,
-  onRestartPractice,
   disabled = false,
   onShowCalendarChange,
   showCalendar: externalShowCalendar,
@@ -120,7 +113,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
   // Load games for calendar when it opens
   useEffect(() => {
-    if (showCalendar && !randomMode) {
+    if (showCalendar) {
       const loadGames = async () => {
         try {
           const response = await apiClient.getHistory(language, wordLength, 10000);
@@ -136,7 +129,7 @@ export const Settings: React.FC<SettingsProps> = ({
       };
       loadGames();
     }
-  }, [showCalendar, language, wordLength, randomMode, userId, onShowCalendarChange]);
+  }, [showCalendar, language, wordLength, userId, onShowCalendarChange]);
 
   // Follow the selected puzzle date's month while that date changes
   useEffect(() => {
@@ -184,44 +177,22 @@ export const Settings: React.FC<SettingsProps> = ({
         </div>
       </div>
       <div className="toolbar-mode">
-        <ModeDropdown
-          randomMode={randomMode}
-          onChange={onRandomModeChange}
+        <button
+          type="button"
+          className="date-picker-btn"
+          onClick={() => !disabled && setShowCalendar(true)}
           disabled={disabled}
-        />
-        {randomMode && onRestartPractice && (
-          <button
-            type="button"
-            className="restart-practice-button"
-            onClick={onRestartPractice}
-            disabled={disabled}
-            title="New practice game"
-            aria-label="New practice game"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="23 4 23 10 17 10"></polyline>
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-            </svg>
-          </button>
-        )}
-        {!randomMode && (
-          <button
-            type="button"
-            className="date-picker-btn"
-            onClick={() => !disabled && setShowCalendar(true)}
-            disabled={disabled}
-            title="Calendar"
-            aria-label="Choose daily date"
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-              <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5"/>
-              <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5"/>
-              <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" strokeWidth="1.5"/>
-            </svg>
-            <span className="date-display">{formatDateDisplay(selectedDate || null, today)}</span>
-          </button>
-        )}
+          title="Calendar"
+          aria-label="Choose daily date"
+        >
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5"/>
+            <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5"/>
+            <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" strokeWidth="1.5"/>
+          </svg>
+          <span className="date-display">{formatDateDisplay(selectedDate || null, today)}</span>
+        </button>
       </div>
     </div>
   );

@@ -83,8 +83,24 @@ export function isHydraWon(game: StoredHydra): boolean {
   });
 }
 
+export function isHydraDoomed(game: StoredHydra): boolean {
+  if (isHydraWon(game)) return false;
+  const targets = game.target_words || [];
+  if (!targets.length) return false;
+  const lists = asGuessLists(game.board_guesses, game.board_count);
+  const used = Math.max(0, ...lists.map((g) => g.length));
+  const solved = targets.reduce((n, target, i) => {
+    const last = lists[i]?.[lists[i].length - 1];
+    return n + (last && isWinningGuessForLanguage(last, target, game.language) ? 1 : 0);
+  }, 0);
+  const wordsLeft = targets.length - solved;
+  const attemptsLeft = hydraMaxGuesses(game.board_count) - used;
+  return attemptsLeft < wordsLeft;
+}
+
 export function isHydraComplete(game: StoredHydra): boolean {
   if (isHydraWon(game)) return true;
+  if (isHydraDoomed(game)) return true;
   if (game.is_complete === 1) return true;
   const max = hydraMaxGuesses(game.board_count);
   const used = Math.max(0, ...asGuessLists(game.board_guesses, game.board_count).map((g) => g.length));

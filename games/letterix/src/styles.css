@@ -25,7 +25,7 @@ body {
   min-height: 0;
   background: var(--water);
 }
-.header-section, .settings, .letterix-keys {
+.header-section, .letterix-keys {
   background: var(--surface);
   color: var(--text);
   flex-shrink: 0;
@@ -50,7 +50,7 @@ body {
   align-items: center;
   gap: 17px;
 }
-.header-right { justify-content: flex-end; }
+.header-right { justify-content: flex-end; overflow: visible; z-index: 6; }
 a.header-brand-home {
   display: grid;
   place-items: center;
@@ -159,17 +159,19 @@ a.header-brand-home {
 .field { max-width: 100%; max-height: 100%; }
 .field.is-paused canvas { filter: blur(22px); }
 .field canvas { display: block; touch-action: none; background: transparent; }
-.settings {
+.header-right .settings {
   position: relative;
   z-index: 6;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 1rem;
-  border-top: 1px solid var(--border);
+  gap: 0.45rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  flex-wrap: nowrap;
 }
 .toolbar-picks, .toolbar-mode { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
-.toolbar-mode { margin-left: auto; }
+.header-right .toolbar-mode { margin-left: 0; }
 .language-dropdown { position: relative; }
 .language-dropdown-trigger {
   display: flex;
@@ -188,7 +190,8 @@ a.header-brand-home {
 .language-dropdown-chevron { font-size: 0.55rem; color: var(--text-dim); }
 .language-dropdown-list {
   position: absolute;
-  bottom: calc(100% + 4px);
+  top: calc(100% + 4px);
+  bottom: auto;
   left: 0;
   z-index: 30;
   margin: 0;

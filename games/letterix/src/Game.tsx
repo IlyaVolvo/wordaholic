@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { calendarMonthForSelection } from '../../../app/daily/variantVisit.js';
+import { mountHeaderChrome } from '../../../app/play/header-chrome.js';
 import { openHelp } from '@wordaholic/help';
 import helpTopic from '../help/topic.js';
 import { reportStats } from '@wordaholic/stats';
@@ -90,6 +91,7 @@ export const Game: React.FC<{
   initialW,
   initialH,
 }) => {
+  const headerBarRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const slotRef = useRef<HTMLDivElement>(null);
   const simRef = useRef<Sim | null>(null);
@@ -226,6 +228,11 @@ export const Game: React.FC<{
     setSessionActive(GAME_ID, Boolean(hud && hud.phase !== 'ready' && hud.phase !== 'over'));
     return () => setSessionActive(GAME_ID, false);
   }, [hud]);
+
+  useEffect(() => {
+    const bar = headerBarRef.current;
+    return bar ? mountHeaderChrome(bar) : undefined;
+  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -413,8 +420,8 @@ export const Game: React.FC<{
   return (
     <div className="letterix" data-phase={hud?.phase || 'ready'}>
       <header className="header-section">
-        <div className="game-header-bar">
-          <div className="header-cluster">
+        <div className="game-header-bar" ref={headerBarRef}>
+          <div className="header-cluster" data-header-fit>
             <Tip label="Wordaholic home">
               <a href="/" className="header-brand-home" aria-label="Wordaholic home">
                 <img className="header-brand-home-svg" src="/brand/wordaholic-mark.svg" width={34} height={34} alt="" />
@@ -423,7 +430,7 @@ export const Game: React.FC<{
             <Tip label="Letterix">
               <span className="header-game-name">Letterix</span>
             </Tip>
-            <div className="header-icon-cluster">
+            <div className="header-icon-cluster" data-header-chrome="icons">
               <Tip label="Manual">
                 <button type="button" className="help-trigger help-trigger--game" aria-label="Manual" onClick={() => openHelp(helpTopic)}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -442,14 +449,119 @@ export const Game: React.FC<{
                 </button>
               </Tip>
             </div>
+            <div className="header-more" data-header-chrome="more">
+              <button type="button" className="header-icon-button" title="Game menu" aria-label="Game menu" aria-haspopup="menu" aria-expanded="false">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <circle cx="12" cy="5" r="2"></circle>
+                  <circle cx="12" cy="12" r="2"></circle>
+                  <circle cx="12" cy="19" r="2"></circle>
+                </svg>
+              </button>
+              <ul className="header-more-menu hidden" role="menu" aria-label="Game menu">
+                <li role="none">
+                  <button type="button" role="menuitem" onClick={() => openHelp(helpTopic)}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                    </svg>
+                    <span>Manual</span>
+                  </button>
+                </li>
+                <li role="none">
+                  <button type="button" role="menuitem" onClick={() => { setStatsLanguage(language); setShowStats(true); }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <line x1="18" y1="20" x2="18" y2="10" />
+                      <line x1="12" y1="20" x2="12" y2="4" />
+                      <line x1="6" y1="20" x2="6" y2="14" />
+                    </svg>
+                    <span>Statistics</span>
+                  </button>
+                </li>
+              </ul>
+            </div>
           </div>
           <Tip label="Current score" className="letterix-score-tip">
-            <div className="letterix-score">
+            <div className="letterix-score" data-header-fit>
               <span className="letterix-score-word">Score</span>
               <strong data-score>{hud?.score ?? 0}</strong>
             </div>
           </Tip>
-          <div className="header-right" aria-hidden="true" />
+          <div className="header-right" data-header-fit>
+            <div className="settings">
+              <div className="toolbar-picks">
+                <Tip label="Language">
+                  <PickMenu
+                    label={`Language: ${languages.find((lang) => lang.code === language)?.name || language}`}
+                    open={openMenu === 'language'}
+                    disabled={locked}
+                    onToggle={() => setOpenMenu((menu) => (menu === 'language' ? null : 'language'))}
+                    trigger={<span className="language-dropdown-flag" aria-hidden="true">{languages.find((lang) => lang.code === language)?.flag || '🇺🇸'}</span>}
+                    options={languages.map((lang) => ({
+                      value: lang.code,
+                      selected: lang.code === language,
+                      label: (
+                        <>
+                          <span className="language-dropdown-flag" aria-hidden="true">{lang.flag}</span>
+                          <span>{lang.name}</span>
+                        </>
+                      ),
+                    }))}
+                    onPick={(code) => {
+                      if (code === language) return;
+                      const sim = simRef.current;
+                      if (sim && sim.phase !== 'ready') void saveRun(sim);
+                      onLanguageChange(code);
+                    }}
+                  />
+                </Tip>
+                <Tip label="Width">
+                  <PickMenu
+                    label="Width"
+                    open={openMenu === 'width'}
+                    disabled={locked}
+                    onToggle={() => setOpenMenu((menu) => (menu === 'width' ? null : 'width'))}
+                    trigger={<span>{W}</span>}
+                    options={widths.map((n) => ({ value: String(n), selected: n === W, label: <span>{n}</span> }))}
+                    onPick={(value) => setSize('W', Number(value))}
+                  />
+                </Tip>
+                <Tip label="Height">
+                  <PickMenu
+                    label="Height"
+                    open={openMenu === 'height'}
+                    disabled={locked}
+                    onToggle={() => setOpenMenu((menu) => (menu === 'height' ? null : 'height'))}
+                    trigger={<span>{H}</span>}
+                    options={heights.map((n) => ({ value: String(n), selected: n === H, label: <span>{n}</span> }))}
+                    onPick={(value) => setSize('H', Number(value))}
+                  />
+                </Tip>
+              </div>
+              <div className="toolbar-mode">
+                <Tip label="Calendar">
+                  <button
+                    type="button"
+                    className="date-picker-btn"
+                    aria-label="Choose daily date"
+                    disabled={locked}
+                    onClick={() => {
+                      if (locked) return;
+                      setCalendarMonth(calendarMonthForSelection(date));
+                      setShowCalendar(true);
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5" />
+                      <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5" />
+                      <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5" />
+                      <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" strokeWidth="1.5" />
+                    </svg>
+                    <span className="date-display">{formatDateDisplay(date)}</span>
+                  </button>
+                </Tip>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
       <div className="stage" ref={slotRef}>
@@ -475,80 +587,6 @@ export const Game: React.FC<{
             <strong>{hud.score}</strong>
           </div>
         )}
-      </div>
-      <div className="settings">
-        <div className="toolbar-picks">
-          <Tip label="Language">
-            <PickMenu
-              label={`Language: ${languages.find((lang) => lang.code === language)?.name || language}`}
-              open={openMenu === 'language'}
-              disabled={locked}
-              onToggle={() => setOpenMenu((menu) => (menu === 'language' ? null : 'language'))}
-              trigger={<span className="language-dropdown-flag" aria-hidden="true">{languages.find((lang) => lang.code === language)?.flag || '🇺🇸'}</span>}
-              options={languages.map((lang) => ({
-                value: lang.code,
-                selected: lang.code === language,
-                label: (
-                  <>
-                    <span className="language-dropdown-flag" aria-hidden="true">{lang.flag}</span>
-                    <span>{lang.name}</span>
-                  </>
-                ),
-              }))}
-              onPick={(code) => {
-                if (code === language) return;
-                const sim = simRef.current;
-                if (sim && sim.phase !== 'ready') void saveRun(sim);
-                onLanguageChange(code);
-              }}
-            />
-          </Tip>
-          <Tip label="Width">
-            <PickMenu
-              label="Width"
-              open={openMenu === 'width'}
-              disabled={locked}
-              onToggle={() => setOpenMenu((menu) => (menu === 'width' ? null : 'width'))}
-              trigger={<span>{W}</span>}
-              options={widths.map((n) => ({ value: String(n), selected: n === W, label: <span>{n}</span> }))}
-              onPick={(value) => setSize('W', Number(value))}
-            />
-          </Tip>
-          <Tip label="Height">
-            <PickMenu
-              label="Height"
-              open={openMenu === 'height'}
-              disabled={locked}
-              onToggle={() => setOpenMenu((menu) => (menu === 'height' ? null : 'height'))}
-              trigger={<span>{H}</span>}
-              options={heights.map((n) => ({ value: String(n), selected: n === H, label: <span>{n}</span> }))}
-              onPick={(value) => setSize('H', Number(value))}
-            />
-          </Tip>
-        </div>
-        <div className="toolbar-mode">
-          <Tip label="Calendar">
-            <button
-              type="button"
-              className="date-picker-btn"
-              aria-label="Choose daily date"
-              disabled={locked}
-              onClick={() => {
-                if (locked) return;
-                setCalendarMonth(calendarMonthForSelection(date));
-                setShowCalendar(true);
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5" />
-                <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5" />
-                <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5" />
-                <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-              <span className="date-display">{formatDateDisplay(date)}</span>
-            </button>
-          </Tip>
-        </div>
       </div>
       <div className={`letterix-keys${setup ? ' letterix-keys--setup' : ''}`}>
         <div

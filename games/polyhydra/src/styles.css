@@ -164,6 +164,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--accent);
+  white-space: nowrap;
 }
 
 .statistics-container .header-section h1 {
@@ -1107,15 +1108,15 @@ h1 .logout-wrapper:hover .logout-tooltip {
     padding: 0.65rem 0.85rem;
   }
 
-  .settings {
-    flex-wrap: wrap;
-    gap: 0.45rem;
-    padding: 0.55rem 0.85rem;
+  .game-header-bar .settings {
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    padding: 0;
   }
 
   .toolbar-picks,
   .toolbar-mode {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   .toolbar-mode {
@@ -1223,9 +1224,9 @@ h1 .logout-wrapper:hover .logout-tooltip {
     font-size: 0.95rem;
   }
 
-  .settings {
-    gap: 0.35rem;
-    padding: 0.45rem 0.7rem;
+  .game-header-bar .settings {
+    gap: 0.3rem;
+    padding: 0;
   }
 
   .key {
@@ -1277,6 +1278,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
   padding: 0.8rem 1.5rem;
   width: 100%;
   min-height: 44px;
@@ -2768,10 +2770,10 @@ a.header-brand-home:focus-visible {
   color: var(--text);
 }
 
-.settings .language-dropdown-list {
-  top: auto;
-  bottom: calc(100% + 4px);
-  margin: 0;
+.game-header-bar .settings .language-dropdown-list {
+  top: 100%;
+  bottom: auto;
+  margin: 4px 0 0;
 }
 
 .language-dropdown-option {
@@ -3283,15 +3285,35 @@ a.header-brand-home:focus-visible {
 
 .hydra-container .game-header-bar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 .hydra-container .game-header-right {
   justify-self: end;
+  overflow: visible;
+  z-index: 6;
+}
+
+.hydra-container .game-header-bar .settings {
+  padding: 0;
+  background: transparent;
+  border: none;
+  gap: 0.45rem;
+}
+
+.hydra-container .game-header-bar .toolbar-mode {
+  margin-left: 0;
+}
+
+.hydra-container .game-header-bar .toolbar-tip-label {
+  bottom: auto;
+  top: calc(100% + 6px);
 }
 
 .hydra-attempts {
   position: relative;
+  display: inline-flex;
+  align-items: stretch;
   font-size: 1.05rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -3301,8 +3323,54 @@ a.header-brand-home:focus-visible {
   text-align: center;
   max-width: min(28rem, 52vw);
   justify-self: center;
-  padding: 0.22rem 0.7rem;
+  padding: 0;
+  overflow: hidden;
   border-radius: 8px;
+}
+
+.hydra-attempts-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.12rem 0.65rem 0.16rem;
+}
+
+.hydra-attempts-label {
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  opacity: 0.75;
+}
+
+.hydra-attempts-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.header-chrome-tight .hydra-attempts-stat {
+  position: relative;
+  padding: 0.22rem 0.55rem;
+}
+
+.header-chrome-tight .hydra-attempts-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.hydra-attempts-sep {
+  width: 1px;
+  align-self: stretch;
+  background: currentColor;
+  opacity: 0.55;
 }
 
 .hydra-attempts-tip {
@@ -3335,6 +3403,8 @@ a.header-brand-home:focus-visible {
 }
 
 .hydra-attempts.is-message {
+  display: block;
+  padding: 0.22rem 0.7rem;
   font-variant-numeric: normal;
   letter-spacing: 0.01em;
   font-size: clamp(1.05rem, 3.2vw, 1.45rem);

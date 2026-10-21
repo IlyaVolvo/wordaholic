@@ -23,6 +23,7 @@ import helpTopic from '../../help/topic.js';
 import { reportStats } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../app/daily/variantVisit.js';
+import { mountHeaderChrome } from '../../../../app/play/header-chrome.js';
 import type { DictionaryEntry, Guess, LanguageConfig, LetterState } from '../types';
 import { GameBoard } from './GameBoard';
 import { SummaryBoard } from './SummaryBoard';
@@ -224,13 +225,41 @@ function formatWinAnnounce(base: string, usedGuesses: number, boards: number): s
   return `${text} ${winExtraLabel(usedGuesses, boards)}`;
 }
 
-/** Stats-bar colors: +3 dark green, +4 green, +5 yellow, +6 loss red. Safer extras use +3. */
-function attemptsTone(usedGuesses: number, boards: number, complete: boolean, won: boolean): 3 | 4 | 5 | 6 {
-  if (complete && !won) return 6;
-  const extra = usedGuesses - boards;
-  if (extra >= 6) return 6;
-  if (extra >= 5) return 5;
-  if (extra >= 4) return 4;
+function hydraProgress(
+  targets: string[],
+  boardGuesses: string[][],
+  language: string,
+  boardCount: number
+) {
+  const used = usedGuessCount(boardGuesses);
+  const max = hydraMaxGuesses(boardCount);
+  const solved = targets.reduce(
+    (n, target, i) => n + (boardSolvedAt(boardGuesses[i], target, language) ? 1 : 0),
+    0
+  );
+  const wordsLeft = Math.max(0, targets.length - solved);
+  const attemptsLeft = Math.max(0, max - used);
+  const won = targets.length > 0 && solved === targets.length;
+  const doomed = !won && attemptsLeft < wordsLeft;
+  const burned = used - solved;
+  return {
+    used,
+    wordsLeft,
+    attemptsLeft,
+    won,
+    doomed,
+    playFrozen: won || used >= max,
+    historyComplete: won || doomed || used >= max,
+    burned,
+  };
+}
+
+/** Stats-bar colors: +3 dark green, +4 green, +5 yellow, +6 loss red. */
+function attemptsTone(burned: number, doomed: boolean, playFrozen: boolean, won: boolean): 3 | 4 | 5 | 6 {
+  if ((playFrozen && !won) || doomed) return 6;
+  if (burned >= 6) return 6;
+  if (burned >= 5) return 5;
+  if (burned >= 4) return 4;
   return 3;
 }
 
@@ -264,6 +293,7 @@ export const Game: React.FC<GameProps> = ({
   const [loseMessage, setLoseMessage] = useState('Out of guesses.');
   const [endFlash, setEndFlash] = useState(false);
   const allowEndFxRef = useRef(false);
+  const completedAtRef = useRef<string | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => new Date());
   const [calendarGames, setCalendarGames] = useState<StoredHydra[]>([]);
@@ -282,11 +312,11 @@ export const Game: React.FC<GameProps> = ({
   const modeUserOverrideRef = useRef(storedBoardMode(boardCount) != null);
   const isCompleteRef = useRef(false);
   const boardModeRef = useRef(boardMode);
+  const headerBarRef = useRef<HTMLDivElement>(null);
   const boardsViewportRef = useRef<HTMLDivElement | null>(null);
   const swipeRef = useRef<{ x: number; y: number; active: boolean } | null>(null);
 
   const maxGuesses = maxGuessesForBoardCount(boardCount);
-  const attemptsUsed = usedGuessCount(boardGuesses);
   const boardNaturalWidth = wordLength * CELL_NATURAL + (wordLength - 1) * CELL_GAP;
 
   const selectBoardMode = useCallback((mode: 'summary' | 'full', fromUser: boolean) => {
@@ -335,6 +365,12 @@ export const Game: React.FC<GameProps> = ({
       date: string;
     }) => {
       const now = new Date().toISOString();
+      const progress = hydraProgress(next.targets, next.boardGuesses, language, boardCount);
+      const historyComplete = progress.historyComplete;
+      const historyWon = progress.won;
+      const completedAt = historyComplete ? completedAtRef.current || now : null;
+      if (historyComplete && !completedAtRef.current) completedAtRef.current = completedAt;
+      if (!historyComplete) completedAtRef.current = null;
       await putStoredGame({
         language,
         word_length: wordLength,
@@ -344,10 +380,10 @@ export const Game: React.FC<GameProps> = ({
         board_guesses: next.boardGuesses,
         current_guess: next.currentGuess,
         invalid_pending: next.invalidPending ? 1 : 0,
-        is_complete: next.isComplete ? 1 : 0,
-        is_won: next.isWon ? 1 : 0,
+        is_complete: historyComplete ? 1 : 0,
+        is_won: historyWon ? 1 : 0,
         updated_at: now,
-        completed_at: next.isComplete ? now : null,
+        completed_at: completedAt,
       });
       setCalendarGames((prev) => {
         const row: StoredHydra = {
@@ -359,10 +395,10 @@ export const Game: React.FC<GameProps> = ({
           board_guesses: next.boardGuesses,
           current_guess: next.currentGuess,
           invalid_pending: next.invalidPending ? 1 : 0,
-          is_complete: next.isComplete ? 1 : 0,
-          is_won: next.isWon ? 1 : 0,
+          is_complete: historyComplete ? 1 : 0,
+          is_won: historyWon ? 1 : 0,
           updated_at: now,
-          completed_at: next.isComplete ? now : null,
+          completed_at: completedAt,
         };
         const i = prev.findIndex((g) => g.game_date === next.date);
         if (i < 0) return [...prev, row];
@@ -379,8 +415,11 @@ export const Game: React.FC<GameProps> = ({
     setBoardGuesses(stored.board_guesses);
     setCurrentGuess(stored.current_guess || '');
     setInvalidPending(stored.invalid_pending === 1);
-    setIsComplete(stored.is_complete === 1);
+    const frozen =
+      stored.is_won === 1 || usedGuessCount(stored.board_guesses) >= hydraMaxGuesses(stored.board_count);
+    setIsComplete(frozen);
     setIsWon(stored.is_won === 1);
+    completedAtRef.current = stored.completed_at || (stored.is_complete === 1 ? stored.updated_at : null);
     setDictionary(dict);
   }, []);
 
@@ -393,6 +432,7 @@ export const Game: React.FC<GameProps> = ({
       setInvalidPending(false);
       setIsComplete(false);
       setIsWon(false);
+      completedAtRef.current = null;
       setDictionary(dict);
       await persist({
         targets: words,
@@ -450,9 +490,10 @@ export const Game: React.FC<GameProps> = ({
         if (cancelled) return;
         if (stored && stored.target_words?.length === boardCount) {
           applyStored(stored, dict);
-          if (stored.is_complete === 1) {
-            if (stored.is_won === 1) {
-              setWinMessage(formatWinAnnounce(win, usedGuessCount(stored.board_guesses), boardCount));
+          const progress = hydraProgress(stored.target_words, stored.board_guesses, language, boardCount);
+          if (progress.playFrozen) {
+            if (progress.won) {
+              setWinMessage(formatWinAnnounce(win, progress.used, boardCount));
             } else {
               setLoseMessage(
                 await loadLoseMessage(
@@ -525,9 +566,34 @@ export const Game: React.FC<GameProps> = ({
     });
   }, [targets, boardGuesses, language]);
 
-  const boardsSolved = boardViews.filter((board) => board.solved).length;
-  const wordsLeft = Math.max(0, targets.length - boardsSolved);
-  const attemptsLeft = Math.max(0, maxGuesses - attemptsUsed);
+  const progress = hydraProgress(targets, boardGuesses, language, boardCount);
+  const wordsLeft = progress.wordsLeft;
+  const attemptsLeft = progress.attemptsLeft;
+  const doomed = progress.doomed;
+
+  useEffect(() => {
+    if (loading || !targets.length || !doomed || completedAtRef.current) return;
+    void persist({
+      targets,
+      boardGuesses,
+      currentGuess,
+      invalidPending,
+      isComplete,
+      isWon: false,
+      date: selectedPlayDate,
+    });
+  }, [
+    loading,
+    targets,
+    doomed,
+    boardGuesses,
+    currentGuess,
+    invalidPending,
+    isComplete,
+    persist,
+    selectedPlayDate,
+  ]);
+
   const solvedFlags = useMemo(() => boardViews.map((board) => board.solved), [boardViews]);
   const openIndices = useMemo(() => openBoardIndices(solvedFlags), [solvedFlags]);
   const displayIndices = useMemo(() => {
@@ -649,14 +715,14 @@ export const Game: React.FC<GameProps> = ({
       })),
       {
         game_date: selectedPlayDate,
-        gameEnded: isComplete ? new Date().toISOString() : null,
+        gameEnded: isComplete || doomed ? new Date().toISOString() : null,
         gameStarted: '',
-        isComplete,
+        isComplete: isComplete || doomed,
         isWon,
         guesses: boardGuesses.flat(),
       },
     ];
-  }, [calendarGames, selectedPlayDate, isComplete, isWon, boardGuesses]);
+  }, [calendarGames, selectedPlayDate, isComplete, isWon, doomed, boardGuesses]);
 
   const handleDateChange = (date: string) => {
     const clipped = date > formatDate() ? formatDate() : date;
@@ -804,14 +870,12 @@ export const Game: React.FC<GameProps> = ({
       const nextStart = windowStartForBoards(nextDisplay, visibleCount, windowStart, born);
       if (nextStart !== windowStart) setWindowStart(nextStart);
     }
-    const won = nextGuesses.every((words, i) => boardSolvedAt(words, targets[i], language));
-    const used = usedGuessCount(nextGuesses);
-    const complete = won || used >= hydraMaxGuesses(boardCount);
-    commitState(nextGuesses, '', false, complete, won);
-    if (complete && won) {
-      setWinMessage(formatWinAnnounce(winMessageBase, used, boardCount));
+    const progress = hydraProgress(targets, nextGuesses, language, boardCount);
+    commitState(nextGuesses, '', false, progress.playFrozen, progress.won);
+    if (progress.playFrozen && progress.won) {
+      setWinMessage(formatWinAnnounce(winMessageBase, progress.used, boardCount));
     }
-    if (complete && !won) {
+    if (progress.playFrozen && !progress.won) {
       void loadLoseMessage(language, remainingTargets(targets, nextGuesses, language).join(', ')).then(
         setLoseMessage
       );
@@ -1015,6 +1079,11 @@ export const Game: React.FC<GameProps> = ({
     setWindowStart(pos);
   };
 
+  useEffect(() => {
+    const bar = headerBarRef.current;
+    return bar ? mountHeaderChrome(bar) : undefined;
+  }, [loading]);
+
   if (loading) return <div className="loading">Loading...</div>;
   if (error) return <div className="error">Error: {error}</div>;
 
@@ -1046,13 +1115,25 @@ export const Game: React.FC<GameProps> = ({
         </div>
       ) : null}
       <div className="header-section">
-        <div className="game-header-bar">
-          <div className="game-header-side game-header-left">
+        <div className="game-header-bar" ref={headerBarRef}>
+          <div className="game-header-side game-header-left" data-header-fit>
             <a href="/" className="header-brand-home" title="Wordaholic home" aria-label="Wordaholic home">
               <img className="header-brand-home-svg" src="/brand/wordaholic-mark.svg" width={34} height={34} alt="" />
             </a>
             <span className="header-game-name">Hydra</span>
-            <div className="header-icon-cluster">
+            <div className="header-icon-cluster" data-header-chrome="icons">
+              <button
+                type="button"
+                className="help-trigger help-trigger--game"
+                aria-label="How to play Hydra"
+                onClick={() => openHelp(helpTopic)}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+                <span className="help-trigger-tip">How to play Hydra</span>
+              </button>
               {onViewChange && (
                 <span className="header-icon-with-tooltip">
                   <span className="header-icon-tooltip">Statistics</span>
@@ -1070,42 +1151,69 @@ export const Game: React.FC<GameProps> = ({
                   </button>
                 </span>
               )}
-              <button
-                type="button"
-                className="help-trigger help-trigger--game"
-                aria-label="How to play Hydra"
-                onClick={() => openHelp(helpTopic)}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+            </div>
+            <div className="header-more" data-header-chrome="more">
+              <button type="button" className="header-icon-button" title="Game menu" aria-label="Game menu" aria-haspopup="menu" aria-expanded="false">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <circle cx="12" cy="5" r="2"></circle>
+                  <circle cx="12" cy="12" r="2"></circle>
+                  <circle cx="12" cy="19" r="2"></circle>
                 </svg>
-                <span className="help-trigger-tip">How to play Hydra</span>
               </button>
+              <ul className="header-more-menu hidden" role="menu" aria-label="Game menu">
+                <li role="none">
+                  <button type="button" role="menuitem" onClick={() => openHelp(helpTopic)}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                    </svg>
+                    <span>How to play</span>
+                  </button>
+                </li>
+                {onViewChange ? (
+                  <li role="none">
+                    <button type="button" role="menuitem" onClick={() => onViewChange('statistics')}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                      </svg>
+                      <span>Statistics</span>
+                    </button>
+                  </li>
+                ) : null}
+              </ul>
             </div>
           </div>
           <div
-            className={`hydra-attempts extra-${attemptsTone(attemptsUsed, boardCount, isComplete, isWon)}${
-              isComplete ? (isWon ? ' is-won' : ' is-lost') : ''
+            data-header-fit
+            className={`hydra-attempts extra-${attemptsTone(progress.burned, doomed, isComplete, isWon)}${
+              isComplete ? (isWon ? ' is-won' : ' is-lost') : doomed ? ' is-lost' : ''
             }${isComplete ? ' is-message' : ''}`}
             title={
               isComplete
                 ? isWon
                   ? winMessage
                   : loseMessage
-                : 'Words left to guess / attempts left'
+                : doomed
+                  ? 'Lost — more words left than attempts. You can still play.'
+                  : 'Words left to guess, attempts left'
             }
             aria-label={
               isComplete
                 ? isWon
                   ? winMessage
                   : loseMessage
-                : `${wordsLeft} words left to guess, ${attemptsLeft} attempts left`
+                : doomed
+                  ? `Lost. ${wordsLeft} words left, ${attemptsLeft} attempts left`
+                  : `${wordsLeft} words left to guess, ${attemptsLeft} attempts left`
             }
           >
             {!isComplete ? (
               <span className="hydra-attempts-tip" role="tooltip">
-                Words left to guess / attempts left
+                {doomed
+                  ? 'Lost — more words left than attempts. You can still play.'
+                  : 'Words left to guess, attempts left'}
               </span>
             ) : null}
             {isComplete ? (
@@ -1113,10 +1221,35 @@ export const Game: React.FC<GameProps> = ({
                 {isWon ? winMessage : loseMessage}
               </span>
             ) : (
-              `${wordsLeft}/${attemptsLeft}`
+              <>
+                <span className="hydra-attempts-stat">
+                  <span className="hydra-attempts-label">Words</span>
+                  <span className="hydra-attempts-num">{wordsLeft}</span>
+                </span>
+                <span className="hydra-attempts-sep" aria-hidden="true" />
+                <span className="hydra-attempts-stat">
+                  <span className="hydra-attempts-label">Attempts</span>
+                  <span className="hydra-attempts-num">{attemptsLeft}</span>
+                </span>
+              </>
             )}
           </div>
-          <div className="game-header-side game-header-right" aria-hidden="true" />
+          <div className="game-header-side game-header-right" data-header-fit>
+            <Settings
+              language={language}
+              wordLength={wordLength}
+              boardCount={boardCount}
+              availableLanguages={availableLanguages}
+              selectedDate={selectedPlayDate}
+              onLanguageChange={handleLanguageChange}
+              onWordLengthChange={handleWordLengthChange}
+              onBoardCountChange={handleBoardCountChange}
+              onShowCalendarChange={(show) => {
+                if (show) setCalendarMonth(calendarMonthForSelection(selectedPlayDate));
+                setShowCalendar(show);
+              }}
+            />
+          </div>
         </div>
         <Scoreboard
           cells={scoreboardCells}
@@ -1262,20 +1395,6 @@ export const Game: React.FC<GameProps> = ({
         </button>
       </div>
       <div className="hydra-dock">
-        <Settings
-          language={language}
-          wordLength={wordLength}
-          boardCount={boardCount}
-          availableLanguages={availableLanguages}
-          selectedDate={selectedPlayDate}
-          onLanguageChange={handleLanguageChange}
-          onWordLengthChange={handleWordLengthChange}
-          onBoardCountChange={handleBoardCountChange}
-          onShowCalendarChange={(show) => {
-            if (show) setCalendarMonth(calendarMonthForSelection(selectedPlayDate));
-            setShowCalendar(show);
-          }}
-        />
         <Keyboard
           onKeyPress={handleKeyPress}
           onEnter={handleEnter}

@@ -22,6 +22,7 @@ import { normalizeWithMappings } from '../../app/i18n/normalize.js';
 import { openHelp } from '../../app/help/dialog.js';
 import helpTopic from './help/topic.js';
 import { mountPortraitGate } from '../../app/play/portrait-gate.js';
+import { mountHeaderChrome } from '../../app/play/header-chrome.js';
 import { reportStats } from '../../app/stats/report.js';
 import {
   calendarMonthForSelection,
@@ -87,7 +88,8 @@ async function hydrateDisplayPrefs() {
       /* ignore */
     }
   }
-  playMode = displayPrefs.mode || 'daily';
+  playMode = 'daily';
+  displayPrefs.mode = 'daily';
 }
 
 function applyDisplayPrefs() {
@@ -391,24 +393,9 @@ async function loadLanguagesCatalog() {
   return filtered.length ? filtered : playable;
 }
 
-function setHeaderMoreOpen(open) {
-  const menu = $('#header-more-menu');
-  const trigger = $('#header-more-trigger');
-  menu?.classList.toggle('hidden', !open);
-  trigger?.setAttribute('aria-expanded', open ? 'true' : 'false');
-}
-
 function applyModeChrome() {
-  const daily = playMode === 'daily';
-  const label = $('#mode-trigger-label');
-  if (label) label.textContent = daily ? 'Daily' : 'Practice';
-  document.querySelectorAll('#mode-list [data-mode]').forEach((el) => {
-    const selected = el.getAttribute('data-mode') === playMode;
-    el.classList.toggle('selected', selected);
-    el.setAttribute('aria-selected', selected ? 'true' : 'false');
-  });
-  $('#btn-calendar')?.classList.toggle('hidden', !daily);
-  $('#btn-new-practice')?.classList.toggle('hidden', daily);
+  playMode = 'daily';
+  displayPrefs.mode = 'daily';
   updateDateDisplay();
 }
 
@@ -1239,8 +1226,7 @@ function closeStats() {
 }
 
 function displayAnchor() {
-  const phone = window.matchMedia('(max-width: 720px)').matches;
-  return phone ? $('#header-more-trigger') : $('#btn-display');
+  return $('#btn-display');
 }
 
 function placeDisplayPopover() {
@@ -1323,45 +1309,24 @@ async function init() {
   wireDisplayPrefs();
   applyModeChrome();
 
-  $('#mode-trigger')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    setLanguageMenuOpen(false);
-    const list = $('#mode-list');
-    setModeMenuOpen(!!list?.classList.contains('hidden'));
-  });
-  $('#mode-list')?.addEventListener('click', (e) => {
-    const item = /** @type {HTMLElement} */ (e.target).closest('[data-mode]');
-    if (!item) return;
-    setModeMenuOpen(false);
-    void setPlayMode(item.getAttribute('data-mode'));
-  });
   $('#btn-calendar')?.addEventListener('click', () => openHistory());
-  $('#btn-new-practice')?.addEventListener('click', () => startPracticePuzzle());
   $('#btn-stats')?.addEventListener('click', () => openStats());
   $('#btn-display')?.addEventListener('click', (e) => {
     e.stopPropagation();
     toggleDisplay();
   });
   $('#btn-howto')?.addEventListener('click', () => openHelp(helpTopic));
-  $('#header-more-trigger')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    closeDisplay();
-    const menu = $('#header-more-menu');
-    setHeaderMoreOpen(!!menu?.classList.contains('hidden'));
-  });
+  mountHeaderChrome($('#header'));
   $('#header-more-menu')?.addEventListener('click', (e) => {
     const item = /** @type {HTMLElement} */ (e.target).closest('[data-header-action]');
     if (!item) return;
     e.stopPropagation();
-    setHeaderMoreOpen(false);
     const action = item.getAttribute('data-header-action');
     if (action === 'stats') openStats();
-    else if (action === 'display') openDisplay();
     else if (action === 'howto') openHelp(helpTopic);
   });
   $('#language-trigger')?.addEventListener('click', (e) => {
     e.stopPropagation();
-    setModeMenuOpen(false);
     const list = $('#language-list');
     setLanguageMenuOpen(!!list?.classList.contains('hidden'));
   });
@@ -1375,18 +1340,13 @@ async function init() {
     const target = /** @type {Node} */ (e.target);
     const dd = $('#language-dropdown');
     if (dd && !dd.contains(target)) setLanguageMenuOpen(false);
-    const modeDd = $('#mode-dropdown');
-    if (modeDd && !modeDd.contains(target)) setModeMenuOpen(false);
-    const more = $('#header-more');
-    if (more && !more.contains(target)) setHeaderMoreOpen(false);
     const pop = $('#display-popover');
     const displayBtn = $('#btn-display');
     if (
       pop &&
       !pop.classList.contains('hidden') &&
       !pop.contains(target) &&
-      !displayBtn?.contains(target) &&
-      !more?.contains(target)
+      !displayBtn?.contains(target)
     ) {
       closeDisplay();
     }
