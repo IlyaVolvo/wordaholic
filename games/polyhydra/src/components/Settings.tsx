@@ -91,41 +91,42 @@ export const Settings: React.FC<SettingsProps> = ({
     </div>
   );
 
-  const otherControls = (ids?: { length?: string; boards?: string }) => (
-    <>
-      <div className="toolbar-tip">
-        <span className="toolbar-tip-label">Number of letters</span>
-        <select
-          id={ids?.length}
-          value={wordLength}
-          onChange={(e) => onWordLengthChange(Number(e.target.value))}
-          title="Number of letters"
-          aria-label="Number of letters"
-        >
-          {currentLangConfig?.supportedLengths.map((length) => (
-            <option key={length} value={length}>
-              {length}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div className="toolbar-tip">
-        <span className="toolbar-tip-label">Boards</span>
-        <select
-          id={ids?.boards}
-          value={boardCount}
-          onChange={(e) => onBoardCountChange(Number(e.target.value))}
-          title="Number of boards"
-          aria-label="Number of boards"
-        >
-          {boardOptions.map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </div>
-    </>
+  const letterControl = (id?: string, caption = true) => (
+    <div className="setting-field">
+      {caption ? <span className="setting-caption">Letters</span> : null}
+      <select
+        id={id}
+        value={wordLength}
+        onChange={(e) => onWordLengthChange(Number(e.target.value))}
+        title="Number of letters"
+        aria-label="Number of letters"
+      >
+        {currentLangConfig?.supportedLengths.map((length) => (
+          <option key={length} value={length}>
+            {length}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const boardControl = (id?: string, caption = true) => (
+    <div className="setting-field">
+      {caption ? <span className="setting-caption">Boards</span> : null}
+      <select
+        id={id}
+        value={boardCount}
+        onChange={(e) => onBoardCountChange(Number(e.target.value))}
+        title="Number of boards"
+        aria-label="Number of boards"
+      >
+        {boardOptions.map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+    </div>
   );
 
   const dateLabel = formatDateDisplay(selectedDate || null, today);
@@ -152,7 +153,8 @@ export const Settings: React.FC<SettingsProps> = ({
     <div className="settings header-def" ref={defRef}>
       <div className="header-def-inline">
         <div data-header-def="other" className="toolbar-picks">
-          {otherControls({ length: 'length-select', boards: 'board-count-select' })}
+          {letterControl('length-select')}
+          {boardControl('board-count-select')}
         </div>
         <div data-header-def="more">
           <button
@@ -173,8 +175,12 @@ export const Settings: React.FC<SettingsProps> = ({
           </button>
           <div className="header-def-menu" data-header-def-menu="">
             <div data-header-def="other">
-              <span className="header-def-heading">Game</span>
-              <div className="toolbar-picks">{otherControls()}</div>
+              <span className="header-def-heading">Letters</span>
+              {letterControl(undefined, false)}
+            </div>
+            <div data-header-def="other">
+              <span className="header-def-heading">Boards</span>
+              {boardControl(undefined, false)}
             </div>
             {defHidden('language', defOverflow) && (
               <div data-header-def="language">
