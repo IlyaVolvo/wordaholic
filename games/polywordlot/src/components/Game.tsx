@@ -1234,7 +1234,7 @@ export const Game: React.FC<GameProps> = ({
       onTouchEnd={onTouchEnd}
     >
       <div className="header-section">
-        <div className="game-header-bar" ref={headerBarRef}>
+        <div className="game-header-bar" ref={headerBarRef} data-header-react="">
           <div className="game-header-side game-header-left" data-header-fit>
             <a
               href="/"
@@ -1250,7 +1250,10 @@ export const Game: React.FC<GameProps> = ({
                 alt=""
               />
             </a>
-            <a href="/" className="header-home-link header-game-name">PolyWordlot</a>
+            <a href="/" className="header-home-link header-game-name" title="PolyWordlot">
+              <span data-header-name="full">PolyWordlot</span>
+              <span data-header-name="short">PW</span>
+            </a>
             <div className="header-icon-cluster" data-header-chrome="icons">
               <button
                 type="button"

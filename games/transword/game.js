@@ -432,7 +432,9 @@ function formatDateDisplay(selectedDate, today) {
 function updateDateDisplay() {
   const el = $('#date-display');
   if (!el) return;
-  el.textContent = formatDateDisplay(selectedGameDate, formatLocalDate());
+  const today = formatLocalDate();
+  el.textContent = formatDateDisplay(selectedGameDate, today);
+  $('#btn-calendar')?.classList.toggle('is-today', !selectedGameDate || selectedGameDate === today);
 }
 
 function currentLanguageOption() {

@@ -1,3 +1,15 @@
+[data-header-name="short"] {
+  display: none;
+}
+
+.header-chrome-short-name [data-header-name="full"] {
+  display: none;
+}
+
+.header-chrome-short-name [data-header-name="short"] {
+  display: inline;
+}
+
 .header-more-menu.hidden {
   display: none !important;
 }
@@ -54,4 +66,149 @@
 .header-more-menu svg {
   flex-shrink: 0;
   color: var(--accent, #6c8cff);
+}
+
+.header-def {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.header-def-inline {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+[data-header-def-home] {
+  display: contents;
+}
+
+[data-header-def-home]:empty {
+  display: none;
+}
+
+.header-def-heading {
+  display: none;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+[data-header-def="more"] {
+  display: none;
+  position: relative;
+  flex: 0 0 auto;
+}
+
+[data-def-overflow] [data-header-def="more"] {
+  display: flex;
+  align-items: center;
+}
+
+[data-def-overflow="other"] .header-def-inline [data-header-def="other"],
+[data-def-overflow="language"] .header-def-inline [data-header-def="other"],
+[data-def-overflow="language"] .header-def-inline [data-header-def="language"],
+[data-def-overflow="date"] .header-def-inline [data-header-def="other"],
+[data-def-overflow="date"] .header-def-inline [data-header-def="language"],
+[data-def-overflow="date"] .header-def-inline [data-header-def="date"] {
+  display: none !important;
+}
+
+.header-def-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  display: none;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+  min-width: 11rem;
+  margin: 0;
+  padding: 0.7rem 0.75rem;
+  background: var(--surface, #161923);
+  border: 1px solid var(--border, #2a2e3e);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 80;
+}
+
+.header-def-menu.is-open {
+  display: flex;
+}
+
+.header-def-menu .header-def-heading {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.header-def-menu [data-header-def] {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+}
+
+.header-def-menu .toolbar-picks,
+.header-def-menu .toolbar-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
+.header-def-menu select,
+.header-def-menu .date-picker-btn,
+.header-def-menu .language-dropdown-trigger,
+.header-def-menu .pick-menu-trigger {
+  width: 100%;
+}
+
+.header-def-menu #date-display,
+.header-def-menu .date-display {
+  display: inline !important;
+  max-width: none;
+}
+
+.header-chrome-tight .header-def-menu select {
+  max-width: none;
+  font-size: inherit;
+  padding: inherit;
+}
+
+.header-chrome-compact .date-display,
+.header-chrome-compact #date-display,
+.header-chrome-tight .date-display,
+.header-chrome-tight #date-display {
+  display: none;
+}
+
+.header-chrome-compact .date-picker-btn,
+.header-chrome-tight .date-picker-btn {
+  gap: 0;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+}
+
+.header-chrome-compact .date-picker-btn svg,
+.header-chrome-tight .date-picker-btn svg {
+  color: var(--text-dim, #7a7e94);
+}
+
+.header-chrome-compact .date-picker-btn.is-today svg,
+.header-chrome-tight .date-picker-btn.is-today svg {
+  color: var(--accent, #6c8cff);
+}
+
+.header-def-menu .language-dropdown {
+  position: relative;
+}
+
+.header-def-menu .language-dropdown-list {
+  z-index: 90;
 }

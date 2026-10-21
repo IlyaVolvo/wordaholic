@@ -395,11 +395,22 @@ h1 {
   z-index: 2;
 }
 
-.header-target {
+.header-target-wrap {
+  position: relative;
   width: var(--guess-col);
   min-width: 0;
   text-align: center;
   pointer-events: auto;
+}
+
+.header-target {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
+
+[data-header-live-home] {
+  display: contents;
 }
 
 .target-label {
@@ -470,6 +481,7 @@ h1 {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-dim);
+  white-space: nowrap;
 }
 
 .header-optional .stat-value,
@@ -515,12 +527,62 @@ h1 {
   font-size: 0.68rem;
 }
 
-.header-chrome-tight #date-display {
+.header-live-tip {
   display: none;
 }
 
-.header-chrome-tight .date-picker-btn {
-  padding: 0 0.35rem;
+.header-chrome-stats-tip .header-target-wrap {
+  cursor: help;
+}
+
+.header-chrome-stats-tip .header-live-tip {
+  display: none;
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 6px);
+  transform: translateX(-50%);
+  flex-direction: row;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.45rem 0.7rem;
+  background: var(--surface, #161923);
+  border: 1px solid var(--border, #2a2e3e);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 80;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.header-chrome-stats-tip .header-target-wrap:hover .header-live-tip,
+.header-chrome-stats-tip .header-target-wrap.is-tip-open .header-live-tip,
+.header-chrome-stats-tip .header-target-wrap:focus-within .header-live-tip {
+  display: flex;
+}
+
+.header-chrome-stats-tip .header-live-tip .header-optional,
+.header-chrome-stats-tip .header-live-tip .play-scoreboard {
+  position: static;
+  margin: 0;
+  gap: 0.7rem;
+}
+
+.header-chrome-stats-tip .header-live-tip .stat-label,
+.header-chrome-stats-tip .header-live-tip .header-optional .stat-label,
+.header-chrome-stats-tip .header-live-tip .play-scoreboard .stat-label {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip: auto;
+  display: block;
+  font-size: 0.6rem;
+}
+
+.header-chrome-stats-tip .header-live-tip .stat-value,
+.header-chrome-stats-tip .header-live-tip .header-optional .stat-value,
+.header-chrome-stats-tip .header-live-tip .play-scoreboard .stat-value {
+  font-size: 1.05rem;
 }
 
 /* ================================================================== */
@@ -790,9 +852,12 @@ h1 {
   gap: 0.6rem;
   padding: 0.55rem 1.5rem;
   background: var(--surface);
-  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   color: var(--text);
+  position: relative;
+  z-index: 5;
+  overflow: visible;
 }
 
 .toolbar-picks,
@@ -1231,25 +1296,68 @@ body {
 @media (max-width: 720px) {
   #header {
     position: relative;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    flex-wrap: nowrap;
+    display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.3rem;
-    padding: 0.45rem 0.5rem;
-    --guess-col: min(220px, calc(100vw - 300px));
+    gap: 0.2rem 0.35rem;
+    padding: 0.4rem 0.55rem 0.45rem;
+    --guess-col: min(8.5rem, calc(100vw - 16rem));
   }
 
   .header-left {
+    flex: 1 1 100%;
     z-index: 2;
   }
 
-  .header-right {
-    z-index: 2;
+  .header-center {
+    position: relative;
+    inset: auto;
+    flex: 1 1 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--guess-col) minmax(0, 1fr);
+    align-items: center;
+    justify-content: stretch;
+    gap: 0.35rem;
+    width: 100%;
+    pointer-events: auto;
+    min-width: 0;
+  }
+
+  .header-optional-cluster,
+  .play-scoreboard {
+    position: static;
+    inset: auto;
+    margin: 0;
+    flex: 0 0 auto;
+  }
+
+  .header-optional-cluster {
+    justify-self: start;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .play-scoreboard {
+    justify-self: end;
     justify-content: flex-end;
-    gap: 0.4rem;
-    width: auto;
-    margin-left: auto;
+    min-width: 0;
+  }
+
+  .header-target-wrap {
+    flex: none;
+    width: var(--guess-col);
+    justify-self: center;
+  }
+
+  #toolbar {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.45rem 0.7rem;
+    padding: 0.4rem 0.55rem;
+  }
+
+  #toolbar .toolbar-mode {
+    margin-left: 0;
   }
 
   .header-optional {

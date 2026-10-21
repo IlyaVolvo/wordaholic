@@ -387,6 +387,7 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .date-picker-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -3308,6 +3309,90 @@ a.header-brand-home:focus-visible {
 .hydra-container .game-header-bar .toolbar-tip-label {
   bottom: auto;
   top: calc(100% + 6px);
+}
+
+.header-more-menu .header-more-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem;
+  padding: 0.45rem 0.75rem;
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.header-more-menu .header-more-setting label {
+  font-weight: 500;
+}
+
+.header-more-menu .header-more-setting select {
+  font-family: inherit;
+  padding: 0.28rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+  background: var(--surface2);
+  color: var(--text);
+}
+
+@media (max-width: 720px) {
+  .hydra-container .header-game-name {
+    display: none;
+  }
+
+  .hydra-container .header-def-inline > [data-header-def="other"] {
+    display: none !important;
+  }
+
+  .hydra-container .header-def-inline > [data-header-def="more"] {
+    display: flex !important;
+  }
+
+  .hydra-container [data-header-chrome="icons"] {
+    display: none !important;
+  }
+
+  .hydra-container [data-header-chrome="more"] {
+    display: block !important;
+  }
+
+  .hydra-container .date-display {
+    display: none;
+  }
+
+  .hydra-container .date-picker-btn {
+    gap: 0;
+    padding-left: 0.4rem;
+    padding-right: 0.4rem;
+  }
+
+  .hydra-container .date-picker-btn svg {
+    color: var(--text-dim);
+  }
+
+  .hydra-container .date-picker-btn.is-today svg {
+    color: var(--accent);
+  }
+
+  .hydra-container .game-header-bar[data-def-overflow] .header-def-inline > [data-header-def="language"],
+  .hydra-container .game-header-bar[data-def-overflow] .header-def-inline > [data-header-def="date"] {
+    display: flex !important;
+  }
+
+  .hydra-container .hydra-attempts {
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+    border-radius: 6px;
+  }
+
+  .hydra-container .hydra-attempts-stat {
+    padding: 0.06rem 0.38rem 0.08rem;
+  }
+
+  .hydra-container .hydra-attempts-label {
+    font-size: 0.5rem;
+    letter-spacing: 0.06em;
+  }
 }
 
 .hydra-attempts {

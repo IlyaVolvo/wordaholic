@@ -76,6 +76,28 @@ function readHud(sim: Sim): Hud {
   };
 }
 
+function useHeaderDefOverflow() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [level, setLevel] = useState('');
+  useEffect(() => {
+    const bar = ref.current?.closest('.game-header-bar');
+    if (!bar) return;
+    const read = () => setLevel(bar.getAttribute('data-def-overflow') || '');
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(bar, { attributes: true, attributeFilter: ['data-def-overflow'] });
+    return () => mo.disconnect();
+  }, []);
+  return [ref, level] as const;
+}
+
+function defHidden(key: 'other' | 'language' | 'date', level: string) {
+  if (level === 'date') return true;
+  if (level === 'language') return key === 'other' || key === 'language';
+  if (level === 'other') return key === 'other';
+  return false;
+}
+
 export const Game: React.FC<{
   lex: Lexicon;
   language: string;
@@ -410,17 +432,19 @@ export const Game: React.FC<{
     canvas.dataset.drag = '';
   }
 
+  const [defRef, defOverflow] = useHeaderDefOverflow();
   const widths = sizeOptions(PARAMS.Wmin, PARAMS.Wmax, W);
   const heights = sizeOptions(PARAMS.Hmin, PARAMS.Hmax, H);
   const canMove = hud?.phase === 'fall' && !hud.paused;
   const canDrop = !hud?.paused && (hud?.phase === 'decide' || (hud?.phase === 'fall' && Boolean(hud.letter) && !hud.dropBlocked));
   const setup = !hud || notPlaying(hud);
   const speedShown = hud?.phase === 'over' ? speedPref : hud?.speedPct ?? speedPref;
+  const isToday = !date || date === localCalendarDate();
 
   return (
     <div className="letterix" data-phase={hud?.phase || 'ready'}>
       <header className="header-section">
-        <div className="game-header-bar" ref={headerBarRef}>
+        <div className="game-header-bar" ref={headerBarRef} data-header-react="">
           <div className="header-cluster" data-header-fit>
             <Tip label="Wordaholic home">
               <a href="/" className="header-brand-home" aria-label="Wordaholic home">
@@ -428,7 +452,10 @@ export const Game: React.FC<{
               </a>
             </Tip>
             <Tip label="Letterix">
-              <span className="header-game-name">Letterix</span>
+              <span className="header-game-name" title="Letterix">
+                <span data-header-name="full">Letterix</span>
+                <span data-header-name="short">L..</span>
+              </span>
             </Tip>
             <div className="header-icon-cluster" data-header-chrome="icons">
               <Tip label="Manual">
@@ -487,78 +514,179 @@ export const Game: React.FC<{
             </div>
           </Tip>
           <div className="header-right" data-header-fit>
-            <div className="settings">
-              <div className="toolbar-picks">
-                <Tip label="Language">
-                  <PickMenu
-                    label={`Language: ${languages.find((lang) => lang.code === language)?.name || language}`}
-                    open={openMenu === 'language'}
-                    disabled={locked}
-                    onToggle={() => setOpenMenu((menu) => (menu === 'language' ? null : 'language'))}
-                    trigger={<span className="language-dropdown-flag" aria-hidden="true">{languages.find((lang) => lang.code === language)?.flag || '🇺🇸'}</span>}
-                    options={languages.map((lang) => ({
-                      value: lang.code,
-                      selected: lang.code === language,
-                      label: (
-                        <>
-                          <span className="language-dropdown-flag" aria-hidden="true">{lang.flag}</span>
-                          <span>{lang.name}</span>
-                        </>
-                      ),
-                    }))}
-                    onPick={(code) => {
-                      if (code === language) return;
-                      const sim = simRef.current;
-                      if (sim && sim.phase !== 'ready') void saveRun(sim);
-                      onLanguageChange(code);
-                    }}
-                  />
-                </Tip>
-                <Tip label="Width">
-                  <PickMenu
-                    label="Width"
-                    open={openMenu === 'width'}
-                    disabled={locked}
-                    onToggle={() => setOpenMenu((menu) => (menu === 'width' ? null : 'width'))}
-                    trigger={<span>{W}</span>}
-                    options={widths.map((n) => ({ value: String(n), selected: n === W, label: <span>{n}</span> }))}
-                    onPick={(value) => setSize('W', Number(value))}
-                  />
-                </Tip>
-                <Tip label="Height">
-                  <PickMenu
-                    label="Height"
-                    open={openMenu === 'height'}
-                    disabled={locked}
-                    onToggle={() => setOpenMenu((menu) => (menu === 'height' ? null : 'height'))}
-                    trigger={<span>{H}</span>}
-                    options={heights.map((n) => ({ value: String(n), selected: n === H, label: <span>{n}</span> }))}
-                    onPick={(value) => setSize('H', Number(value))}
-                  />
-                </Tip>
-              </div>
-              <div className="toolbar-mode">
-                <Tip label="Calendar">
+            <div className="settings header-def" ref={defRef}>
+              <div className="header-def-inline">
+                <div data-header-def="other" className="toolbar-picks">
+                  <Tip label="Width">
+                    <PickMenu
+                      label="Width"
+                      open={openMenu === 'width'}
+                      disabled={locked}
+                      onToggle={() => setOpenMenu((menu) => (menu === 'width' ? null : 'width'))}
+                      trigger={<span>{W}</span>}
+                      options={widths.map((n) => ({ value: String(n), selected: n === W, label: <span>{n}</span> }))}
+                      onPick={(value) => setSize('W', Number(value))}
+                    />
+                  </Tip>
+                  <Tip label="Height">
+                    <PickMenu
+                      label="Height"
+                      open={openMenu === 'height'}
+                      disabled={locked}
+                      onToggle={() => setOpenMenu((menu) => (menu === 'height' ? null : 'height'))}
+                      trigger={<span>{H}</span>}
+                      options={heights.map((n) => ({ value: String(n), selected: n === H, label: <span>{n}</span> }))}
+                      onPick={(value) => setSize('H', Number(value))}
+                    />
+                  </Tip>
+                </div>
+                <div data-header-def="more">
                   <button
                     type="button"
-                    className="date-picker-btn"
-                    aria-label="Choose daily date"
-                    disabled={locked}
-                    onClick={() => {
-                      if (locked) return;
-                      setCalendarMonth(calendarMonthForSelection(date));
-                      setShowCalendar(true);
-                    }}
+                    className="header-icon-button header-def-trigger"
+                    data-header-def-trigger=""
+                    title="Game settings"
+                    aria-label="Game settings"
+                    aria-haspopup="menu"
+                    aria-expanded="false"
                   >
-                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                      <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5" />
-                      <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5" />
-                      <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5" />
-                      <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" strokeWidth="1.5" />
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                      <line x1="4" y1="8" x2="20" y2="8" />
+                      <line x1="4" y1="16" x2="20" y2="16" />
+                      <circle cx="8" cy="8" r="2.2" fill="currentColor" />
+                      <circle cx="16" cy="16" r="2.2" fill="currentColor" />
                     </svg>
-                    <span className="date-display">{formatDateDisplay(date)}</span>
                   </button>
-                </Tip>
+                  <div className="header-def-menu" data-header-def-menu="">
+                    {defHidden('other', defOverflow) && (
+                      <div data-header-def="other">
+                        <span className="header-def-heading">Size</span>
+                        <div className="toolbar-picks">
+                          <PickMenu
+                            label="Width"
+                            open={openMenu === 'width'}
+                            disabled={locked}
+                            onToggle={() => setOpenMenu((menu) => (menu === 'width' ? null : 'width'))}
+                            trigger={<span>{W}</span>}
+                            options={widths.map((n) => ({ value: String(n), selected: n === W, label: <span>{n}</span> }))}
+                            onPick={(value) => setSize('W', Number(value))}
+                          />
+                          <PickMenu
+                            label="Height"
+                            open={openMenu === 'height'}
+                            disabled={locked}
+                            onToggle={() => setOpenMenu((menu) => (menu === 'height' ? null : 'height'))}
+                            trigger={<span>{H}</span>}
+                            options={heights.map((n) => ({ value: String(n), selected: n === H, label: <span>{n}</span> }))}
+                            onPick={(value) => setSize('H', Number(value))}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {defHidden('language', defOverflow) && (
+                      <div data-header-def="language">
+                        <span className="header-def-heading">Language</span>
+                        <PickMenu
+                          label={`Language: ${languages.find((lang) => lang.code === language)?.name || language}`}
+                          open={openMenu === 'language'}
+                          disabled={locked}
+                          onToggle={() => setOpenMenu((menu) => (menu === 'language' ? null : 'language'))}
+                          trigger={<span className="language-dropdown-flag" aria-hidden="true">{languages.find((lang) => lang.code === language)?.flag || '🇺🇸'}</span>}
+                          options={languages.map((lang) => ({
+                            value: lang.code,
+                            selected: lang.code === language,
+                            label: (
+                              <>
+                                <span className="language-dropdown-flag" aria-hidden="true">{lang.flag}</span>
+                                <span>{lang.name}</span>
+                              </>
+                            ),
+                          }))}
+                          onPick={(code) => {
+                            if (code === language) return;
+                            const sim = simRef.current;
+                            if (sim && sim.phase !== 'ready') void saveRun(sim);
+                            onLanguageChange(code);
+                          }}
+                        />
+                      </div>
+                    )}
+                    {defHidden('date', defOverflow) && (
+                      <div data-header-def="date">
+                        <span className="header-def-heading">Date</span>
+                        <button
+                          type="button"
+                          className={`date-picker-btn${isToday ? ' is-today' : ''}`}
+                          aria-label="Choose daily date"
+                          disabled={locked}
+                          onClick={() => {
+                            if (locked) return;
+                            setCalendarMonth(calendarMonthForSelection(date));
+                            setShowCalendar(true);
+                          }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5" />
+                            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5" />
+                            <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5" />
+                            <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" strokeWidth="1.5" />
+                          </svg>
+                          <span className="date-display">{formatDateDisplay(date)}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div data-header-def="language" className="toolbar-picks">
+                  <Tip label="Language">
+                    <PickMenu
+                      label={`Language: ${languages.find((lang) => lang.code === language)?.name || language}`}
+                      open={openMenu === 'language'}
+                      disabled={locked}
+                      onToggle={() => setOpenMenu((menu) => (menu === 'language' ? null : 'language'))}
+                      trigger={<span className="language-dropdown-flag" aria-hidden="true">{languages.find((lang) => lang.code === language)?.flag || '🇺🇸'}</span>}
+                      options={languages.map((lang) => ({
+                        value: lang.code,
+                        selected: lang.code === language,
+                        label: (
+                          <>
+                            <span className="language-dropdown-flag" aria-hidden="true">{lang.flag}</span>
+                            <span>{lang.name}</span>
+                          </>
+                        ),
+                      }))}
+                      onPick={(code) => {
+                        if (code === language) return;
+                        const sim = simRef.current;
+                        if (sim && sim.phase !== 'ready') void saveRun(sim);
+                        onLanguageChange(code);
+                      }}
+                    />
+                  </Tip>
+                </div>
+                <div data-header-def="date" className="toolbar-mode">
+                  <Tip label="Calendar">
+                    <button
+                      type="button"
+                      className={`date-picker-btn${isToday ? ' is-today' : ''}`}
+                      aria-label="Choose daily date"
+                      disabled={locked}
+                      onClick={() => {
+                        if (locked) return;
+                        setCalendarMonth(calendarMonthForSelection(date));
+                        setShowCalendar(true);
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5" />
+                        <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5" />
+                        <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5" />
+                        <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" strokeWidth="1.5" />
+                      </svg>
+                      <span className="date-display">{formatDateDisplay(date)}</span>
+                    </button>
+                  </Tip>
+                </div>
               </div>
             </div>
           </div>

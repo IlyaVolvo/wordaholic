@@ -1115,12 +1115,15 @@ export const Game: React.FC<GameProps> = ({
         </div>
       ) : null}
       <div className="header-section">
-        <div className="game-header-bar" ref={headerBarRef}>
+        <div className="game-header-bar" ref={headerBarRef} data-header-react="">
           <div className="game-header-side game-header-left" data-header-fit>
             <a href="/" className="header-brand-home" title="Wordaholic home" aria-label="Wordaholic home">
               <img className="header-brand-home-svg" src="/brand/wordaholic-mark.svg" width={34} height={34} alt="" />
             </a>
-            <span className="header-game-name">Hydra</span>
+            <span className="header-game-name" title="Hydra">
+              <span data-header-name="full">Hydra</span>
+              <span data-header-name="short">H..</span>
+            </span>
             <div className="header-icon-cluster" data-header-chrome="icons">
               <button
                 type="button"

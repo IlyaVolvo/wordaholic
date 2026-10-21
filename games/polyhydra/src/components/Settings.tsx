@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { LanguageConfig } from '../types';
 import { formatDate } from '@wordaholic/wordle-core';
 import { LanguageDropdown } from './LanguageDropdown';
@@ -38,6 +38,28 @@ const formatDateDisplay = (selectedDate: string | null, today: string): string =
   return `${month} ${day}, ${year}`;
 };
 
+function useHeaderDefOverflow() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [level, setLevel] = useState('');
+  useEffect(() => {
+    const bar = ref.current?.closest('.game-header-bar');
+    if (!bar) return;
+    const read = () => setLevel(bar.getAttribute('data-def-overflow') || '');
+    read();
+    const mo = new MutationObserver(read);
+    mo.observe(bar, { attributes: true, attributeFilter: ['data-def-overflow'] });
+    return () => mo.disconnect();
+  }, []);
+  return [ref, level] as const;
+}
+
+function defHidden(key: 'other' | 'language' | 'date', level: string) {
+  if (level === 'date') return true;
+  if (level === 'language') return key === 'other' || key === 'language';
+  if (level === 'other') return key === 'other';
+  return false;
+}
+
 export const Settings: React.FC<SettingsProps> = ({
   language,
   wordLength,
@@ -55,68 +77,125 @@ export const Settings: React.FC<SettingsProps> = ({
     { length: BOARD_COUNT_MAX - BOARD_COUNT_MIN + 1 },
     (_, i) => i + BOARD_COUNT_MIN
   );
+  const [defRef, defOverflow] = useHeaderDefOverflow();
+
+  const languageControl = (id: string) => (
+    <div className="language-select-wrapper toolbar-tip">
+      <span className="toolbar-tip-label">Language</span>
+      <LanguageDropdown
+        id={id}
+        availableLanguages={availableLanguages}
+        value={language}
+        onChange={onLanguageChange}
+      />
+    </div>
+  );
+
+  const otherControls = (ids?: { length?: string; boards?: string }) => (
+    <>
+      <div className="toolbar-tip">
+        <span className="toolbar-tip-label">Number of letters</span>
+        <select
+          id={ids?.length}
+          value={wordLength}
+          onChange={(e) => onWordLengthChange(Number(e.target.value))}
+          title="Number of letters"
+          aria-label="Number of letters"
+        >
+          {currentLangConfig?.supportedLengths.map((length) => (
+            <option key={length} value={length}>
+              {length}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="toolbar-tip">
+        <span className="toolbar-tip-label">Boards</span>
+        <select
+          id={ids?.boards}
+          value={boardCount}
+          onChange={(e) => onBoardCountChange(Number(e.target.value))}
+          title="Number of boards"
+          aria-label="Number of boards"
+        >
+          {boardOptions.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </div>
+    </>
+  );
+
+  const dateLabel = formatDateDisplay(selectedDate || null, today);
+  const notToday = Boolean(selectedDate && selectedDate !== today);
+  const dateControl = (
+    <button
+      type="button"
+      className={`date-picker-btn${notToday ? '' : ' is-today'}`}
+      onClick={() => onShowCalendarChange(true)}
+      title={notToday ? dateLabel : 'Calendar'}
+      aria-label={notToday ? `Choose daily date, ${dateLabel}` : 'Choose daily date'}
+    >
+      <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+        <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5"/>
+        <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5"/>
+        <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" strokeWidth="1.5"/>
+      </svg>
+      <span className="date-display">{formatDateDisplay(selectedDate || null, today)}</span>
+    </button>
+  );
 
   return (
-    <div className="settings">
-      <div className="toolbar-picks">
-        <div className="language-select-wrapper toolbar-tip">
-          <span className="toolbar-tip-label">Language</span>
-          <LanguageDropdown
-            id="language-select"
-            availableLanguages={availableLanguages}
-            value={language}
-            onChange={onLanguageChange}
-          />
+    <div className="settings header-def" ref={defRef}>
+      <div className="header-def-inline">
+        <div data-header-def="other" className="toolbar-picks">
+          {otherControls({ length: 'length-select', boards: 'board-count-select' })}
         </div>
-        <div className="toolbar-tip">
-          <span className="toolbar-tip-label">Number of letters</span>
-          <select
-            id="length-select"
-            value={wordLength}
-            onChange={(e) => onWordLengthChange(Number(e.target.value))}
-            title="Number of letters"
-            aria-label="Number of letters"
+        <div data-header-def="more">
+          <button
+            type="button"
+            className="icon-btn header-icon-btn header-def-trigger"
+            data-header-def-trigger=""
+            title="Game settings"
+            aria-label="Game settings"
+            aria-haspopup="menu"
+            aria-expanded="false"
           >
-            {currentLangConfig?.supportedLengths.map((length) => (
-              <option key={length} value={length}>
-                {length}
-              </option>
-            ))}
-          </select>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <line x1="4" y1="8" x2="20" y2="8" />
+              <line x1="4" y1="16" x2="20" y2="16" />
+              <circle cx="8" cy="8" r="2.2" fill="currentColor" />
+              <circle cx="16" cy="16" r="2.2" fill="currentColor" />
+            </svg>
+          </button>
+          <div className="header-def-menu" data-header-def-menu="">
+            <div data-header-def="other">
+              <span className="header-def-heading">Game</span>
+              <div className="toolbar-picks">{otherControls()}</div>
+            </div>
+            {defHidden('language', defOverflow) && (
+              <div data-header-def="language">
+                <span className="header-def-heading">Language</span>
+                {languageControl('language-select-overflow')}
+              </div>
+            )}
+            {defHidden('date', defOverflow) && (
+              <div data-header-def="date">
+                <span className="header-def-heading">Date</span>
+                <div className="toolbar-mode">{dateControl}</div>
+              </div>
+            )}
+          </div>
         </div>
-        <div className="toolbar-tip">
-          <span className="toolbar-tip-label">Boards</span>
-          <select
-            id="board-count-select"
-            value={boardCount}
-            onChange={(e) => onBoardCountChange(Number(e.target.value))}
-            title="Number of boards"
-            aria-label="Number of boards"
-          >
-            {boardOptions.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+        <div data-header-def="language" className="toolbar-picks">
+          {languageControl('language-select')}
         </div>
-      </div>
-      <div className="toolbar-mode">
-        <button
-          type="button"
-          className="date-picker-btn"
-          onClick={() => onShowCalendarChange(true)}
-          title="Calendar"
-          aria-label="Choose daily date"
-        >
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-            <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5"/>
-            <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5"/>
-            <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" strokeWidth="1.5"/>
-          </svg>
-          <span className="date-display">{formatDateDisplay(selectedDate || null, today)}</span>
-        </button>
+        <div data-header-def="date" className="toolbar-mode">
+          {dateControl}
+        </div>
       </div>
     </div>
   );
