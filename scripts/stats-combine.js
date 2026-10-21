@@ -31,6 +31,7 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
  *   languageCodes: string[],
  *   playsByLang: Record<string, { games: number, byGame: Record<string, number> }>,
  *   perms: string,
+ *   permCounts: Record<string, number>,
  *   location: string,
  *   geo: StatsGeo | null,
  * }} StatsRow
@@ -386,6 +387,167 @@ function distinctPerms(rec) {
 }
 
 /**
+ * Play counts keyed `gameId:lang,rest` (repeats count).
+ * @param {StatsRecord} rec
+ * @returns {Record<string, number>}
+ */
+function permCountsFromRecord(rec) {
+  /** @type {Record<string, number>} */
+  const out = {};
+  for (const gameId of STATS_GAME_IDS) {
+    const counts = rec.games[gameId] || {};
+    for (const [perm, n] of Object.entries(counts)) {
+      const count = Number(n) || 0;
+      if (count > 0) out[`${gameId}:${perm}`] = count;
+    }
+  }
+  return out;
+}
+
+/**
+ * Place line for a Games cell: `City, Country`, or a country with no city, or Unknown.
+ * @param {StatsGeo | null | undefined} geo
+ */
+export function gamePlaceLabel(geo) {
+  const country = geo?.country || '';
+  const city = geo?.city || '';
+  const countryName = formatCountry(country) || country;
+  if (!country && !city) return 'Unknown';
+  if (!city) return countryName ? `${countryName} (city unknown)` : 'Unknown';
+  return countryName ? `${city}, ${countryName}` : city;
+}
+
+/** Country name for a Games tooltip, or Unknown. */
+export function gameCountryLabel(geo) {
+  const name = formatCountry(geo?.country || '') || geo?.country || '';
+  return name || 'Unknown';
+}
+
+/**
+ * @param {string} a
+ * @param {string} b
+ */
+function compareRest(a, b) {
+  const as = String(a).split(',');
+  const bs = String(b).split(',');
+  const n = Math.max(as.length, bs.length);
+  for (let i = 0; i < n; i++) {
+    if (i >= as.length) return -1;
+    if (i >= bs.length) return 1;
+    const av = Number(as[i]);
+    const bv = Number(bs[i]);
+    if (av !== bv) return av - bv;
+  }
+  return 0;
+}
+
+/**
+ * Played configurations with the language removed. Columns are languages that have a play.
+ * @param {StatsRow[]} rows
+ * @param {{
+ *   languages?: string[] | Set<string> | null,
+ *   shortLabel?: (gameId: string) => string,
+ *   languageName?: (code: string) => string,
+ * }} [opts]
+ * @returns {{
+ *   columns: { code: string, label: string }[],
+ *   rows: { key: string, label: string, byLang: Record<string, { count: number, cities: string[], countries: string[], networks: string[] }> }[],
+ *   totals: Record<string, number>,
+ * }}
+ */
+export function combineGameMatrix(rows, opts = {}) {
+  const allowRaw = opts.languages;
+  /** @type {Set<string> | null} */
+  const allow =
+    allowRaw instanceof Set
+      ? allowRaw.size
+        ? new Set([...allowRaw].map((code) => String(code || '').toLowerCase()))
+        : null
+      : Array.isArray(allowRaw) && allowRaw.length
+        ? new Set(allowRaw.map((code) => String(code || '').toLowerCase()))
+        : null;
+  const shortLabel = opts.shortLabel || ((id) => id);
+  const languageName = opts.languageName || ((code) => code);
+  /** @type {Map<string, { gameId: string, rest: string, label: string, byLang: Map<string, { count: number, cities: Set<string>, countries: Set<string>, networks: Set<string> }> }>} */
+  const byConfig = new Map();
+  /** @type {Set<string>} */
+  const langCodes = new Set();
+
+  for (const row of rows || []) {
+    const place = gamePlaceLabel(row.geo);
+    const country = gameCountryLabel(row.geo);
+    const network = row.ip || 'Unknown';
+    for (const [key, raw] of Object.entries(row.permCounts || {})) {
+      const count = Number(raw) || 0;
+      if (count <= 0) continue;
+      const colon = key.indexOf(':');
+      if (colon < 1) continue;
+      const gameId = key.slice(0, colon);
+      if (!STATS_GAME_IDS.includes(gameId)) continue;
+      const perm = key.slice(colon + 1);
+      const comma = perm.indexOf(',');
+      if (comma < 1) continue;
+      const lang = perm.slice(0, comma).trim().toLowerCase();
+      const rest = perm.slice(comma + 1);
+      if (!lang || !rest) continue;
+      if (allow && !allow.has(lang)) continue;
+      langCodes.add(lang);
+      const configKey = `${gameId}:${rest}`;
+      let slot = byConfig.get(configKey);
+      if (!slot) {
+        slot = { gameId, rest, label: `${shortLabel(gameId)},${rest}`, byLang: new Map() };
+        byConfig.set(configKey, slot);
+      }
+      let cell = slot.byLang.get(lang);
+      if (!cell) {
+        cell = { count: 0, cities: new Set(), countries: new Set(), networks: new Set() };
+        slot.byLang.set(lang, cell);
+      }
+      cell.count += count;
+      cell.cities.add(place);
+      cell.countries.add(country);
+      cell.networks.add(network);
+    }
+  }
+
+  const sortLabels = (values) => [...values].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+  const columns = [...langCodes]
+    .map((code) => ({ code, label: languageName(code) }))
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }) || a.code.localeCompare(b.code));
+  const gameOrder = new Map(STATS_GAME_IDS.map((id, index) => [id, index]));
+  const matrixRows = [...byConfig.values()]
+    .sort((a, b) => {
+      const ga = gameOrder.get(a.gameId) ?? 99;
+      const gb = gameOrder.get(b.gameId) ?? 99;
+      if (ga !== gb) return ga - gb;
+      return compareRest(a.rest, b.rest);
+    })
+    .map((slot) => ({
+      key: `${slot.gameId}:${slot.rest}`,
+      label: slot.label,
+      byLang: Object.fromEntries(
+        [...slot.byLang.entries()].map(([code, cell]) => [
+          code,
+          {
+            count: cell.count,
+            cities: sortLabels(cell.cities),
+            countries: sortLabels(cell.countries),
+            networks: sortLabels(cell.networks),
+          },
+        ])
+      ),
+    }));
+  /** @type {Record<string, number>} */
+  const totals = {};
+  for (const col of columns) totals[col.code] = 0;
+  for (const row of matrixRows) {
+    for (const col of columns) totals[col.code] += row.byLang[col.code]?.count || 0;
+  }
+  return { columns, rows: matrixRows, totals };
+}
+
+/**
  * Plays split by language code from permutation keys (`en,5`, `en,2,4`).
  * @param {StatsRecord} rec
  * @returns {Record<string, { games: number, byGame: Record<string, number> }>}
@@ -466,6 +628,7 @@ export function combineBodies(inputs, range = {}) {
       languageCodes,
       playsByLang,
       perms: distinctPerms(rec).join(' '),
+      permCounts: permCountsFromRecord(rec),
       location: formatLocation(rec.geo),
       geo: rec.geo,
     };
@@ -661,10 +824,12 @@ export function parseTrendInterval(value) {
 
 /**
  * @param {unknown} value
- * @returns {'totals' | 'trends'}
+ * @returns {'totals' | 'trends' | 'games'}
  */
 export function parseStatsTab(value) {
-  return String(value || '').trim().toLowerCase() === 'trends' ? 'trends' : 'totals';
+  const v = String(value || '').trim().toLowerCase();
+  if (v === 'trends' || v === 'games') return v;
+  return 'totals';
 }
 
 /**
