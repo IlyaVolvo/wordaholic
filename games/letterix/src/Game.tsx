@@ -558,29 +558,28 @@ export const Game: React.FC<{
                     </svg>
                   </button>
                   <div className="header-def-menu" data-header-def-menu="">
-                    {defHidden('other', defOverflow) && (
-                      <div data-header-def="other">
-                        <span className="header-def-heading">Size</span>
-                        <div className="toolbar-picks">
-                          <PickMenu
-                            label="Width"
-                            open={openMenu === 'width'}
-                            disabled={locked}
-                            onToggle={() => setOpenMenu((menu) => (menu === 'width' ? null : 'width'))}
-                            trigger={<span>{W}</span>}
-                            options={widths.map((n) => ({ value: String(n), selected: n === W, label: <span>{n}</span> }))}
-                            onPick={(value) => setSize('W', Number(value))}
-                          />
-                          <PickMenu
-                            label="Height"
-                            open={openMenu === 'height'}
-                            disabled={locked}
-                            onToggle={() => setOpenMenu((menu) => (menu === 'height' ? null : 'height'))}
-                            trigger={<span>{H}</span>}
-                            options={heights.map((n) => ({ value: String(n), selected: n === H, label: <span>{n}</span> }))}
-                            onPick={(value) => setSize('H', Number(value))}
-                          />
-                        </div>
+                    {defHidden('date', defOverflow) && (
+                      <div data-header-def="date">
+                        <span className="header-def-heading">Date</span>
+                        <button
+                          type="button"
+                          className={`date-picker-btn${isToday ? ' is-today' : ''}`}
+                          aria-label="Choose daily date"
+                          disabled={locked}
+                          onClick={() => {
+                            if (locked) return;
+                            setCalendarMonth(calendarMonthForSelection(date));
+                            setShowCalendar(true);
+                          }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                            <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5" />
+                            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5" />
+                            <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5" />
+                            <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" strokeWidth="1.5" />
+                          </svg>
+                          <span className="date-display">{formatDateDisplay(date)}</span>
+                        </button>
                       </div>
                     )}
                     {defHidden('language', defOverflow) && (
@@ -611,28 +610,29 @@ export const Game: React.FC<{
                         />
                       </div>
                     )}
-                    {defHidden('date', defOverflow) && (
-                      <div data-header-def="date">
-                        <span className="header-def-heading">Date</span>
-                        <button
-                          type="button"
-                          className={`date-picker-btn${isToday ? ' is-today' : ''}`}
-                          aria-label="Choose daily date"
-                          disabled={locked}
-                          onClick={() => {
-                            if (locked) return;
-                            setCalendarMonth(calendarMonthForSelection(date));
-                            setShowCalendar(true);
-                          }}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                            <rect x="3" y="4" width="14" height="13" rx="2" stroke="currentColor" strokeWidth="1.5" />
-                            <line x1="3" y1="8" x2="17" y2="8" stroke="currentColor" strokeWidth="1.5" />
-                            <line x1="7" y1="4" x2="7" y2="8" stroke="currentColor" strokeWidth="1.5" />
-                            <line x1="13" y1="4" x2="13" y2="8" stroke="currentColor" strokeWidth="1.5" />
-                          </svg>
-                          <span className="date-display">{formatDateDisplay(date)}</span>
-                        </button>
+                    {defHidden('other', defOverflow) && (
+                      <div data-header-def="other">
+                        <span className="header-def-heading">Size</span>
+                        <div className="toolbar-picks">
+                          <PickMenu
+                            label="Width"
+                            open={openMenu === 'width'}
+                            disabled={locked}
+                            onToggle={() => setOpenMenu((menu) => (menu === 'width' ? null : 'width'))}
+                            trigger={<span>{W}</span>}
+                            options={widths.map((n) => ({ value: String(n), selected: n === W, label: <span>{n}</span> }))}
+                            onPick={(value) => setSize('W', Number(value))}
+                          />
+                          <PickMenu
+                            label="Height"
+                            open={openMenu === 'height'}
+                            disabled={locked}
+                            onToggle={() => setOpenMenu((menu) => (menu === 'height' ? null : 'height'))}
+                            trigger={<span>{H}</span>}
+                            options={heights.map((n) => ({ value: String(n), selected: n === H, label: <span>{n}</span> }))}
+                            onPick={(value) => setSize('H', Number(value))}
+                          />
+                        </div>
                       </div>
                     )}
                   </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import type { LanguageConfig } from '../types';
 import { formatDate } from '@wordaholic/wordle-core';
 import { LanguageDropdown } from './LanguageDropdown';
@@ -38,28 +38,6 @@ const formatDateDisplay = (selectedDate: string | null, today: string): string =
   return `${month} ${day}, ${year}`;
 };
 
-function useHeaderDefOverflow() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [level, setLevel] = useState('');
-  useEffect(() => {
-    const bar = ref.current?.closest('.game-header-bar');
-    if (!bar) return;
-    const read = () => setLevel(bar.getAttribute('data-def-overflow') || '');
-    read();
-    const mo = new MutationObserver(read);
-    mo.observe(bar, { attributes: true, attributeFilter: ['data-def-overflow'] });
-    return () => mo.disconnect();
-  }, []);
-  return [ref, level] as const;
-}
-
-function defHidden(key: 'other' | 'language' | 'date', level: string) {
-  if (level === 'date') return true;
-  if (level === 'language') return key === 'other' || key === 'language';
-  if (level === 'other') return key === 'other';
-  return false;
-}
-
 export const Settings: React.FC<SettingsProps> = ({
   language,
   wordLength,
@@ -77,11 +55,9 @@ export const Settings: React.FC<SettingsProps> = ({
     { length: BOARD_COUNT_MAX - BOARD_COUNT_MIN + 1 },
     (_, i) => i + BOARD_COUNT_MIN
   );
-  const [defRef, defOverflow] = useHeaderDefOverflow();
-
-  const languageControl = (id: string) => (
+  const languageControl = (id: string, caption = true) => (
     <div className="language-select-wrapper toolbar-tip">
-      <span className="toolbar-tip-label">Language</span>
+      {caption ? <span className="toolbar-tip-label">Language</span> : null}
       <LanguageDropdown
         id={id}
         availableLanguages={availableLanguages}
@@ -150,7 +126,7 @@ export const Settings: React.FC<SettingsProps> = ({
   );
 
   return (
-    <div className="settings header-def" ref={defRef}>
+    <div className="settings header-def">
       <div className="header-def-inline">
         <div data-header-def="other" className="toolbar-picks">
           {letterControl('length-select')}
@@ -159,7 +135,7 @@ export const Settings: React.FC<SettingsProps> = ({
         <div data-header-def="more">
           <button
             type="button"
-            className="icon-btn header-icon-btn header-def-trigger"
+            className="header-icon-button header-def-trigger"
             data-header-def-trigger=""
             title="Game settings"
             aria-label="Game settings"
@@ -174,6 +150,14 @@ export const Settings: React.FC<SettingsProps> = ({
             </svg>
           </button>
           <div className="header-def-menu" data-header-def-menu="">
+            <div data-header-def="date">
+              <span className="header-def-heading">Date</span>
+              <div className="toolbar-mode">{dateControl}</div>
+            </div>
+            <div data-header-def="language">
+              <span className="header-def-heading">Language</span>
+              {languageControl('language-select-overflow', false)}
+            </div>
             <div data-header-def="other">
               <span className="header-def-heading">Letters</span>
               {letterControl(undefined, false)}
@@ -182,18 +166,6 @@ export const Settings: React.FC<SettingsProps> = ({
               <span className="header-def-heading">Boards</span>
               {boardControl(undefined, false)}
             </div>
-            {defHidden('language', defOverflow) && (
-              <div data-header-def="language">
-                <span className="header-def-heading">Language</span>
-                {languageControl('language-select-overflow')}
-              </div>
-            )}
-            {defHidden('date', defOverflow) && (
-              <div data-header-def="date">
-                <span className="header-def-heading">Date</span>
-                <div className="toolbar-mode">{dateControl}</div>
-              </div>
-            )}
           </div>
         </div>
         <div data-header-def="language" className="toolbar-picks">

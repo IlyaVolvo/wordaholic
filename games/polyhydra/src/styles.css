@@ -3357,7 +3357,9 @@ a.header-brand-home:focus-visible {
     display: none;
   }
 
-  .hydra-container .header-def-inline > [data-header-def="other"] {
+  .hydra-container .header-def-inline > [data-header-def="other"],
+  .hydra-container .header-def-inline > [data-header-def="language"],
+  .hydra-container .header-def-inline > [data-header-def="date"] {
     display: none !important;
   }
 
@@ -3389,11 +3391,6 @@ a.header-brand-home:focus-visible {
 
   .hydra-container .date-picker-btn.is-today svg {
     color: var(--accent);
-  }
-
-  .hydra-container .game-header-bar[data-def-overflow] .header-def-inline > [data-header-def="language"],
-  .hydra-container .game-header-bar[data-def-overflow] .header-def-inline > [data-header-def="date"] {
-    display: flex !important;
   }
 
   .hydra-container .hydra-attempts {
