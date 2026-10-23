@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Keyboard,
   boardKnowledgeTally,
@@ -85,6 +85,27 @@ function remainingTargets(targets: string[], boardGuesses: string[][], language:
 
 function openBoardIndices(solved: boolean[]): number[] {
   return solved.map((done, i) => (done ? -1 : i)).filter((i) => i >= 0);
+}
+
+/** Boards on the carousel. A tapped solved board stays in the row until the game ends. */
+function carouselIndices(
+  isComplete: boolean,
+  exiting: number[],
+  boardCount: number,
+  openIndices: number[],
+  solvedFlags: boolean[],
+  reviewIndex: number | null
+): number[] {
+  if (isComplete && exiting.length === 0) {
+    return Array.from({ length: boardCount }, (_, i) => i);
+  }
+  const lingering = exiting.filter((i) => solvedFlags[i]);
+  const indices = [...new Set([...openIndices, ...lingering])];
+  if (reviewIndex != null && solvedFlags[reviewIndex] && !indices.includes(reviewIndex)) {
+    indices.push(reviewIndex);
+  }
+  indices.sort((a, b) => a - b);
+  return indices;
 }
 
 function boardSolvedAt(words: string[] | undefined, target: string, language: string): boolean {
@@ -301,10 +322,22 @@ export const Game: React.FC<GameProps> = ({
   const [importTick, setImportTick] = useState(0);
   const visibleCount = 1;
   const [windowStart, setWindowStart] = useState(0);
+  const [reviewIndex, setReviewIndex] = useState<number | null>(null);
+  const [wordScroll, setWordScroll] = useState(0);
   const [exiting, setExiting] = useState<number[]>([]);
   const [boardScale, setBoardScale] = useState(1);
   const [boardMode, setBoardMode] = useState<'summary' | 'full'>(() => storedBoardMode(boardCount) || 'summary');
   const [viewportTooSmall, setViewportTooSmall] = useState(false);
+  const [phone, setPhone] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches
+  );
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 720px)');
+    const sync = () => setPhone(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
   const prevSolvedRef = useRef<boolean[] | null>(null);
   const variantVisitRef = useRef<string | null>(null);
   const finaleAppliedRef = useRef(false);
@@ -596,13 +629,10 @@ export const Game: React.FC<GameProps> = ({
 
   const solvedFlags = useMemo(() => boardViews.map((board) => board.solved), [boardViews]);
   const openIndices = useMemo(() => openBoardIndices(solvedFlags), [solvedFlags]);
-  const displayIndices = useMemo(() => {
-    if (isComplete && exiting.length === 0) {
-      return targets.map((_, i) => i);
-    }
-    const lingering = exiting.filter((i) => solvedFlags[i]);
-    return [...new Set([...openIndices, ...lingering])].sort((a, b) => a - b);
-  }, [isComplete, exiting, targets, openIndices, solvedFlags]);
+  const displayIndices = useMemo(
+    () => carouselIndices(isComplete, exiting, targets.length, openIndices, solvedFlags, reviewIndex),
+    [isComplete, exiting, targets.length, openIndices, solvedFlags, reviewIndex]
+  );
 
   const maxWindowStart = Math.max(0, displayIndices.length - visibleCount);
   const viewStart = Math.min(windowStart, maxWindowStart);
@@ -626,14 +656,17 @@ export const Game: React.FC<GameProps> = ({
     prevSolvedRef.current = null;
     finaleAppliedRef.current = false;
     finaleFocusRef.current = false;
+    setReviewIndex(null);
   }, [language, wordLength, boardCount, selectedPlayDate, importTick]);
 
-  // Switch to Full as soon as the game ends (do not wait for exit animation).
+  // Desktop opens the full board when the game ends. Phone keeps the current mode,
+  // so a solved board stays in summary and its word remains on the previous-guess row.
   useEffect(() => {
     if (loading || !isComplete || finaleAppliedRef.current) return;
     finaleAppliedRef.current = true;
+    if (phone) return;
     setBoardMode('full');
-  }, [loading, isComplete]);
+  }, [loading, isComplete, phone]);
 
   // After exit animation, focus first win / first lost board once.
   useEffect(() => {
@@ -1070,14 +1103,45 @@ export const Game: React.FC<GameProps> = ({
   }, [maxWindowStart]);
 
   const scrollToBoard = (index: number) => {
-    if (!displayIndices.length) return;
-    let pos = displayIndices.indexOf(index);
+    const solved = Boolean(boardViews[index]?.solved);
+    const gameOver = isComplete && exiting.length === 0;
+    const reviewing = phone && solved && !gameOver;
+    if (reviewing) {
+      setReviewIndex(index);
+    } else if (reviewIndex != null) {
+      setReviewIndex(null);
+    }
+    const indices = carouselIndices(
+      isComplete,
+      exiting,
+      targets.length,
+      openIndices,
+      solvedFlags,
+      reviewing ? index : null
+    );
+    if (!indices.length) return;
+    let pos = indices.indexOf(index);
     if (pos < 0) {
-      const next = displayIndices.find((i) => i > index);
-      pos = next != null ? displayIndices.indexOf(next) : displayIndices.length - 1;
+      const next = indices.find((i) => i > index);
+      pos = next != null ? indices.indexOf(next) : indices.length - 1;
     }
     setWindowStart(pos);
+    if (phone && solved) setWordScroll((n) => n + 1);
   };
+
+  useLayoutEffect(() => {
+    if (!phone || boardMode !== 'full') return;
+    const index = visibleIndices[0];
+    const board = index != null ? boardViews[index] : undefined;
+    if (!board?.solved || board.guesses.length === 0) return;
+    const entries = boardsViewportRef.current?.querySelector('.hydra-board-entries') as HTMLElement | null;
+    const row = entries?.querySelectorAll<HTMLElement>('.game-board .row')[board.guesses.length - 1];
+    if (!entries || !row) return;
+    const entriesRect = entries.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    const overflow = rowRect.bottom - (entriesRect.bottom - 8);
+    if (overflow > 1) entries.scrollTop += overflow;
+  }, [phone, boardMode, boardScale, visibleIndices, boardViews, wordScroll]);
 
   useEffect(() => {
     const bar = headerBarRef.current;
@@ -1259,6 +1323,17 @@ export const Game: React.FC<GameProps> = ({
           onSelect={scrollToBoard}
           inView={visibleIndices}
           revealed={isComplete}
+          showSummarySwitch={
+            phone &&
+            boardMode === 'full' &&
+            !isComplete &&
+            visibleIndices[0] != null &&
+            (!boardViews[visibleIndices[0]]?.solved || reviewIndex === visibleIndices[0])
+          }
+          onShowSummary={() => {
+            setReviewIndex(null);
+            selectBoardMode('summary', true);
+          }}
         />
       </div>
       <div className={`game-play-area hydra-boards${isComplete ? ' game-play-area--complete' : ''}`}>
@@ -1331,30 +1406,32 @@ export const Game: React.FC<GameProps> = ({
                     setExiting((ids) => ids.filter((id) => id !== i));
                   }}
                 >
-                  <div
-                    className={`hydra-board-label${
-                      board.solved ? ' guessed' : isComplete ? ' missed' : ''
-                    }`}
-                  >
-                    {boardMode === 'full' ? (
-                      <button
-                        type="button"
-                        className="hydra-board-mode hydra-board-mode--up"
-                        aria-label="Show summary"
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onClick={() => selectBoardMode('summary', true)}
-                      >
-                        ↑
-                      </button>
-                    ) : (
+                  {phone ? null : (
+                    <div
+                      className={`hydra-board-label${
+                        board.solved ? ' guessed' : isComplete ? ' missed' : ''
+                      }`}
+                    >
+                      {boardMode === 'full' ? (
+                        <button
+                          type="button"
+                          className="hydra-board-mode hydra-board-mode--up"
+                          aria-label="Show summary"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={() => selectBoardMode('summary', true)}
+                        >
+                          ↑
+                        </button>
+                      ) : (
+                        <span className="hydra-board-mode hydra-board-mode--spacer" aria-hidden="true" />
+                      )}
+                      <span className="hydra-board-label-text">
+                        {board.solved || isComplete ? board.target.toUpperCase() : i + 1}
+                        {board.solved ? ` ${board.words.length}` : ''}
+                      </span>
                       <span className="hydra-board-mode hydra-board-mode--spacer" aria-hidden="true" />
-                    )}
-                    <span className="hydra-board-label-text">
-                      {board.solved || isComplete ? board.target.toUpperCase() : i + 1}
-                      {board.solved ? ` ${board.words.length}` : ''}
-                    </span>
-                    <span className="hydra-board-mode hydra-board-mode--spacer" aria-hidden="true" />
-                  </div>
+                    </div>
+                  )}
                   {boardMode === 'summary' ? (
                     <SummaryBoard
                       guesses={board.guesses}

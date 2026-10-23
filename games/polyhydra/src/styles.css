@@ -3280,6 +3280,8 @@ a.header-brand-home:focus-visible {
 }
 
 .hydra-container .header-section {
+  position: relative;
+  z-index: 5;
   flex-shrink: 0;
   overflow: visible;
 }
@@ -3353,26 +3355,80 @@ a.header-brand-home:focus-visible {
 }
 
 @media (max-width: 720px) {
+  .hydra-container .game-header-bar {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    column-gap: 6px;
+  }
+
+  .hydra-container .game-header-left,
+  .hydra-container .game-header-right,
+  .hydra-container .header-icon-cluster,
+  .hydra-container .header-chrome-compact [data-header-chrome="icons"] {
+    display: contents !important;
+  }
+
+  .hydra-container .header-brand-home {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .hydra-container .game-header-bar .help-trigger--game {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
   .hydra-container .header-game-name {
     display: none;
   }
 
+  .hydra-container .hydra-attempts {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: center;
+    width: max-content;
+    max-width: 100%;
+  }
+
+  .hydra-container .header-icon-with-tooltip {
+    grid-column: 4;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .hydra-container .game-header-bar .settings {
+    grid-column: 5;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .hydra-container [data-header-chrome="more"],
+  .hydra-container .header-chrome-compact [data-header-chrome="more"] {
+    display: none !important;
+  }
+
   .hydra-container .header-def-inline > [data-header-def="other"],
-  .hydra-container .header-def-inline > [data-header-def="language"],
   .hydra-container .header-def-inline > [data-header-def="date"] {
+    display: none !important;
+  }
+
+  .hydra-container .header-def-inline > [data-header-def="language"] {
+    display: flex !important;
+    order: 0;
+  }
+
+  .hydra-container .header-def-inline > [data-header-def="language"] .toolbar-tip-label {
+    display: none !important;
+  }
+
+  .hydra-container .header-def-menu [data-header-def="language"] {
     display: none !important;
   }
 
   .hydra-container .header-def-inline > [data-header-def="more"] {
     display: flex !important;
-  }
-
-  .hydra-container [data-header-chrome="icons"] {
-    display: none !important;
-  }
-
-  .hydra-container [data-header-chrome="more"] {
-    display: block !important;
+    order: 1;
   }
 
   .hydra-container .date-display {
@@ -3699,6 +3755,149 @@ a.header-brand-home:focus-visible {
 
 .hydra-scoreboard-cell.missed .hydra-scoreboard-answer {
   color: #c62828;
+}
+
+.hydra-scoreboard-block {
+  width: 100%;
+}
+
+.hydra-scoreboard-word {
+  margin: 2px 10px 6px;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  background: #14532d;
+  color: #fff;
+  text-align: center;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+}
+
+@media (max-width: 720px) {
+  .hydra-container .hydra-scoreboard.is-phone {
+    padding-top: 6px;
+  }
+
+  .hydra-container .help-trigger-tip,
+  .hydra-container .header-icon-tooltip {
+    display: none !important;
+  }
+
+  .hydra-container .hydra-phone-bar {
+    position: relative;
+    width: 100%;
+    height: 26px;
+    min-height: 26px;
+    background: #1a3d66;
+    color: #fff;
+  }
+
+  .hydra-container .hydra-phone-bar .hydra-board-mode--up {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1.7rem;
+    height: 26px;
+    margin: 0;
+    color: #fff;
+    font-size: 1.15rem;
+  }
+
+  .hydra-container .hydra-phone-bar .hydra-board-mode--up.is-end {
+    left: auto;
+    right: 0;
+  }
+
+  .hydra-container .hydra-phone-bar-count {
+    position: absolute;
+    top: 0;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+  }
+
+  .hydra-container .hydra-phone-bar-word {
+    color: #fff;
+    letter-spacing: 0.08em;
+  }
+
+  .hydra-container .hydra-scoreboard-cell {
+    height: 30px;
+    min-height: 30px;
+    max-height: 30px;
+    font-size: 15px;
+    padding: 0 2px;
+  }
+
+  .hydra-container .hydra-scoreboard-top {
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .hydra-container .hydra-scoreboard-id {
+    border: none;
+    min-width: 0;
+    padding: 0;
+  }
+
+  .hydra-container .hydra-scoreboard-cell.is-open {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+    z-index: 3;
+  }
+
+  .hydra-container .hydra-scoreboard-pop {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 0.15em;
+    padding: 0.28rem 0.45rem;
+    border-radius: 6px;
+    background: #111;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 6;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  }
+
+  .hydra-container .hydra-scoreboard-cell:first-child .hydra-scoreboard-pop {
+    left: 0;
+    transform: none;
+  }
+
+  .hydra-container .hydra-scoreboard-cell:last-child .hydra-scoreboard-pop {
+    left: auto;
+    right: 0;
+    transform: none;
+  }
+
+  .hydra-container .hydra-scoreboard-pop-g {
+    color: #7dffa0;
+  }
+
+  .hydra-container .hydra-scoreboard-pop-y {
+    color: var(--present);
+  }
+
+  .hydra-container .hydra-scoreboard-check {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
 .game-play-area.hydra-boards {
