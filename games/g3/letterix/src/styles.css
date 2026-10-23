@@ -142,6 +142,11 @@ a.header-brand-home {
   justify-content: center;
 }
 .header-icon-button svg { display: block; }
+.header-icon-button:disabled,
+.help-trigger--game:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
 .stage {
   position: relative;
   flex: 1;

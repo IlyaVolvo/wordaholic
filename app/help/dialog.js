@@ -39,6 +39,27 @@ function asTopic(value) {
   return null;
 }
 
+function fitCallouts(host) {
+  if (!host) return;
+  const box = host.getBoundingClientRect();
+  if (box.width < 2 || box.height < 2) return;
+  for (const el of host.querySelectorAll('.help-callout')) {
+    const pad = 6;
+    const b = el.getBoundingClientRect();
+    let dx = 0;
+    let dy = 0;
+    if (b.right > box.right - pad) dx -= b.right - (box.right - pad);
+    if (b.left + dx < box.left + pad) dx += (box.left + pad) - (b.left + dx);
+    if (b.bottom > box.bottom - pad) dy -= b.bottom - (box.bottom - pad);
+    if (b.top + dy < box.top + pad) dy += (box.top + pad) - (b.top + dy);
+    if (!dx && !dy) continue;
+    const left = parseFloat(el.style.left) || 0;
+    const top = parseFloat(el.style.top) || 0;
+    el.style.left = `${left + (dx / box.width) * 100}%`;
+    el.style.top = `${top + (dy / box.height) * 100}%`;
+  }
+}
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => {
     if (c === '&') return '&amp;';
@@ -269,6 +290,9 @@ function renderHelp() {
           return `<div class="help-callout" data-place="${escapeHtml(place)}" style="left:${x}%;top:${y}%">${escapeHtml(c.text || '')}</div>`;
         })
         .join('');
+      const pin = () => fitCallouts(callouts);
+      if (shotImg.complete) requestAnimationFrame(pin);
+      else shotImg.addEventListener('load', pin, { once: true });
       const hit = clickTargetOf(step);
       if (ring instanceof HTMLElement) {
         if (hit) {

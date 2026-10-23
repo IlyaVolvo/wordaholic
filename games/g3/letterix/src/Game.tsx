@@ -242,33 +242,37 @@ export const Game: React.FC<{
       if (target instanceof HTMLInputElement && target.type === 'range') {
         if (notPlaying(sim) && event.key !== 'p' && event.key !== 'P') return;
       } else if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
-      if (sim.phase === 'decide' && !sim.paused) {
+      if (!notPlaying(sim)) {
+        if (sim.phase === 'decide') {
+          if (event.key === 'ArrowLeft') {
+            event.preventDefault();
+            selectChoice(sim, 'use');
+            return;
+          }
+          if (event.key === 'ArrowRight') {
+            event.preventDefault();
+            selectChoice(sim, 'skip');
+            return;
+          }
+          if (event.key === ' ') {
+            event.preventDefault();
+            confirmChoice(sim, true);
+          }
+          return;
+        }
         if (event.key === 'ArrowLeft') {
           event.preventDefault();
-          selectChoice(sim, 'use');
-          return;
-        }
-        if (event.key === 'ArrowRight') {
+          tryMove(sim, -1);
+        } else if (event.key === 'ArrowRight') {
           event.preventDefault();
-          selectChoice(sim, 'skip');
-          return;
-        }
-        if (event.key === ' ') {
+          tryMove(sim, 1);
+        } else if (event.key === ' ') {
           event.preventDefault();
-          confirmChoice(sim, true);
-          return;
+          hardDrop(sim);
         }
+        return;
       }
-      if (event.key === 'ArrowLeft') {
-        event.preventDefault();
-        tryMove(sim, -1);
-      } else if (event.key === 'ArrowRight') {
-        event.preventDefault();
-        tryMove(sim, 1);
-      } else if (event.key === ' ') {
-        event.preventDefault();
-        if (sim.phase !== 'ready') hardDrop(sim);
-      } else if (event.key === 'p' || event.key === 'P') {
+      if (event.key === 'p' || event.key === 'P') {
         event.preventDefault();
         setPaused(sim, !sim.paused);
       }
@@ -310,6 +314,7 @@ export const Game: React.FC<{
   }, []);
 
   const locked = hud?.phase === 'fall' || hud?.phase === 'decide' || hud?.phase === 'settle';
+  const playing = Boolean(hud && !notPlaying(hud));
   const dayResults = useMemo(() => {
     const map = new Map<string, { score: number }>();
     for (const row of history) {
@@ -436,7 +441,7 @@ export const Game: React.FC<{
             </Tip>
             <div className="header-icon-cluster" data-header-chrome="icons">
               <Tip label="Manual">
-                <button type="button" className="help-trigger help-trigger--game" aria-label="Manual" onClick={() => openHelp(helpTopic)}>
+                <button type="button" className="help-trigger help-trigger--game" aria-label="Manual" disabled={playing} onClick={() => { if (playing) return; openHelp(helpTopic); }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
                     <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
@@ -444,7 +449,7 @@ export const Game: React.FC<{
                 </button>
               </Tip>
               <Tip label="Statistics">
-                <button type="button" className="header-icon-button" aria-label="Statistics" onClick={() => { setStatsLanguage(language); setShowStats(true); }}>
+                <button type="button" className="header-icon-button" aria-label="Statistics" disabled={playing} onClick={() => { if (playing) return; setStatsLanguage(language); setShowStats(true); }}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <line x1="18" y1="20" x2="18" y2="10" />
                     <line x1="12" y1="20" x2="12" y2="4" />
@@ -454,7 +459,7 @@ export const Game: React.FC<{
               </Tip>
             </div>
             <div className="header-more" data-header-chrome="more">
-              <button type="button" className="header-icon-button" title="Game menu" aria-label="Game menu" aria-haspopup="menu" aria-expanded="false">
+              <button type="button" className="header-icon-button" title="Game menu" aria-label="Game menu" aria-haspopup="menu" aria-expanded="false" disabled={playing}>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <circle cx="12" cy="5" r="2"></circle>
                   <circle cx="12" cy="12" r="2"></circle>
@@ -463,7 +468,7 @@ export const Game: React.FC<{
               </button>
               <ul className="header-more-menu hidden" role="menu" aria-label="Game menu">
                 <li role="none">
-                  <button type="button" role="menuitem" onClick={() => openHelp(helpTopic)}>
+                  <button type="button" role="menuitem" disabled={playing} onClick={() => { if (playing) return; openHelp(helpTopic); }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
                       <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
@@ -472,7 +477,7 @@ export const Game: React.FC<{
                   </button>
                 </li>
                 <li role="none">
-                  <button type="button" role="menuitem" onClick={() => { setStatsLanguage(language); setShowStats(true); }}>
+                  <button type="button" role="menuitem" disabled={playing} onClick={() => { if (playing) return; setStatsLanguage(language); setShowStats(true); }}>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <line x1="18" y1="20" x2="18" y2="10" />
                       <line x1="12" y1="20" x2="12" y2="4" />
@@ -526,6 +531,7 @@ export const Game: React.FC<{
                     aria-label="Game settings"
                     aria-haspopup="menu"
                     aria-expanded="false"
+                    disabled={playing}
                   >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
                       <line x1="4" y1="8" x2="20" y2="8" />

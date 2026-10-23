@@ -281,6 +281,15 @@
   box-shadow: 0 6px 18px rgba(20, 35, 43, 0.22);
 }
 
+@media (max-width: 720px) {
+  .help-callout {
+    max-width: 7.25rem;
+    padding: 0.3rem 0.42rem;
+    font-size: 0.72rem;
+    line-height: 1.25;
+  }
+}
+
 .help-callout::after {
   content: '';
   position: absolute;
