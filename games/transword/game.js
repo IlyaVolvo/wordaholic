@@ -19,6 +19,7 @@ import { languageDirForTranswordDir } from '../../app/shell/locales.js';
 import { getGame } from '../../app/games-contract.js';
 import './registration.js';
 import { normalizeWithMappings } from '../../app/i18n/normalize.js';
+import { languageHooks, spellInPlace } from '../../app/i18n/languages/index.js';
 import { openHelp } from '../../app/help/dialog.js';
 import helpTopic from './help/topic.js';
 import { mountPortraitGate } from '../../app/play/portrait-gate.js';
@@ -161,6 +162,21 @@ const WORD_DATA_BASE = '/word-data';
 
 function normalizeForLanguage(word) {
   return normalizeWithMappings(word, languageConfig?.normalization);
+}
+
+/** Dictionary key. Hebrew final letters (ם) match their regular form (מ). */
+function canonicalWord(word) {
+  return normalizeForLanguage(String(word || '').toLowerCase());
+}
+
+/** Word as written. Hebrew uses a final letter at the end. */
+function displayWord(word) {
+  return spellInPlace(canonicalWord(word), languageHooks(language));
+}
+
+function showTarget() {
+  const el = $('#target-word');
+  if (el && puzzle) el.textContent = displayWord(puzzle.end);
 }
 
 function selectedLevel() {
@@ -320,12 +336,15 @@ function dailyFields(extra = {}) {
 
 function buildGraphs(entries) {
   const lvl = selectedLevel();
-  const allWords = [];
-  const puzzleWords = [];
+  const levels = new Map();
   for (const { word, level } of entries) {
-    allWords.push(word);
-    if (level <= lvl) puzzleWords.push(word);
+    const key = canonicalWord(word);
+    if (!key) continue;
+    const prev = levels.get(key);
+    if (prev == null || level < prev) levels.set(key, level);
   }
+  const allWords = [...levels.keys()];
+  const puzzleWords = allWords.filter((word) => levels.get(word) <= lvl);
   fullGraph = new WordGraph(allWords);
   fullGraph.build();
   puzzleGraph = new WordGraph(puzzleWords);
@@ -508,12 +527,14 @@ async function switchLanguage(code, startPuzzle = true) {
 }
 
 function applyPracticeSnapshot(snap) {
+  const start = canonicalWord(snap.start);
+  const end = canonicalWord(snap.end);
   puzzle = {
-    start: snap.start,
-    end: snap.end,
-    dist: optimalStepCount(snap.start, snap.end, snap.dist),
+    start,
+    end,
+    dist: optimalStepCount(start, end, snap.dist),
   };
-  chain = Array.isArray(snap.path) && snap.path.length ? [...snap.path] : [snap.start];
+  chain = Array.isArray(snap.path) && snap.path.length ? snap.path.map((word) => canonicalWord(word)) : [start];
   elapsedMsStored = Number(snap.elapsedMs) || 0;
   timerStarted = !!snap.timerStarted || elapsedMsStored > 0 || chain.length > 1;
   inputDraft = snap.solved ? '' : String(snap.draft || '');
@@ -521,7 +542,7 @@ function applyPracticeSnapshot(snap) {
   solved = !!snap.solved;
   readOnly = false;
   rememberActiveCombo();
-  $('#target-word').textContent = puzzle.end;
+  showTarget();
   $('#optimal-count').textContent = String(puzzle.dist);
   if (solved) {
     stopTimer();
@@ -576,7 +597,7 @@ function loadPracticeForSelection({ fresh = false } = {}) {
   rememberActiveCombo();
   practiceSessions.delete(practiceKey(combo));
   setSessionActive(GAME_ID, true);
-  $('#target-word').textContent = puzzle.end;
+  $('#target-word').textContent = displayWord(puzzle.end);
   $('#optimal-count').textContent = String(puzzle.dist);
   $('#win-overlay').classList.add('hidden');
   updateTimerDisplay();
@@ -611,26 +632,30 @@ async function loadDailyForSelection() {
       ...dailyFields({ elapsedMs: 0, isComplete: false, timerStarted: false, draft: '' }),
     });
   } else {
+    const start = canonicalWord(record.start);
+    const end = canonicalWord(record.end);
     puzzle = {
-      start: record.start,
-      end: record.end,
-      dist: optimalStepCount(record.start, record.end, record.optimal),
+      start,
+      end,
+      dist: optimalStepCount(start, end, record.optimal),
     };
-    chain = Array.isArray(record.path) && record.path.length ? [...record.path] : [record.start];
+    chain = Array.isArray(record.path) && record.path.length
+      ? record.path.map((word) => canonicalWord(word))
+      : [start];
     elapsedMsStored = Number(record.elapsedMs) || 0;
     timerStarted =
       !!record.timerStarted || elapsedMsStored > 0 || (Array.isArray(record.path) && record.path.length > 1);
     inputDraft = record.isComplete ? '' : String(record.draft || '');
     resetAssist(record);
     rememberActiveCombo();
-    if (record.isComplete || isPathSolved(chain, record.start, record.end)) {
+    if (record.isComplete || isPathSolved(chain, puzzle.start, puzzle.end)) {
       solved = true;
       readOnly = true;
       timerStarted = true;
       inputDraft = '';
       stopTimer();
       setSessionActive(GAME_ID, false);
-      $('#target-word').textContent = puzzle.end;
+      $('#target-word').textContent = displayWord(puzzle.end);
       $('#optimal-count').textContent = String(puzzle.dist);
       renderChain();
       return;
@@ -638,7 +663,7 @@ async function loadDailyForSelection() {
   }
 
   setSessionActive(GAME_ID, true);
-  $('#target-word').textContent = puzzle.end;
+  $('#target-word').textContent = displayWord(puzzle.end);
   $('#optimal-count').textContent = String(puzzle.dist);
   $('#win-overlay').classList.add('hidden');
   if (timerStarted) startTimer();
@@ -803,15 +828,16 @@ function makeWordNode(word, isStart, isEnd, canUndo, prevWord, isDeadend = false
   if (isStart) slot.classList.add('start-word');
   if (isEnd) slot.classList.add('end-word');
   if (isDeadend) slot.classList.add('deadend-word');
+  const shown = Array.from(displayWord(word));
   if (prevWord) {
     const op = fullGraph.classifyOp(prevWord, word);
-    for (const { char, cls } of diffLetters(prevWord, word, op)) {
+    diffLetters(prevWord, word, op).forEach(({ cls }, i) => {
       const span = document.createElement('span');
-      span.textContent = char;
+      span.textContent = shown[i] || '';
       if (cls) span.className = cls;
       slot.appendChild(span);
-    }
-  } else slot.textContent = word;
+    });
+  } else slot.textContent = shown.join('');
   wrap.appendChild(slot);
   if (canUndo) {
     const x = document.createElement('button');
