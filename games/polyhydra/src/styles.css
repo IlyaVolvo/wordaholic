@@ -3409,26 +3409,13 @@ a.header-brand-home:focus-visible {
   }
 
   .hydra-container .header-def-inline > [data-header-def="other"],
+  .hydra-container .header-def-inline > [data-header-def="language"],
   .hydra-container .header-def-inline > [data-header-def="date"] {
-    display: none !important;
-  }
-
-  .hydra-container .header-def-inline > [data-header-def="language"] {
-    display: flex !important;
-    order: 0;
-  }
-
-  .hydra-container .header-def-inline > [data-header-def="language"] .toolbar-tip-label {
-    display: none !important;
-  }
-
-  .hydra-container .header-def-menu [data-header-def="language"] {
     display: none !important;
   }
 
   .hydra-container .header-def-inline > [data-header-def="more"] {
     display: flex !important;
-    order: 1;
   }
 
   .hydra-container .date-display {
