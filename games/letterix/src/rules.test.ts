@@ -158,6 +158,17 @@ function hebrew(words: string[]) {
   return lexiconFor('he', words, true);
 }
 
+test('corpus2 words are allowed and do not change letter frequency', () => {
+  const dictionary = buildLexicon(['cats', 'dogs'], (w) => w, { extraWords: ['books', 'zzzz'] });
+  assert.equal(dictionary.dict.has('books'), true);
+  assert.equal(dictionary.dict.has('zzzz'), true);
+  const freq = Object.fromEntries(dictionary.table.map((row) => [row.letter, row.freq]));
+  assert.equal(freq.s, 2);
+  assert.equal(freq.o, 1);
+  assert.equal(freq.b, undefined);
+  assert.equal(freq.z, undefined);
+});
+
 test('final letters never fall and count as their regular letter', () => {
   const dictionary = hebrew(['מלך', 'כלב', 'שלום']);
   const freq = Object.fromEntries(dictionary.table.map((row) => [row.letter, row.freq]));

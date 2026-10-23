@@ -22,6 +22,8 @@ export type LexiconOptions = {
   baseLetter?: (letter: string) => string;
   spell?: (word: string) => string;
   rtl?: boolean;
+  /** Playable words that do not affect letter frequency or values. */
+  extraWords?: string[];
 };
 
 export function buildLexicon(
@@ -32,16 +34,20 @@ export function buildLexicon(
   const baseLetter = options.baseLetter ?? ((letter: string) => letter);
   const dict = new Set<string>();
   const freq = new Map<string, number>();
-  for (const raw of words) {
+  const take = (raw: string, count: boolean) => {
     const surface = Array.from(String(raw || '').trim().toLowerCase()).join('');
-    if (!surface) continue;
-    for (const ch of surface) {
-      const drawn = baseLetter(ch);
-      freq.set(drawn, (freq.get(drawn) || 0) + 1);
+    if (!surface) return;
+    if (count) {
+      for (const ch of surface) {
+        const drawn = baseLetter(ch);
+        freq.set(drawn, (freq.get(drawn) || 0) + 1);
+      }
     }
     const word = Array.from(normalize(surface)).join('');
     if (Array.from(surface).length >= PARAMS.Nmin && word) dict.add(word);
-  }
+  };
+  for (const raw of words) take(raw, true);
+  for (const raw of options.extraWords || []) take(raw, false);
 
   const letters = [...freq.keys()].sort((a, b) => (a.codePointAt(0) || 0) - (b.codePointAt(0) || 0));
   let fMax = 0;

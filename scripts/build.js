@@ -187,7 +187,11 @@ function main() {
     }
     if (lang.transwordDir) words[`transword:${lang.code}`] = gameHashes.transword[`data/languages/${lang.transwordDir}/corpus.txt`] || siteHash;
     if (lang.letterixDir) {
-      words[`letterix:${lang.code}`] = gameHashes.letterix[`data/languages/${lang.letterixDir}/corpus.txt`] || siteHash;
+      const primary = gameHashes.letterix[`data/languages/${lang.letterixDir}/corpus.txt`];
+      const extra = gameHashes.letterix[`data/languages/${lang.letterixDir}/corpus2.txt`] || '';
+      words[`letterix:${lang.code}`] = primary
+        ? crypto.createHash('sha256').update(`${primary}\n${extra}`).digest('hex').slice(0, 16)
+        : siteHash;
     }
     if (langHash) words[`language:${lang.code}`] = langHash;
   }

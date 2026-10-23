@@ -25,7 +25,7 @@ const GAMES = {
   letterix: {
     name: 'Letterix',
     file: (languageName) => `games/letterix/data/languages/${languageName}/corpus.txt`,
-    /** Same as loadLexicon in games/letterix/src/App.tsx: every non-empty trimmed line is a word. */
+    /** Frequency is corpus.txt only. corpus2.txt words are playable and are not counted. */
     words: (text) => text.split(/\n/).map((line) => line.trim()).filter(Boolean),
     /** Same options as loadLexicon: the language's base letters (Hebrew final forms count as regular). */
     count(words, langJson, langCode) {

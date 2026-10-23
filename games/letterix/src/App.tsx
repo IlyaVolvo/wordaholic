@@ -59,24 +59,26 @@ async function loadPlayableLanguages(): Promise<LetterixLanguage[]> {
   return playable.length ? playable : [ENGLISH];
 }
 
+function wordLines(text: string): string[] {
+  return text.split(/\n/).map((line) => line.trim()).filter(Boolean);
+}
+
 async function loadLexicon(lang: Pick<LetterixLanguage, 'code' | 'dir' | 'wordDir'>): Promise<Lexicon> {
-  const [wordsRes, langRes] = await Promise.all([
-    fetch(`/games/letterix/data/languages/${lang.dir}/corpus.txt`),
+  const base = `/games/letterix/data/languages/${lang.dir}`;
+  const [wordsRes, extraRes, langRes] = await Promise.all([
+    fetch(`${base}/corpus.txt`),
+    fetch(`${base}/corpus2.txt`),
     fetch(`/word-data/${lang.wordDir}/language.json`),
   ]);
   if (!wordsRes.ok) throw new Error('Word list is missing');
-  const text = await wordsRes.text();
   const config = langRes.ok ? await langRes.json() : {};
   const mappings = config.normalization && typeof config.normalization === 'object' ? config.normalization : {};
   const hooks = languageHooks(lang.code);
-  const words = text
-    .split(/\n/)
-    .map((line: string) => line.trim())
-    .filter(Boolean);
-  return buildLexicon(words, (word) => normalizeWithMappings(word, mappings), {
+  return buildLexicon(wordLines(await wordsRes.text()), (word) => normalizeWithMappings(word, mappings), {
     baseLetter: hooks.baseLetter,
     spell: (word) => spellInPlace(word, hooks),
     rtl: config.rtl === true,
+    extraWords: extraRes.ok ? wordLines(await extraRes.text()) : [],
   });
 }
 
