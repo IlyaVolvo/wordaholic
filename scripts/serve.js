@@ -11,6 +11,7 @@ import { isStatsApiPath, isStatsGeoApiPath, isStatsPagePath } from './stats-path
 import { lookupMissingGeos } from './stats-geo-lookup.js';
 import { buildStatsGeoPayload } from './stats-geo-api.js';
 import { emptyPlacesDocument, parsePlacesDocument } from './stats-places.js';
+import { gameGroup } from '../app/games-contract.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../dist');
@@ -192,6 +193,21 @@ async function handleStatsGeoApi(req, res) {
   res.end(method === 'HEAD' ? undefined : body);
 }
 
+/**
+ * Pre-group URLs: /games/<id>/… → /games/<group>/<id>/…, and /games/<id>/data/… → /games/<group>/data/….
+ * @param {string} urlPath
+ * @returns {string | null}
+ */
+function legacyGameRedirect(urlPath) {
+  const match = /^\/games\/([^/]+)(\/.*)?$/.exec(urlPath);
+  if (!match) return null;
+  const group = gameGroup(match[1]);
+  if (!group) return null;
+  const rest = match[2] || '/';
+  if (rest.startsWith('/data/')) return `/games/${group}${rest}`;
+  return `/games/${group}/${match[1]}${rest}`;
+}
+
 const server = http.createServer((req, res) => {
   res.on('finish', () => logAccess(req, res));
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
@@ -225,6 +241,13 @@ const server = http.createServer((req, res) => {
     });
     return;
   }
+  const moved = legacyGameRedirect(urlPath);
+  if (moved) {
+    const query = (req.url || '').includes('?') ? (req.url || '').slice((req.url || '').indexOf('?')) : '';
+    res.writeHead(301, { Location: `${moved}${query}` });
+    res.end();
+    return;
+  }
   let filePath = path.join(ROOT, urlPath === '/' ? 'index.html' : urlPath);
   if (!filePath.startsWith(ROOT)) {
     res.writeHead(403);
@@ -243,8 +266,8 @@ const server = http.createServer((req, res) => {
   const headers = { 'Content-Type': TYPES[ext] || 'application/octet-stream' };
   if (
     urlPath === '/sw.js' ||
-    urlPath.startsWith('/games/transword/admin') ||
-    /^\/games\/[^/]+\/(index\.html)?$/.test(urlPath) ||
+    urlPath.startsWith('/games/g2/transword/admin') ||
+    /^\/games\/g\d+\/[^/]+\/(index\.html)?$/.test(urlPath) ||
     urlPath.includes('/games/') && urlPath.includes('/assets/')
   ) {
     headers['Cache-Control'] = 'no-store';

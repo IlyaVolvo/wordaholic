@@ -1,7 +1,7 @@
 /**
  * Copy dictionaries from sibling old repos into each game (no dialect level):
- *   ../mlw/public/dict/<Language>/<locale>/... → games/polywordlot/data/languages/<Language>/...
- *   ../transword/data/languages/<Dir>/...      → games/transword/data/languages/<Dir>/...
+ *   ../mlw/public/dict/<Language>/<locale>/... → games/<polywordlot group>/data/languages/<Language>/...
+ *   ../transword/data/languages/<Dir>/...      → games/<transword group>/data/languages/<Dir>/...
  *
  * language.json is NOT synced into games — shared definitions live in
  * word-data/<Language>/language.json
@@ -9,6 +9,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gameGroup } from '../app/games-contract.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -55,10 +56,10 @@ function main() {
     process.exit(1);
   }
 
-  const pwDict = path.join(ROOT, 'games/polywordlot/data/languages');
-  const twData = path.join(ROOT, 'games/transword/data/languages');
+  const pwDict = path.join(ROOT, 'games', gameGroup('polywordlot'), 'data/languages');
+  const twData = path.join(ROOT, 'games', gameGroup('transword'), 'data/languages');
 
-  console.log('Syncing PolyWordlot dict → games/polywordlot/data/languages (skip language.json)');
+  console.log(`Syncing PolyWordlot dict → ${path.relative(ROOT, pwDict)} (skip language.json)`);
   rmrf(pwDict);
   for (const lang of fs.readdirSync(MLW_DICT, { withFileTypes: true })) {
     if (!lang.isDirectory()) continue;
@@ -72,7 +73,7 @@ function main() {
   }
   stripLanguageJson(pwDict);
 
-  console.log('Syncing TransWord languages → games/transword/data/languages (skip language.json)');
+  console.log(`Syncing TransWord languages → ${path.relative(ROOT, twData)} (skip language.json)`);
   rmrf(twData);
   copyDir(TW_LANGS, twData, { skipNames: ['language.json'] });
   stripLanguageJson(twData);

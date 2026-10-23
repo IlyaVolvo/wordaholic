@@ -21,9 +21,9 @@ function isSha256Hex(value) {
 }
 
 /**
- * @param {string} [outRoot] destination root (default: repo games/transword/admin)
+ * @param {string} [outRoot] destination root (default: repo games/g2/transword/admin)
  */
-export function embedAdminPassword(outRoot = path.join(ROOT, 'games/transword/admin')) {
+export function embedAdminPassword(outRoot = path.join(ROOT, 'games/g2/transword/admin')) {
   const raw = (process.env.ADMIN_PASSWORD || '').trim();
   let hash = DEFAULT_HASH;
   let source = 'default';
@@ -74,7 +74,7 @@ function ensureDir(p) {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const out = process.argv[2]
     ? path.resolve(process.argv[2])
-    : path.join(ROOT, 'games/transword/admin');
+    : path.join(ROOT, 'games/g2/transword/admin');
   const result = embedAdminPassword(out);
   console.log(`Wrote ${result.file} (source=${result.source})`);
 }

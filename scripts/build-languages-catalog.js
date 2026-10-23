@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getGame } from '../app/games-contract.js';
+import { getGame, gameGroup } from '../app/games-contract.js';
 import '../app/game-registry.js';
 import { LOCALE_PATHS, languageDirForCode } from '../app/shell/locales.js';
 
@@ -20,6 +20,11 @@ const MAP_COORDS = {
   he: { lat: 31.5, lon: 34.8 },
   hy: { lat: 40.2, lon: 44.5 },
 };
+
+/** games/<group>/data/languages for the group that owns this game's word sets. */
+function languagesDir(gameId) {
+  return path.join(ROOT, 'games', gameGroup(gameId), 'data/languages');
+}
 
 /** @param {string} gameId @param {string} code */
 function supportsLanguage(gameId, code) {
@@ -37,9 +42,9 @@ function polyLengths(dictRoot, language) {
 }
 
 export function buildLanguagesCatalog() {
-  const pwDict = path.join(ROOT, 'games/polywordlot/data/languages');
+  const pwDict = languagesDir('polywordlot');
   const wordData = path.join(ROOT, 'word-data');
-  const twIndexPath = path.join(ROOT, 'games/transword/data/languages/index.json');
+  const twIndexPath = path.join(languagesDir('transword'), 'index.json');
   /** @type {Map<string, any>} */
   const byCode = new Map();
 
@@ -55,7 +60,7 @@ export function buildLanguagesCatalog() {
     const games = [];
     if (lengths.length && supportsLanguage('polywordlot', code)) games.push('polywordlot');
     if (lengths.length && supportsLanguage('polyhydra', code)) games.push('polyhydra');
-    const letterixFile = path.join(ROOT, 'games/letterix/data/languages', language, 'corpus.txt');
+    const letterixFile = path.join(languagesDir('letterix'), language, 'corpus.txt');
     const letterixDir =
       fs.existsSync(letterixFile) && fs.statSync(letterixFile).size > 0 ? language : '';
     if (letterixDir && supportsLanguage('letterix', code)) games.push('letterix');
@@ -78,7 +83,7 @@ export function buildLanguagesCatalog() {
     const twIndex = JSON.parse(fs.readFileSync(twIndexPath, 'utf8'));
     for (const entry of twIndex) {
       const code = entry.code;
-      const corpusPath = path.join(ROOT, 'games/transword/data/languages', entry.dir, 'corpus.txt');
+      const corpusPath = path.join(languagesDir('transword'), entry.dir, 'corpus.txt');
       const hasWords = fs.existsSync(corpusPath) && fs.statSync(corpusPath).size > 0;
       if (!hasWords || !supportsLanguage('transword', code)) continue;
       const wordDir = languageDirForCode(code) || entry.dir;

@@ -8,7 +8,7 @@ Ship **PolyHydra** (`polyhydra`) as a map-launched game: one shared guess scored
 
 ## Scope
 
-**In:** new `games/polyhydra/` app; shared wordle core used by PolyWordlot and Hydra; one copy of PolyWordlot dictionaries; Daily (no Practice in v1); calendar; persist/export; statistics; help topic; shell/catalog/SW/offline/stats-delta wiring.
+**In:** new `games/g1/polyhydra/` app; shared wordle core used by PolyWordlot and Hydra; one copy of PolyWordlot dictionaries; Daily (no Practice in v1); calendar; persist/export; statistics; help topic; shell/catalog/SW/offline/stats-delta wiring.
 
 **Out:** Practice mode; extra-attempt values other than 5 (the per-count map exists so they can change later); real help screenshots; changing PolyWordlot’s shake-on-invalid or evaluation-colored keyboard.
 
@@ -35,7 +35,7 @@ Ship **PolyHydra** (`polyhydra`) as a map-launched game: one shared guess scored
 | Default boards | Remember last used count. First visit: **16**. Range 2–20. |
 | Stats | Wins by shared guess count `1…N+5`; loss bucket `N+6`. Split by language + length + board count. |
 | Help | Topic in v1; screenshots may be placeholders until captured. |
-| Architecture | Shared package (e.g. `packages/wordle-core`) imported by both games. Dict loader base URL defaults to `/games/polywordlot/data/languages/`. |
+| Architecture | Group g1 shared code (`games/g1/shared`) imported by both games. Dict loader base URL is `/games/g1/data/languages/`. |
 
 ## Architecture
 
@@ -75,10 +75,10 @@ flowchart TB
 
 ### Shared core
 
-`packages/wordle-core/` (Vite alias `@wordaholic/wordle-core`, same pattern as existing `@wordaholic/*` aliases):
+`games/g1/shared/` (Vite alias `@wordaholic/wordle-core`, same pattern as existing `@wordaholic/*` aliases):
 
 - Types, `evaluateGuess`, `isValidWord`, character normalization, dictionary/keyboard loader
-- Loader dict base URL defaults to `/games/polywordlot/data/languages/`
+- Loader dict base URL is `/games/g1/data/languages/`
 - Daily seed + N-word pick (Hydra tag so it cannot collide with the one-board PolyWordlot hash)
 - Knowledge score for the scoreboard
 - Keyboard `colorMode: 'evaluation' | 'used-unused'`
@@ -92,7 +92,7 @@ PolyWordlot is refactored only to import the core. It keeps Game, persistence, s
 
 ### Hydra app
 
-Vite + React sibling of PolyWordlot (`games/polyhydra/`, distinct dev port from 5174).
+Vite + React sibling of PolyWordlot (`games/g1/polyhydra/`, distinct dev port from 5174).
 
 - Board-count dropdown 2–20
 - Persistence key: `language|word_length|board_count|game_date`
@@ -120,7 +120,7 @@ Current guess is shown on all unsolved boards at the same row index.
 - `app/main.js` `registerGame` (after TransWord)
 - `app/shell/map.js` Hydra icon
 - `word-data/languages.json` and `scripts/build-languages-catalog.js`: if PolyWordlot lengths exist, also list `polyhydra` (same dict; no second word tree)
-- `scripts/build.js`: Vite-build into `dist/games/polyhydra`, hash `manifest.games.polyhydra`
+- `scripts/build.js`: Vite-build into `dist/games/g1/polyhydra`, hash `manifest.games.polyhydra`
 - `app/shell/offline-prep.js`, `app/updates/service-worker.js`, `app/updates/manifest.js`
 - **Anonymous site `/stats`:** **not in this game’s slice.** Hydra still emits `reportStats({ games: { polyhydra: { 'en,5,16': 1 } } })` on first daily guess. Making ingest/store/`/stats` columns follow a game registry so PolyHydra (and later games) appear automatically is the **current stats workflow**.
 - Export/import: dedicated Hydra branch in `app/storage/export-records.js` (do **not** reuse `guesses.length >= 6`). Record stores `board_count`, `target_words[]`, and per-board guess lists. `app/shell/site-backup.js` copy lists Hydra

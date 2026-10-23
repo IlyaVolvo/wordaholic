@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "allowJs": true,
+    "paths": {
+      "@wordaholic/normalize": ["../../../app/i18n/normalize.js"],
+      "@wordaholic/languages": ["../../../app/i18n/languages/index.js"],
+      "@wordaholic/i18n-prefs": ["../../../app/i18n-prefs/preferred.js"],
+      "@wordaholic/storage": ["../../../app/storage/idb.js"],
+      "@wordaholic/help": ["../../../app/help/dialog.js"],
+      "@wordaholic/stats": ["../../../app/stats/report.js"],
+      "@wordaholic/updates": ["../../../app/updates/manifest.js"]
+    }
+  },
+  "include": ["src", "../shared", "../../../app/i18n/normalize.js", "../../../app/i18n/languages", "../../../app/i18n-prefs/preferred.js", "../../../app/i18n-prefs/favorites.js", "../../../app/storage/idb.js", "../../../app/help/dialog.js", "../../../app/stats/report.js", "../../../app/updates/manifest.js"]
+}

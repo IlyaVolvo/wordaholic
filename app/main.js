@@ -1,4 +1,4 @@
-import { listGames } from './games-contract.js';
+import { listGames, gameUrl } from './games-contract.js';
 import './game-registry.js';
 import { loadLanguages } from './shell/languages.js';
 import { renderWorldMap, renderGameRail } from './shell/map.js';
@@ -209,7 +209,7 @@ function openGame(gameId, langCodes) {
     lang: primary,
     langs: langCodes.join(','),
   });
-  location.href = `/games/${gameId}/?${qs.toString()}`;
+  location.href = `${gameUrl(gameId)}?${qs.toString()}`;
 }
 
 async function paintHome() {

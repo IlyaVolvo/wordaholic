@@ -10,6 +10,8 @@ import { spawn, execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { buildLanguagesCatalog } from './build-languages-catalog.js';
 import { embedAdminPassword } from './embed-admin-password.js';
+import { writeGamesLayout } from './games-layout.js';
+import { gameGroup } from '../app/games-contract.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -19,17 +21,26 @@ function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
 
-/** Vite empties its outDir, so each game's registration.js is copied afterward. */
-function copyGameRegistrations() {
-  const gamesDir = path.join(ROOT, 'games');
-  for (const name of fs.readdirSync(gamesDir)) {
-    const src = path.join(gamesDir, name, 'registration.js');
-    if (!fs.existsSync(src)) continue;
-    const destDir = path.join(DIST, 'games', name);
-    ensureDir(destDir);
-    fs.copyFileSync(src, path.join(destDir, 'registration.js'));
-    const helpSrc = path.join(gamesDir, name, 'help');
-    if (fs.existsSync(helpSrc)) copyDir(helpSrc, path.join(destDir, 'help'));
+/**
+ * Copy what Vite does not own: each group's data/, static games (no vite.config.ts) with their
+ * group's shared/, and every game's registration.js + help/.
+ */
+function copyGames(groups) {
+  for (const [group, ids] of Object.entries(groups)) {
+    const groupSrc = path.join(ROOT, 'games', group);
+    const groupDist = path.join(DIST, 'games', group);
+    copyDir(path.join(groupSrc, 'data'), path.join(groupDist, 'data'));
+    for (const id of ids) {
+      const srcDir = path.join(groupSrc, id);
+      const destDir = path.join(groupDist, id);
+      if (!fs.existsSync(path.join(srcDir, 'vite.config.ts'))) {
+        copyDir(srcDir, destDir);
+        copyDir(path.join(groupSrc, 'shared'), path.join(groupDist, 'shared'));
+      }
+      ensureDir(destDir);
+      fs.copyFileSync(path.join(srcDir, 'registration.js'), path.join(destDir, 'registration.js'));
+      copyDir(path.join(srcDir, 'help'), path.join(destDir, 'help'));
+    }
   }
 }
 
@@ -62,9 +73,8 @@ function syncStatic(reason) {
   copyDir(path.join(ROOT, 'word-data'), path.join(DIST, 'word-data'), {
     skipNames: ['.DS_Store', 'master.json'],
   });
-  copyDir(path.join(ROOT, 'games/transword'), path.join(DIST, 'games/transword'));
-  embedAdminPassword(path.join(DIST, 'games/transword/admin'));
-  copyGameRegistrations();
+  copyGames(writeGamesLayout());
+  embedAdminPassword(path.join(DIST, 'games', gameGroup('transword'), 'transword/admin'));
   ensureDir(path.join(DIST, 'data'));
   fs.writeFileSync(
     path.join(DIST, 'data/languages.json'),
@@ -100,12 +110,9 @@ function main() {
   watchTree('public', schedule);
   watchTree('app', schedule);
   watchTree('word-data', schedule);
-  watchTree('games/transword', schedule);
-  watchTree('games/letterix/help', schedule);
-  watchTree('games/polywordlot/help', schedule);
-  watchTree('games/polyhydra/help', schedule);
+  watchTree('games', schedule);
 
-  console.log('Watching public/, app/, word-data/, games/transword/, games/*/help');
+  console.log('Watching public/, app/, word-data/, games/ (data, static games, help)');
   console.log('PolyWordlot UI: npm run build:polywordlot (then reload)');
   console.log('PolyHydra UI: npm run build:polyhydra (then reload)');
   console.log('Letterix UI: npm run build:letterix (then reload)');

@@ -29,7 +29,7 @@ function sameWord(a, b) {
   return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 }
 
-/** Keep in sync with packages/wordle-core hydraConfig (extra attempts are 5 for every 2..20). */
+/** Keep in sync with games/g1/shared/hydraConfig.ts (extra attempts are 5 for every 2..20). */
 function hydraMaxGuesses(boardCount) {
   const n = Math.min(20, Math.max(2, Math.round(Number(boardCount)) || 0));
   return n + 5;

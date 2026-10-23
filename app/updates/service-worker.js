@@ -37,16 +37,17 @@ const PRECACHE = [
   '/deployment-manifest.json',
   '/data/languages.json',
   '/map/world.svg',
-  '/games/polywordlot/index.html',
-  '/games/polyhydra/index.html',
-  '/games/letterix/index.html',
-  '/games/transword/index.html',
-  '/games/transword/game.js',
-  '/games/transword/game.css',
-  '/games/transword/graph.js',
-  '/games/transword/solver.js',
-  '/games/transword/dailyPuzzle.js',
-  '/games/transword/daily-store.js',
+  '/games/g1/polywordlot/index.html',
+  '/games/g1/polyhydra/index.html',
+  '/games/g3/letterix/index.html',
+  '/games/g2/transword/index.html',
+  '/games/g2/transword/game.js',
+  '/games/g2/transword/game.css',
+  '/games/g2/transword/graph.js',
+  '/games/g2/transword/solver.js',
+  '/games/g2/transword/dailyPuzzle.js',
+  '/games/g2/transword/daily-store.js',
+  '/games/g2/shared/wordset.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -113,7 +114,7 @@ function isStatsPagePath(pathname) {
 /** Game index.html / folder navigations. Hashed bundles change; stale HTML 404s the JS. */
 function isGameShellPath(pathname) {
   const p = canonicalPath(pathname);
-  return /^\/games\/[^/]+$/.test(p) || /^\/games\/[^/]+\/index\.html$/.test(p);
+  return /^\/games\/g\d+\/(?!data$|shared$)[^/]+(?:\/index\.html)?$/.test(p);
 }
 
 /**
@@ -176,13 +177,13 @@ self.addEventListener('fetch', (event) => {
   if (
     url.pathname === '/deployment-manifest.json' ||
     url.pathname.startsWith('/api/') ||
-    url.pathname.startsWith('/games/transword/admin')
+    url.pathname.startsWith('/games/g2/transword/admin')
   ) {
     event.respondWith(fetch(req, { cache: 'no-store' }).catch(() => matchFromCache(req)));
     return;
   }
 
-  if (url.pathname.startsWith('/games/') && !url.pathname.startsWith('/games/transword/admin')) {
+  if (url.pathname.startsWith('/games/') && !url.pathname.startsWith('/games/g2/transword/admin')) {
     event.respondWith(
       (async () => {
         try {

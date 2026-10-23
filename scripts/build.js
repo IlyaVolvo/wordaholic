@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { buildLanguagesCatalog } from './build-languages-catalog.js';
 import { embedAdminPassword } from './embed-admin-password.js';
+import { writeGamesLayout } from './games-layout.js';
+import { gameGroup } from '../app/games-contract.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -26,17 +28,22 @@ function ensureDir(p) {
 }
 
 /** Vite empties its outDir, so each game's registration.js is copied afterward. */
-function copyGameRegistrations() {
-  const gamesDir = path.join(ROOT, 'games');
-  for (const name of fs.readdirSync(gamesDir)) {
-    const src = path.join(gamesDir, name, 'registration.js');
-    if (!fs.existsSync(src)) continue;
-    const destDir = path.join(DIST, 'games', name);
-    ensureDir(destDir);
-    fs.copyFileSync(src, path.join(destDir, 'registration.js'));
-    const helpSrc = path.join(gamesDir, name, 'help');
-    if (fs.existsSync(helpSrc)) copyDir(helpSrc, path.join(destDir, 'help'));
+function copyGameRegistrations(groups) {
+  for (const [group, ids] of Object.entries(groups)) {
+    for (const id of ids) {
+      const srcDir = path.join(ROOT, 'games', group, id);
+      const destDir = path.join(DIST, 'games', group, id);
+      ensureDir(destDir);
+      fs.copyFileSync(path.join(srcDir, 'registration.js'), path.join(destDir, 'registration.js'));
+      const helpSrc = path.join(srcDir, 'help');
+      if (fs.existsSync(helpSrc)) copyDir(helpSrc, path.join(destDir, 'help'));
+    }
   }
+}
+
+/** Games without a vite.config.ts are served as-is, along with their group's shared/ loader. */
+function isStaticGame(group, id) {
+  return !fs.existsSync(path.join(ROOT, 'games', group, id, 'vite.config.ts'));
 }
 
 function rmrf(p) {
@@ -110,8 +117,9 @@ function hashTree(dir, prefix = '') {
 }
 
 function main() {
-  const pwDict = path.join(ROOT, 'games/polywordlot/data/languages');
-  const twLangs = path.join(ROOT, 'games/transword/data/languages');
+  const groups = writeGamesLayout();
+  const pwDict = path.join(ROOT, 'games', gameGroup('polywordlot'), 'data/languages');
+  const twLangs = path.join(ROOT, 'games', gameGroup('transword'), 'data/languages');
   if (!fs.existsSync(pwDict) || !fs.existsSync(twLangs)) {
     console.log('Game dictionaries missing — running sync-dicts…');
     execSync('node scripts/sync-dicts.js', { cwd: ROOT, stdio: 'inherit' });
@@ -130,38 +138,36 @@ function main() {
   });
   fs.copyFileSync(path.join(ROOT, 'app/updates/service-worker.js'), path.join(DIST, 'sw.js'));
 
-  // TransWord stays static; PolyWordlot is a Vite+React build of the mlw UI.
-  copyDir(path.join(ROOT, 'games/transword'), path.join(DIST, 'games/transword'));
-  embedAdminPassword(path.join(DIST, 'games/transword/admin'));
-  console.log('Building PolyWordlot (mlw React port)…');
-  execSync('npx vite build --config games/polywordlot/vite.config.ts', {
-    cwd: ROOT,
-    stdio: 'inherit',
-  });
-
-  console.log('Building PolyHydra…');
-  execSync('npx vite build --config games/polyhydra/vite.config.ts', {
-    cwd: ROOT,
-    stdio: 'inherit',
-  });
-
-  console.log('Building Letterix…');
-  execSync('npx vite build --config games/letterix/vite.config.ts', {
-    cwd: ROOT,
-    stdio: 'inherit',
-  });
-  copyGameRegistrations();
+  for (const [group, ids] of Object.entries(groups)) {
+    const groupSrc = path.join(ROOT, 'games', group);
+    const groupDist = path.join(DIST, 'games', group);
+    if (fs.existsSync(path.join(groupSrc, 'data'))) copyDir(path.join(groupSrc, 'data'), path.join(groupDist, 'data'));
+    for (const id of ids) {
+      if (isStaticGame(group, id)) {
+        copyDir(path.join(groupSrc, id), path.join(groupDist, id));
+        if (fs.existsSync(path.join(groupSrc, 'shared'))) copyDir(path.join(groupSrc, 'shared'), path.join(groupDist, 'shared'));
+      } else {
+        console.log(`Building ${group}/${id}…`);
+        execSync(`npx vite build --config games/${group}/${id}/vite.config.ts`, { cwd: ROOT, stdio: 'inherit' });
+      }
+    }
+  }
+  embedAdminPassword(path.join(DIST, 'games', gameGroup('transword'), 'transword/admin'));
+  copyGameRegistrations(groups);
 
   const catalog = buildLanguagesCatalog();
   ensureDir(path.join(DIST, 'data'));
   fs.writeFileSync(path.join(DIST, 'data/languages.json'), JSON.stringify(catalog, null, 2));
 
-  const gameHashes = {
-    polywordlot: hashTree(path.join(DIST, 'games', 'polywordlot')),
-    polyhydra: hashTree(path.join(DIST, 'games', 'polyhydra')),
-    transword: hashTree(path.join(DIST, 'games', 'transword')),
-    letterix: hashTree(path.join(DIST, 'games', 'letterix')),
-  };
+  /** @type {Record<string, Record<string, string>>} */
+  const gameHashes = {};
+  /** @type {Record<string, Record<string, string>>} group → { 'data/languages/…': hash } */
+  const groupDataHashes = {};
+  for (const [group, ids] of Object.entries(groups)) {
+    groupDataHashes[group] = hashTree(path.join(DIST, 'games', group, 'data'), 'data');
+    for (const id of ids) gameHashes[id] = hashTree(path.join(DIST, 'games', group, id));
+  }
+  const wordsOf = (id) => groupDataHashes[gameGroup(id)] || {};
   const wordDataHashes = hashTree(path.join(DIST, 'word-data'));
 
   const siteFiles = hashTree(DIST);
@@ -173,7 +179,7 @@ function main() {
     const langHash = langJsonRel ? wordDataHashes[langJsonRel] : null;
     if (lang.polyDir) {
       const dictPrefix = `data/languages/${lang.polyDir}/`;
-      for (const [rel, hash] of Object.entries(gameHashes.polywordlot)) {
+      for (const [rel, hash] of Object.entries(wordsOf('polywordlot'))) {
         const match = /^data\/languages\/.+\/answers-(\d+)\.txt$/.exec(rel);
         if (match && rel.startsWith(dictPrefix)) {
           words[`polywordlot:${lang.code}:${match[1]}`] = hash;
@@ -184,10 +190,10 @@ function main() {
         langHash ||
         siteHash;
     }
-    if (lang.transwordDir) words[`transword:${lang.code}`] = gameHashes.transword[`data/languages/${lang.transwordDir}/corpus.txt`] || siteHash;
+    if (lang.transwordDir) words[`transword:${lang.code}`] = wordsOf('transword')[`data/languages/${lang.transwordDir}/corpus.txt`] || siteHash;
     if (lang.letterixDir) {
-      const primary = gameHashes.letterix[`data/languages/${lang.letterixDir}/corpus.txt`];
-      const extra = gameHashes.letterix[`data/languages/${lang.letterixDir}/corpus2.txt`] || '';
+      const primary = wordsOf('letterix')[`data/languages/${lang.letterixDir}/corpus.txt`];
+      const extra = wordsOf('letterix')[`data/languages/${lang.letterixDir}/corpus2.txt`] || '';
       words[`letterix:${lang.code}`] = primary
         ? crypto.createHash('sha256').update(`${primary}\n${extra}`).digest('hex').slice(0, 16)
         : siteHash;
@@ -199,20 +205,12 @@ function main() {
     builtAt: new Date().toISOString(),
     siteHash,
     commit,
-    games: {
-      polywordlot: {
-        hash: crypto.createHash('sha256').update(JSON.stringify(gameHashes.polywordlot)).digest('hex').slice(0, 16),
-      },
-      polyhydra: {
-        hash: crypto.createHash('sha256').update(JSON.stringify(gameHashes.polyhydra)).digest('hex').slice(0, 16),
-      },
-      transword: {
-        hash: crypto.createHash('sha256').update(JSON.stringify(gameHashes.transword)).digest('hex').slice(0, 16),
-      },
-      letterix: {
-        hash: crypto.createHash('sha256').update(JSON.stringify(gameHashes.letterix)).digest('hex').slice(0, 16),
-      },
-    },
+    games: Object.fromEntries(
+      Object.entries(gameHashes).map(([id, files]) => [
+        id,
+        { hash: crypto.createHash('sha256').update(JSON.stringify(files)).digest('hex').slice(0, 16) },
+      ])
+    ),
     words,
   };
 

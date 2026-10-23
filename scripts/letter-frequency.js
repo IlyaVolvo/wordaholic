@@ -8,11 +8,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getGame } from '../app/games-contract.js';
+import { getGame, gameGroup } from '../app/games-contract.js';
 import '../app/game-registry.js';
 import { languageDirForCode } from '../app/shell/locales.js';
 import { languageHooks } from '../app/i18n/languages/index.js';
-import { buildLexicon } from '../games/letterix/src/lexicon.ts';
+import { buildLexicon } from '../games/g3/letterix/src/lexicon.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -24,7 +24,7 @@ const ROOT = path.resolve(__dirname, '..');
 const GAMES = {
   letterix: {
     name: 'Letterix',
-    file: (languageName) => `games/letterix/data/languages/${languageName}/corpus.txt`,
+    file: (languageName) => `games/${gameGroup('letterix')}/data/languages/${languageName}/corpus.txt`,
     /** Frequency is corpus.txt only. corpus2.txt words are playable and are not counted. */
     words: (text) => text.split(/\n/).map((line) => line.trim()).filter(Boolean),
     /** Same options as loadLexicon: the language's base letters (Hebrew final forms count as regular). */

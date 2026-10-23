@@ -1,5 +1,5 @@
 import { getFavoriteLanguages } from '../i18n-prefs/favorites.js';
-import { KNOWN_GAME_IDS } from '../games-contract.js';
+import { KNOWN_GAME_IDS, gameUrl, gameLanguagesUrl } from '../games-contract.js';
 import siteHelp from '../help/site/topic.js';
 import { ensureWordsets } from '../words/loader.js';
 
@@ -70,7 +70,7 @@ export async function prepareOffline(onProgress) {
     '/app/help/dialog.js',
     '/app/help/site/topic.js',
     ...siteHelpAssetUrls(),
-    ...KNOWN_GAME_IDS.map((id) => `/games/${id}/help/topic.js`),
+    ...KNOWN_GAME_IDS.map((id) => `${gameUrl(id)}help/topic.js`),
     '/app/play/portrait-gate.css',
     '/app/play/portrait-gate.js',
     '/app/play/header-chrome.css',
@@ -79,20 +79,17 @@ export async function prepareOffline(onProgress) {
     '/app/announcements.json',
     '/data/languages.json',
     '/map/world.svg',
-    '/games/polywordlot/index.html',
-    '/games/polyhydra/index.html',
-    '/games/letterix/index.html',
-    '/games/transword/index.html',
-    '/games/transword/game.js',
-    '/games/transword/game.css',
-    '/games/transword/graph.js',
-    '/games/transword/solver.js',
-    '/games/transword/data/languages/index.json',
+    ...KNOWN_GAME_IDS.map((id) => `${gameUrl(id)}index.html`),
+    `${gameUrl('transword')}game.js`,
+    `${gameUrl('transword')}game.css`,
+    `${gameUrl('transword')}graph.js`,
+    `${gameUrl('transword')}solver.js`,
+    `${gameLanguagesUrl('transword')}index.json`,
   ];
-  const pwAssets = await assetUrlsFromIndex('/games/polywordlot/index.html');
-  const phAssets = await assetUrlsFromIndex('/games/polyhydra/index.html');
-  const lxAssets = await assetUrlsFromIndex('/games/letterix/index.html');
-  await Promise.all([...shellUrls, ...pwAssets, ...phAssets, ...lxAssets].map((u) => fetch(u).catch(() => null)));
+  const bundledAssets = await Promise.all(
+    ['polywordlot', 'polyhydra', 'letterix'].map((id) => assetUrlsFromIndex(`${gameUrl(id)}index.html`))
+  );
+  await Promise.all([...shellUrls, ...bundledAssets.flat()].map((u) => fetch(u).catch(() => null)));
 
   onProgress(55, 'Caching favorite language dictionaries…');
   const wordUrls = [];
@@ -104,20 +101,20 @@ export async function prepareOffline(onProgress) {
       if (lang.polyDir) {
         const dir = lang.polyDir;
         for (const len of lang.polywordlotLengths || []) {
-          wordUrls.push(`/games/polywordlot/data/languages/${dir}/answers-${len}.txt`);
-          wordUrls.push(`/games/polywordlot/data/languages/${dir}/dictionary-${len}.txt`);
+          wordUrls.push(`${gameLanguagesUrl('polywordlot')}${dir}/answers-${len}.txt`);
+          wordUrls.push(`${gameLanguagesUrl('polywordlot')}${dir}/dictionary-${len}.txt`);
         }
       }
     }
     if ((lang.games || []).includes('transword')) {
       const dir = lang.transwordDir;
       if (dir) {
-        wordUrls.push(`/games/transword/data/languages/${dir}/corpus.txt`);
+        wordUrls.push(`${gameLanguagesUrl('transword')}${dir}/corpus.txt`);
       }
     }
     if ((lang.games || []).includes('letterix') && lang.letterixDir) {
-      wordUrls.push(`/games/letterix/data/languages/${lang.letterixDir}/corpus.txt`);
-      wordUrls.push(`/games/letterix/data/languages/${lang.letterixDir}/corpus2.txt`);
+      wordUrls.push(`${gameLanguagesUrl('letterix')}${lang.letterixDir}/corpus.txt`);
+      wordUrls.push(`${gameLanguagesUrl('letterix')}${lang.letterixDir}/corpus2.txt`);
     }
   }
 

@@ -53,16 +53,10 @@
   <div class="phone">
     <iframe id="frame" title="iPhone game preview"></iframe>
   </div>
-  <script>
-    const games = {
-      transword: '/games/transword/',
-      polywordlot: '/games/polywordlot/',
-      polyhydra: '/games/polyhydra/',
-      letterix: '/games/letterix/',
-    };
+  <script type="module">
+    import { gameUrl } from '../games-contract.js';
     const key = new URLSearchParams(location.search).get('game') || 'transword';
-    const href = games[key] || games.transword;
-    document.getElementById('frame').src = href;
+    document.getElementById('frame').src = gameUrl(key) || gameUrl('transword');
     document.querySelectorAll('nav a').forEach((link) => {
       link.classList.toggle('is-on', link.dataset.game === key);
     });

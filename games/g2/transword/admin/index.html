@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" href="/brand/wordaholic-mark.svg" type="image/svg+xml" />
+  <title>TransWord Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/games/g2/transword/admin/admin.css" />
+  <style>
+    #gate { max-width: 360px; margin: 4rem auto; padding: 1.5rem; background: var(--surface, #161923); border-radius: 10px; color: var(--text, #e2e4ec); }
+    #gate input { width: 100%; margin: 0.75rem 0; padding: 0.55rem; box-sizing: border-box; }
+    .wh-nav { padding: 0.75rem 1rem; }
+    .wh-nav a { color: var(--text-on-water, #000); text-decoration: none; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <script>
+    (function () {
+      var key = 'wh-admin-sw-v12';
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+      if (!('serviceWorker' in navigator)) return;
+      Promise.all([
+        navigator.serviceWorker.getRegistrations().then(function (rs) {
+          return Promise.all(rs.map(function (r) { return r.unregister(); }));
+        }),
+        caches.keys().then(function (keys) {
+          return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+        }),
+      ]).then(function () { location.reload(); });
+    })();
+  </script>
+  <div class="wh-nav"><a href="/">← Wordaholic</a></div>
+
+  <div id="gate">
+    <h1>Admin</h1>
+    <p class="hint">Password required.</p>
+    <input id="pw" type="password" autocomplete="current-password" placeholder="Password" />
+    <button type="button" id="unlock-btn" onclick="whUnlock()">Unlock</button>
+    <p id="gate-err" class="hint" style="color:#f06068;font-size:1rem;min-height:1.4em"></p>
+  </div>
+
+  <div id="controls" class="hidden">
+    <header>
+      <h1>TransWord <span class="badge">Maintainer</span></h1>
+      <p class="subtitle">Analyse corpus, generate pairs, test solutions.</p>
+    </header>
+    <div id="log"></div>
+    <section class="panel">
+      <h2>Language</h2>
+      <div class="row"><label>Language <select id="language-select"></select></label></div>
+    </section>
+    <section class="panel">
+      <h2>Analyse Graph</h2>
+      <div class="row">
+        <label>Sample size <input type="number" id="sample-size" value="200" min="10" max="2000" /></label>
+        <button type="button" id="analyse-btn">Analyse</button>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Generate Puzzle Pairs</h2>
+      <div class="row">
+        <label>Min steps <input type="number" id="min-steps" value="3" /></label>
+        <label>Max steps <input type="number" id="max-steps" value="6" /></label>
+        <label>Count <input type="number" id="pair-count" value="10" /></label>
+        <button type="button" id="generate-btn">Generate</button>
+      </div>
+      <pre id="pairs-out"></pre>
+    </section>
+    <section class="panel">
+      <h2>Solve a Pair</h2>
+      <div class="row">
+        <label>Start <input type="text" id="start-word" /></label>
+        <label>End <input type="text" id="end-word" /></label>
+        <button type="button" id="solve-btn">Solve</button>
+      </div>
+      <pre id="solve-out"></pre>
+    </section>
+  </div>
+
+  <script src="/games/g2/transword/admin/gate.js?v=12"></script>
+  <!-- Cloudflare Web Analytics -->
+  <script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "4b74eaaaa28c477287ebd48372018a36"}'></script>
+  <!-- End Cloudflare Web Analytics --></body>
+</html>

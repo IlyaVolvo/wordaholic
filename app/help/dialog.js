@@ -1,4 +1,4 @@
-import { listGames, KNOWN_GAME_IDS, getGame } from '../games-contract.js';
+import { listGames, KNOWN_GAME_IDS, getGame, gameUrl } from '../games-contract.js';
 import { GAME_ICONS } from '../shell/game-icons.js';
 
 const DIALOG_ID = 'wh-help-dialog';
@@ -64,13 +64,13 @@ function menuEntries(step) {
     return games.map((g) => ({
       id: g.id,
       name: g.name,
-      src: `/games/${g.id}/help/topic.js`,
+      src: `${gameUrl(g.id)}help/topic.js`,
     }));
   }
   return KNOWN_GAME_IDS.map((id) => ({
     id,
     name: getGame(id)?.name || id,
-    src: `/games/${id}/help/topic.js`,
+    src: `${gameUrl(id)}help/topic.js`,
   }));
 }
 
