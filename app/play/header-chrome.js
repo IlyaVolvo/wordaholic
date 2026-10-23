@@ -19,9 +19,11 @@
  *   [data-header-def-home]        — vanilla restore targets (not React)
  *   [data-header-def="more"]      — definition overflow trigger + menu
  *   [data-header-react]           — React owns its nodes; do not move them
+ *   [data-def-min]                — least overflow level to keep (other|language|date)
  */
 
 const DEF_STEPS = ['other', 'language', 'date'];
+const DEF_RANK = { other: 1, language: 2, date: 3 };
 
 function box(el) {
   if (!el || el.getClientRects().length === 0) return null;
@@ -149,7 +151,11 @@ export function mountHeaderChrome(bar) {
     setDefOpen(bar, false);
     setDefOverflow(bar, '');
     syncLiveTip(bar);
-    if (!rowCollides(bar, 'all')) return;
+    const min = bar.getAttribute('data-def-min') || '';
+    if (!rowCollides(bar, 'all')) {
+      if (min) setDefOverflow(bar, min);
+      return;
+    }
     bar.classList.add('header-chrome-compact');
     if (rowCollides(bar, 'all') && bar.querySelector('[data-header-name="short"]')) {
       bar.classList.add('header-chrome-short-name');
@@ -167,6 +173,8 @@ export function mountHeaderChrome(bar) {
       if (!rowCollides(bar, 'def')) break;
       setDefOverflow(bar, step);
     }
+    const current = bar.getAttribute('data-def-overflow') || '';
+    if ((DEF_RANK[min] || 0) > (DEF_RANK[current] || 0)) setDefOverflow(bar, min);
   };
 
   const onBarClick = (event) => {

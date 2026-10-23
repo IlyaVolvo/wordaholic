@@ -452,8 +452,15 @@ function updateDateDisplay() {
   const el = $('#date-display');
   if (!el) return;
   const today = formatLocalDate();
-  el.textContent = formatDateDisplay(selectedGameDate, today);
-  $('#btn-calendar')?.classList.toggle('is-today', !selectedGameDate || selectedGameDate === today);
+  const label = formatDateDisplay(selectedGameDate, today);
+  const todaySelected = !selectedGameDate || selectedGameDate === today;
+  el.textContent = label;
+  const button = $('#btn-calendar');
+  button?.classList.toggle('is-today', todaySelected);
+  if (button) {
+    button.title = todaySelected ? 'Calendar' : label;
+    button.setAttribute('aria-label', todaySelected ? 'Choose daily date' : `Choose daily date, ${label}`);
+  }
 }
 
 function currentLanguageOption() {
@@ -1344,7 +1351,18 @@ async function init() {
     toggleDisplay();
   });
   $('#btn-howto')?.addEventListener('click', () => openHelp(helpTopic));
-  mountHeaderChrome($('#header'));
+  const headerBar = $('#header');
+  const phoneHeader = window.matchMedia('(max-width: 720px)');
+  const syncHeaderMin = () => {
+    if (phoneHeader.matches) headerBar?.setAttribute('data-def-min', 'other');
+    else headerBar?.removeAttribute('data-def-min');
+  };
+  syncHeaderMin();
+  phoneHeader.addEventListener('change', () => {
+    syncHeaderMin();
+    window.dispatchEvent(new Event('resize'));
+  });
+  mountHeaderChrome(headerBar);
   $('#header-more-menu')?.addEventListener('click', (e) => {
     const item = /** @type {HTMLElement} */ (e.target).closest('[data-header-action]');
     if (!item) return;
