@@ -19,8 +19,8 @@ npm run serve        # http://127.0.0.1:4173
 
 ## Word data
 
-- **Shared language definition (all games):** `word-data/<Language>/<locale>/language.json`
-- PolyWordlot word lists: `games/polywordlot/dict/<Language>/<locale>/answers-N.txt` (+ `dictionary-N.txt`)
+- **Shared language definition (all games):** `word-data/<Language>/language.json`
+- PolyWordlot (and PolyHydra) word lists: `games/polywordlot/data/languages/<Language>/answers-N.txt` (+ `dictionary-N.txt`)
 - TransWord corpora: `games/transword/data/languages/<Dir>/corpus.txt` (+ `index.json`)
 
 Sibling repos required for `sync-dicts`:

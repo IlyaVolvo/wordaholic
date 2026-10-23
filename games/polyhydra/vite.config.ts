@@ -8,7 +8,8 @@ import { copyGameHelpPlugin } from '../../scripts/vite-copy-game-help.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
-const PW_DICT = path.join(repoRoot, 'games/polywordlot/dict');
+const PW_DICT = path.join(repoRoot, 'games/polywordlot/data/languages');
+const PW_DICT_URL = '/games/polywordlot/data/languages/';
 
 function polywordlotDictPlugin(): Plugin {
   return {
@@ -16,8 +17,8 @@ function polywordlotDictPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const url = (req.url || '').split('?')[0];
-        if (!url.startsWith('/games/polywordlot/dict/')) return next();
-        const rel = decodeURIComponent(url.slice('/games/polywordlot/dict/'.length));
+        if (!url.startsWith(PW_DICT_URL)) return next();
+        const rel = decodeURIComponent(url.slice(PW_DICT_URL.length));
         const file = path.resolve(PW_DICT, rel);
         const fromRoot = path.relative(PW_DICT, file);
         if (fromRoot.startsWith('..') || path.isAbsolute(fromRoot) || !fs.existsSync(file)) {

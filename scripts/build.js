@@ -110,7 +110,7 @@ function hashTree(dir, prefix = '') {
 }
 
 function main() {
-  const pwDict = path.join(ROOT, 'games/polywordlot/dict');
+  const pwDict = path.join(ROOT, 'games/polywordlot/data/languages');
   const twLangs = path.join(ROOT, 'games/transword/data/languages');
   if (!fs.existsSync(pwDict) || !fs.existsSync(twLangs)) {
     console.log('Game dictionaries missing — running sync-dicts…');
@@ -138,7 +138,6 @@ function main() {
     cwd: ROOT,
     stdio: 'inherit',
   });
-  copyDir(path.join(ROOT, 'games/polywordlot/dict'), path.join(DIST, 'games/polywordlot/dict'));
 
   console.log('Building PolyHydra…');
   execSync('npx vite build --config games/polyhydra/vite.config.ts', {
@@ -173,9 +172,9 @@ function main() {
     const langJsonRel = lang.wordDir ? `${lang.wordDir}/language.json` : null;
     const langHash = langJsonRel ? wordDataHashes[langJsonRel] : null;
     if (lang.polyDir) {
-      const dictPrefix = `dict/${lang.polyDir}/`;
+      const dictPrefix = `data/languages/${lang.polyDir}/`;
       for (const [rel, hash] of Object.entries(gameHashes.polywordlot)) {
-        const match = /^dict\/.+\/answers-(\d+)\.txt$/.exec(rel);
+        const match = /^data\/languages\/.+\/answers-(\d+)\.txt$/.exec(rel);
         if (match && rel.startsWith(dictPrefix)) {
           words[`polywordlot:${lang.code}:${match[1]}`] = hash;
         }

@@ -26,8 +26,8 @@ function supportsLanguage(gameId, code) {
   return (getGame(gameId)?.languages || []).includes(code);
 }
 
-function polyLengths(dictRoot, language, locale) {
-  const dir = path.join(dictRoot, language, locale);
+function polyLengths(dictRoot, language) {
+  const dir = path.join(dictRoot, language);
   if (!fs.existsSync(dir)) return [];
   const lengths = [];
   for (let len = 3; len <= 10; len++) {
@@ -37,16 +37,16 @@ function polyLengths(dictRoot, language, locale) {
 }
 
 export function buildLanguagesCatalog() {
-  const pwDict = path.join(ROOT, 'games/polywordlot/dict');
+  const pwDict = path.join(ROOT, 'games/polywordlot/data/languages');
   const wordData = path.join(ROOT, 'word-data');
   const twIndexPath = path.join(ROOT, 'games/transword/data/languages/index.json');
   /** @type {Map<string, any>} */
   const byCode = new Map();
 
-  for (const [code, { language, locale }] of Object.entries(LOCALE_PATHS)) {
+  for (const [code, { language }] of Object.entries(LOCALE_PATHS)) {
     const wordDir = languageDirForCode(code);
-    const langJsonPath = path.join(wordData, language, locale, 'language.json');
-    const lengths = polyLengths(pwDict, language, locale);
+    const langJsonPath = path.join(wordData, language, 'language.json');
+    const lengths = polyLengths(pwDict, language);
     if (!lengths.length && !fs.existsSync(langJsonPath)) continue;
     let meta = { menu: language, flag: '' };
     if (fs.existsSync(langJsonPath)) {
@@ -68,7 +68,7 @@ export function buildLanguagesCatalog() {
       lon: coords.lon,
       games,
       polywordlotLengths: lengths,
-      polyDir: `${language}/${locale}`,
+      polyDir: language,
       ...(letterixDir ? { letterixDir } : {}),
       wordDir,
     });
@@ -81,7 +81,7 @@ export function buildLanguagesCatalog() {
       const corpusPath = path.join(ROOT, 'games/transword/data/languages', entry.dir, 'corpus.txt');
       const hasWords = fs.existsSync(corpusPath) && fs.statSync(corpusPath).size > 0;
       if (!hasWords || !supportsLanguage('transword', code)) continue;
-      const wordDir = languageDirForCode(code) || `${entry.dir}/${code}`;
+      const wordDir = languageDirForCode(code) || entry.dir;
       const existing = byCode.get(code) || {
         code,
         menu: entry.menu,

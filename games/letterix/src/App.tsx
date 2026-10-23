@@ -30,7 +30,7 @@ const ENGLISH: LetterixLanguage = {
   name: 'English',
   flag: '🇺🇸',
   dir: 'English',
-  wordDir: 'English/en',
+  wordDir: 'English',
 };
 
 function publishLanguageUrl(lang: string, langs: string[]) {

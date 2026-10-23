@@ -368,7 +368,7 @@ async function loadCorpus(dir) {
 }
 
 async function loadLanguageConfig(dir) {
-  const wordDir = languageDirForTranswordDir(dir) || `${dir}/${(dir || '').slice(0, 2).toLowerCase()}`;
+  const wordDir = languageDirForTranswordDir(dir) || dir;
   const res = await fetch(`${WORD_DATA_BASE}/${wordDir}/language.json`);
   if (!res.ok) throw new Error(`Failed to load language config for ${dir}`);
   return res.json();

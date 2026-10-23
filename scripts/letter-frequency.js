@@ -61,16 +61,15 @@ const num = (n) => n.toLocaleString('en-US');
 
 /** @param {string} langCode */
 function analyze(langCode) {
-  const wordDir = languageDirForCode(langCode);
-  if (!wordDir) return { error: `Unknown language "${langCode}".` };
-  const languageName = wordDir.split('/')[0];
+  const languageName = languageDirForCode(langCode);
+  if (!languageName) return { error: `Unknown language "${langCode}".` };
   const relFile = game.file(languageName);
   const absFile = path.join(ROOT, relFile);
   if (!fs.existsSync(absFile)) return { error: `${game.name} has no word list for "${langCode}" (${relFile}).` };
   const words = game.words(fs.readFileSync(absFile, 'utf8'));
   if (!words.length) return { error: `${relFile} is empty.` };
 
-  const langJsonPath = path.join(ROOT, 'word-data', wordDir, 'language.json');
+  const langJsonPath = path.join(ROOT, 'word-data', languageName, 'language.json');
   const langJson = fs.existsSync(langJsonPath) ? JSON.parse(fs.readFileSync(langJsonPath, 'utf8')) : {};
   const { counts, values } = game.count(words, langJson, langCode);
   const total = [...counts.values()].reduce((sum, n) => sum + n, 0);

@@ -2,8 +2,8 @@ import type { DictionaryEntry, LanguageConfig } from './types';
 import { languageDirForCode } from '@wordaholic/locales';
 
 /** Shared PolyWordlot word lists — Hydra uses the same files, not a copy. */
-const DICT_BASE = '/games/polywordlot/dict/';
-/** Shared language definitions: /word-data/<Language>/<locale>/language.json */
+const DICT_BASE = '/games/polywordlot/data/languages/';
+/** Shared language definitions: /word-data/<Language>/language.json */
 const WORD_DATA_BASE = '/word-data/';
 
 // Cache for loaded dictionaries
@@ -152,7 +152,7 @@ async function loadLanguageCatalog(): Promise<LanguageConfig[]> {
 }
 
 /**
- * Gets the directory path for a language/locale
+ * Gets the Language folder name for a locale code
  */
 export function getLanguageDir(locale: string): string | null {
   return languageDirForCode(locale);
@@ -192,7 +192,7 @@ export async function loadAbout(language: string): Promise<{ contributorLabel?: 
 
 /**
  * Loads a dictionary for a specific language and word length
- * Uses the new directory structure: Language/Locale/answers-<len>.txt
+ * Uses the directory structure: <Language>/answers-<len>.txt
  */
 export async function loadDictionary(
   language: string,

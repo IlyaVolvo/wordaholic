@@ -7,13 +7,13 @@ import react from '@vitejs/plugin-react';
 import { copyGameHelpPlugin } from '../../scripts/vite-copy-game-help.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DICT_SRC = path.join(__dirname, 'dict');
+const DICT_SRC = path.join(__dirname, 'data/languages');
 
 function copyDictPlugin(): Plugin {
   return {
     name: 'copy-polywordlot-dict',
     closeBundle() {
-      const dest = path.resolve(__dirname, '../../dist/games/polywordlot/dict');
+      const dest = path.resolve(__dirname, '../../dist/games/polywordlot/data/languages');
       fs.cpSync(DICT_SRC, dest, { recursive: true });
     },
   };

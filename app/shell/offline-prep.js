@@ -104,8 +104,8 @@ export async function prepareOffline(onProgress) {
       if (lang.polyDir) {
         const dir = lang.polyDir;
         for (const len of lang.polywordlotLengths || []) {
-          wordUrls.push(`/games/polywordlot/dict/${dir}/answers-${len}.txt`);
-          wordUrls.push(`/games/polywordlot/dict/${dir}/dictionary-${len}.txt`);
+          wordUrls.push(`/games/polywordlot/data/languages/${dir}/answers-${len}.txt`);
+          wordUrls.push(`/games/polywordlot/data/languages/${dir}/dictionary-${len}.txt`);
         }
       }
     }

@@ -10,7 +10,7 @@ Ship **PolyHydra** (`polyhydra`) as a map-launched game: one shared guess scored
 
 **In:** new `games/polyhydra/` app; shared wordle core used by PolyWordlot and Hydra; one copy of PolyWordlot dictionaries; Daily (no Practice in v1); calendar; persist/export; statistics; help topic; shell/catalog/SW/offline/stats-delta wiring.
 
-**Out:** Practice mode; extra-attempt values other than 5 (the per-count map exists so they can change later); moving dictionary files off `games/polywordlot/dict`; real help screenshots; changing PolyWordlot’s shake-on-invalid or evaluation-colored keyboard.
+**Out:** Practice mode; extra-attempt values other than 5 (the per-count map exists so they can change later); real help screenshots; changing PolyWordlot’s shake-on-invalid or evaluation-colored keyboard.
 
 ## Constraints
 
@@ -35,7 +35,7 @@ Ship **PolyHydra** (`polyhydra`) as a map-launched game: one shared guess scored
 | Default boards | Remember last used count. First visit: **16**. Range 2–20. |
 | Stats | Wins by shared guess count `1…N+5`; loss bucket `N+6`. Split by language + length + board count. |
 | Help | Topic in v1; screenshots may be placeholders until captured. |
-| Architecture | Shared package (e.g. `packages/wordle-core`) imported by both games. Dict loader base URL defaults to `/games/polywordlot/dict/`. |
+| Architecture | Shared package (e.g. `packages/wordle-core`) imported by both games. Dict loader base URL defaults to `/games/polywordlot/data/languages/`. |
 
 ## Architecture
 
@@ -78,7 +78,7 @@ flowchart TB
 `packages/wordle-core/` (Vite alias `@wordaholic/wordle-core`, same pattern as existing `@wordaholic/*` aliases):
 
 - Types, `evaluateGuess`, `isValidWord`, character normalization, dictionary/keyboard loader
-- Loader dict base URL defaults to `/games/polywordlot/dict/`
+- Loader dict base URL defaults to `/games/polywordlot/data/languages/`
 - Daily seed + N-word pick (Hydra tag so it cannot collide with the one-board PolyWordlot hash)
 - Knowledge score for the scoreboard
 - Keyboard `colorMode: 'evaluation' | 'used-unused'`
@@ -148,7 +148,6 @@ Current guess is shown on all unsolved boards at the same row index.
 
 - Practice mode
 - Extra-attempt values other than 5
-- Moving dictionary files off `games/polywordlot/dict`
 - Real help screenshots
 - Changing PolyWordlot invalid-word or keyboard behavior
 - Site `/stats` ingest and table (current stats workflow: registry so new games including PolyHydra are picked up automatically; Hydra permutation key `lang,length,boardCount`)
