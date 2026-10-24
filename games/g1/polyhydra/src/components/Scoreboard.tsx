@@ -61,18 +61,14 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
   onShowSummary,
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
-  const barRef = useRef<HTMLDivElement>(null);
-  const countRef = useRef<HTMLSpanElement>(null);
   const phone = usePhoneLayout();
   const [open, setOpen] = useState<number | null>(null);
-  const [countLeft, setCountLeft] = useState(0);
-  const [arrowEnd, setArrowEnd] = useState(false);
   const visible = new Set(inView);
   const labeled = !phone && cells.some((cell) => (cell.solved || revealed) && cell.answer);
   const openCell = phone && open != null ? cells[open] : undefined;
   const openWord = openCell?.solved && openCell.answer ? openCell.answer.toUpperCase() : '';
   const selectedIndex = inView[0];
-  const selectedCell = selectedIndex != null ? cells[selectedIndex] : undefined;
+  const phoneCols = cells.length > 8 ? Math.ceil(cells.length / 2) : Math.max(1, cells.length);
 
   useEffect(() => {
     setOpen(null);
@@ -116,48 +112,38 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
         fitting = false;
       }
     };
-    if (phone) return;
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(root);
     return () => ro.disconnect();
   }, [cells, revealed, phone]);
 
-  useLayoutEffect(() => {
-    if (!phone) return;
-    const bar = barRef.current;
-    const count = countRef.current;
-    const root = rootRef.current;
-    const index = inView[0];
-    if (!bar || !count || !root || index == null) return;
-    const cell = root.querySelectorAll<HTMLElement>('.hydra-scoreboard-cell')[index];
-    if (!cell) return;
-    const barBox = bar.getBoundingClientRect();
-    const cellBox = cell.getBoundingClientRect();
-    const countW = count.offsetWidth;
-    const arrowW = showSummarySwitch ? 28 : 0;
-    const gap = 6;
-    let left = cellBox.left + cellBox.width / 2 - barBox.left - countW / 2;
-    left = Math.max(2, Math.min(left, barBox.width - countW - 2));
-    const overlapsLeft = arrowW > 0 && left < arrowW + gap;
-    const overlapsRight = arrowW > 0 && left + countW > barBox.width - arrowW - gap;
-    const end =
-      overlapsLeft && !overlapsRight
-        ? true
-        : overlapsLeft && overlapsRight
-          ? cellBox.left + cellBox.width / 2 < barBox.left + barBox.width / 2
-          : false;
-    const nextLeft = Math.round(left);
-    setCountLeft((prev) => (prev === nextLeft ? prev : nextLeft));
-    setArrowEnd((prev) => (prev === end ? prev : end));
-  }, [phone, inView, cells, showSummarySwitch]);
-
   return (
-    <div className="hydra-scoreboard-block">
+    <div className={`hydra-scoreboard-block${phone ? ' is-phone' : ''}`}>
+      {phone ? (
+        showSummarySwitch ? (
+          <button
+            type="button"
+            className="hydra-board-mode hydra-board-mode--up hydra-phone-summary"
+            aria-label="Show summary"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={onShowSummary}
+          >
+            ↑
+          </button>
+        ) : (
+          <span className="hydra-board-mode hydra-board-mode--spacer hydra-phone-summary" aria-hidden="true" />
+        )
+      ) : null}
       <div
         ref={rootRef}
         className={`hydra-scoreboard${phone ? ' is-phone' : ''}${revealed ? ' revealed' : ''}${labeled ? ' is-labeled' : ''}`}
-        style={{ ['--hydra-n' as string]: cells.length }}
+        style={
+          {
+            ['--hydra-n' as string]: cells.length,
+            ['--hydra-phone-cols' as string]: phoneCols,
+          } as React.CSSProperties
+        }
         aria-label="Board progress"
       >
         {cells.map((cell, i) => {
@@ -226,32 +212,6 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
           );
         })}
       </div>
-      {phone && selectedCell ? (
-        <div className="hydra-phone-bar" ref={barRef}>
-          {showSummarySwitch ? (
-            <button
-              type="button"
-              className={`hydra-board-mode hydra-board-mode--up${arrowEnd ? ' is-end' : ''}`}
-              aria-label="Show summary"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={onShowSummary}
-            >
-              ↑
-            </button>
-          ) : null}
-          <span className="hydra-phone-bar-count" ref={countRef} style={{ left: countLeft }}>
-            {selectedCell.solved && selectedCell.answer ? (
-              <span className="hydra-phone-bar-word">{selectedCell.answer.toUpperCase()}</span>
-            ) : (
-              <>
-                <span className="hydra-scoreboard-pop-g">{selectedCell.greens}</span>
-                <span aria-hidden="true">/</span>
-                <span className="hydra-scoreboard-pop-y">{selectedCell.yellows}</span>
-              </>
-            )}
-          </span>
-        </div>
-      ) : null}
       {!phone && openWord ? <div className="hydra-scoreboard-word">{openWord}</div> : null}
     </div>
   );

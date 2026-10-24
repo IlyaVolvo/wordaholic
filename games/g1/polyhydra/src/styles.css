@@ -3762,56 +3762,35 @@ a.header-brand-home:focus-visible {
 }
 
 @media (max-width: 720px) {
+  .hydra-container .hydra-scoreboard-block.is-phone {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    gap: 0;
+  }
+
+  .hydra-container .hydra-phone-summary {
+    flex: 0 0 2.4rem;
+    width: 2.4rem;
+    height: 2.4rem;
+    margin: 0;
+    color: var(--text);
+    font-size: 1.4rem;
+  }
+
   .hydra-container .hydra-scoreboard.is-phone {
-    padding-top: 6px;
+    display: grid;
+    grid-template-columns: repeat(var(--hydra-phone-cols, 8), minmax(0, 1fr));
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 4px 8px 4px 2px;
+    gap: 3px;
   }
 
   .hydra-container .help-trigger-tip,
   .hydra-container .header-icon-tooltip {
     display: none !important;
-  }
-
-  .hydra-container .hydra-phone-bar {
-    position: relative;
-    width: 100%;
-    height: 26px;
-    min-height: 26px;
-    background: #1a3d66;
-    color: #fff;
-  }
-
-  .hydra-container .hydra-phone-bar .hydra-board-mode--up {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 1.7rem;
-    height: 26px;
-    margin: 0;
-    color: #fff;
-    font-size: 1.15rem;
-  }
-
-  .hydra-container .hydra-phone-bar .hydra-board-mode--up.is-end {
-    left: auto;
-    right: 0;
-  }
-
-  .hydra-container .hydra-phone-bar-count {
-    position: absolute;
-    top: 0;
-    height: 26px;
-    display: flex;
-    align-items: center;
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: 0.04em;
-    pointer-events: none;
-  }
-
-  .hydra-container .hydra-phone-bar-word {
-    color: #fff;
-    letter-spacing: 0.08em;
   }
 
   .hydra-container .hydra-scoreboard-cell {
@@ -3837,47 +3816,6 @@ a.header-brand-home:focus-visible {
     outline: 2px solid #fff;
     outline-offset: 2px;
     z-index: 3;
-  }
-
-  .hydra-container .hydra-scoreboard-pop {
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    align-items: center;
-    gap: 0.15em;
-    padding: 0.28rem 0.45rem;
-    border-radius: 6px;
-    background: #111;
-    color: #fff;
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: 0;
-    white-space: nowrap;
-    pointer-events: none;
-    z-index: 6;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-  }
-
-  .hydra-container .hydra-scoreboard-cell:first-child .hydra-scoreboard-pop {
-    left: 0;
-    transform: none;
-  }
-
-  .hydra-container .hydra-scoreboard-cell:last-child .hydra-scoreboard-pop {
-    left: auto;
-    right: 0;
-    transform: none;
-  }
-
-  .hydra-container .hydra-scoreboard-pop-g {
-    color: #7dffa0;
-  }
-
-  .hydra-container .hydra-scoreboard-pop-y {
-    color: var(--present);
   }
 
   .hydra-container .hydra-scoreboard-check {
