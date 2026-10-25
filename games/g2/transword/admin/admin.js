@@ -1,11 +1,13 @@
 import { WordGraph } from '../graph.js';
 import { analyseGraph, generatePuzzles, shortestPath } from '../solver.js';
 import { loadCorpus, loadLanguageIndex } from '../../shared/wordset.js';
+import { languageJsonUrl } from '../../../../app/shell/locales.js';
 
 const $ = (sel) => document.querySelector(sel);
 
 let graph = null;
 let languageDir = 'English';
+let languageRtl = false;
 
 function log(msg) {
   const el = $('#log');
@@ -15,8 +17,40 @@ function log(msg) {
   el.prepend(line);
 }
 
+function wordDir() {
+  return languageRtl ? 'rtl' : 'ltr';
+}
+
+function applyWordDir(el) {
+  if (el) el.dir = wordDir();
+}
+
+function applyAdminWordDir() {
+  for (const id of ['#start-word', '#end-word', '#pairs-out', '#solve-out']) {
+    applyWordDir($(id));
+  }
+}
+
+async function loadLanguageRtl(dir) {
+  languageRtl = false;
+  const url = languageJsonUrl(dir);
+  if (url) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const cfg = await res.json();
+        languageRtl = cfg.rtl === true;
+      }
+    } catch {
+      /* stay ltr */
+    }
+  }
+  applyAdminWordDir();
+}
+
 async function loadGraph(dir) {
   languageDir = dir;
+  await loadLanguageRtl(dir);
   log(`Loading ${dir}…`);
   const words = (await loadCorpus(dir)).map((e) => e.word);
   graph = new WordGraph(words);

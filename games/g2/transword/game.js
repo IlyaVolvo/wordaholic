@@ -174,9 +174,19 @@ function displayWord(word) {
   return spellInPlace(canonicalWord(word), languageHooks(language));
 }
 
+function wordDir() {
+  return languageConfig?.rtl ? 'rtl' : 'ltr';
+}
+
+function applyWordDir(el) {
+  if (el) el.dir = wordDir();
+}
+
 function showTarget() {
   const el = $('#target-word');
-  if (el && puzzle) el.textContent = displayWord(puzzle.end);
+  if (!el) return;
+  applyWordDir(el);
+  if (puzzle) el.textContent = displayWord(puzzle.end);
 }
 
 function selectedLevel() {
@@ -585,7 +595,7 @@ function loadPracticeForSelection({ fresh = false } = {}) {
   rememberActiveCombo();
   practiceSessions.delete(practiceKey(combo));
   setSessionActive(GAME_ID, true);
-  $('#target-word').textContent = displayWord(puzzle.end);
+  showTarget();
   $('#optimal-count').textContent = String(puzzle.dist);
   $('#win-overlay').classList.add('hidden');
   updateTimerDisplay();
@@ -643,7 +653,7 @@ async function loadDailyForSelection() {
       inputDraft = '';
       stopTimer();
       setSessionActive(GAME_ID, false);
-      $('#target-word').textContent = displayWord(puzzle.end);
+      showTarget();
       $('#optimal-count').textContent = String(puzzle.dist);
       renderChain();
       return;
@@ -651,7 +661,7 @@ async function loadDailyForSelection() {
   }
 
   setSessionActive(GAME_ID, true);
-  $('#target-word').textContent = displayWord(puzzle.end);
+  showTarget();
   $('#optimal-count').textContent = String(puzzle.dist);
   $('#win-overlay').classList.add('hidden');
   if (timerStarted) startTimer();
@@ -813,6 +823,7 @@ function makeWordNode(word, isStart, isEnd, canUndo, prevWord, isDeadend = false
   wrap.className = 'word-slot-wrap';
   const slot = document.createElement('div');
   slot.className = 'word-slot';
+  applyWordDir(slot);
   if (isStart) slot.classList.add('start-word');
   if (isEnd) slot.classList.add('end-word');
   if (isDeadend) slot.classList.add('deadend-word');
@@ -871,24 +882,24 @@ function isCoarsePointer() {
 function typeIntoWordInput(key) {
   const input = $('#word-input');
   if (!input || solved || readOnly) return;
-  const rtl = !!languageConfig?.rtl;
   if (key === 'Enter') {
     void submitWord(input.value.trim().toLowerCase());
     return;
   }
   if (key === 'Backspace') {
-    input.value = rtl ? input.value.slice(1) : input.value.slice(0, -1);
+    input.value = input.value.slice(0, -1);
     if (input.value) noteTyping();
     else currentDraft();
     return;
   }
   if (key.length === 1) {
-    input.value = (rtl ? `${key}${input.value}` : `${input.value}${key}`).toLowerCase();
+    input.value = `${input.value}${key}`.toLowerCase();
     noteTyping();
   }
 }
 
 function configureWordInput(input) {
+  applyWordDir(input);
   input.autocomplete = 'off';
   input.spellcheck = false;
   input.setAttribute('autocapitalize', 'none');
@@ -1035,7 +1046,6 @@ function renderKeyboard() {
   root.innerHTML = '';
   const layout = Array.isArray(languageConfig?.layout) ? languageConfig.layout : DEFAULT_LAYOUT;
   const actions = languageConfig?.actions || DEFAULT_ACTIONS;
-  const rtl = !!languageConfig?.rtl;
   const lastRow = Math.max(layout.length - 1, 0);
   const enterCfg = {
     label: actions?.enter?.label || 'ENTER',
