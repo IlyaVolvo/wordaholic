@@ -6,7 +6,7 @@ import { Settings } from './Settings';
 import { Calendar } from './Calendar';
 import { loadDictionary, loadKeyboard, getKeyboardRtl, loadWinMessage, loadLoseMessage } from '../data/languageLoader';
 import { typedLetter } from '../utils/inputPlugins';
-import { getDailyWord, getWordFromSeed, formatDate } from '../utils/dailyWord';
+import { getDailyWord, formatDate } from '../utils/dailyWord';
 import { evaluateGuess, isValidWord } from '../utils/gameLogic';
 import { normalizeForLanguage, loadNormalization, isWinningGuessForLanguage } from '../utils/characterNormalization';
 import { loadPreferences, savePreferences } from '../utils/preferences';
@@ -150,9 +150,6 @@ export const Game: React.FC<GameProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [letterStates, setLetterStates] = useState<Map<string, LetterState>>(new Map());
-  const [randomMode, setRandomMode] = useState<boolean>(false);
-  const randomModeRef = useRef(false);
-  randomModeRef.current = randomMode;
   const historicalDateRef = useRef(historicalDate);
   historicalDateRef.current = historicalDate;
   const initializedRef = useRef<boolean>(false);
@@ -162,9 +159,6 @@ export const Game: React.FC<GameProps> = ({
   const [selectedPlayDate, setSelectedPlayDate] = useState<string>('');
   const [keyboardRtl, setKeyboardRtl] = useState<boolean>(false);
   const [showCalendar, setShowCalendar] = useState(false);
-  const [showWordIndexPopup, setShowWordIndexPopup] = useState(false);
-  const [wordIndexInput, setWordIndexInput] = useState('');
-  const wordIndexGameStartedRef = useRef(false);
   const headerBarRef = useRef<HTMLDivElement>(null);
   const [calendarGames, setCalendarGames] = useState<any[]>([]);
   const [calendarBlinkingDates, setCalendarBlinkingDates] = useState<Set<string>>(new Set());
@@ -187,15 +181,6 @@ export const Game: React.FC<GameProps> = ({
   const touchEndRef = useRef<number | null>(null);
   const swipeStartDateRef = useRef<string | null>(null); // Capture date at swipe start
   const minSwipeDistance = 100;
-
-  useEffect(() => {
-    const prefs = loadPreferences();
-    if (prefs.randomMode) {
-      prefs.randomMode = false;
-      savePreferences(prefs);
-    }
-    setRandomMode(false);
-  }, []);
 
   const updateLetterStates = useCallback((state: GameState) => {
     const states = new Map<string, LetterState>();
@@ -374,7 +359,6 @@ export const Game: React.FC<GameProps> = ({
           setSelectedPlayDate(date);
           return;
         }
-        if (randomModeRef.current) return;
         const dateToUse = await openVariant(GAME_ID, [language, wordLength]);
         setSelectedPlayDate(dateToUse);
       } catch (err) {
@@ -386,7 +370,6 @@ export const Game: React.FC<GameProps> = ({
   }, [language, wordLength, initializedRef.current, loading]);
 
   const saveGameToApi = useCallback(async (state: GameState) => {
-    if (state.isRandomMode) return;
     if (!dictionary || !targetWord) return; // Save on Enter: create or update daily record
     try {
       const response = await apiClient.saveGame({
@@ -394,8 +377,6 @@ export const Game: React.FC<GameProps> = ({
         wordLength: state.wordLength,
         targetWord,
         gameDate: state.date,
-        isRandomMode: false,
-        wordSeed: state.wordSeed,
         guesses: state.guesses.map((g) => g.word),
         isComplete: state.isComplete,
         isWon: state.isWon,
@@ -407,8 +388,6 @@ export const Game: React.FC<GameProps> = ({
         word_length: state.wordLength,
         target_word: targetWord,
         game_date: state.date,
-        is_random_mode: 0,
-        word_seed: null,
         is_complete: state.isComplete ? 1 : 0,
         guesses: state.guesses.map((g) => g.word),
         isWon: state.isWon,
@@ -427,15 +406,6 @@ export const Game: React.FC<GameProps> = ({
    * When setting changes, partial state is discarded; the new setting shows the last state stored in the DB.
    */
   const resolveStateForSelectedDay = useCallback(async () => {
-    if (randomMode) {
-      // Don't clear if we just started a game via word index selector
-      if (wordIndexGameStartedRef.current) {
-        wordIndexGameStartedRef.current = false;
-        return;
-      }
-      clearGameDisplay();
-      return;
-    }
     if (!dictionary || loading) return;
     // Only resolve when dictionary is for current (language, wordLength). Prevents using wrong dictionary
     // (e.g. still Russian after switching to English) and wrongly wiping DB on target mismatch.
@@ -461,8 +431,6 @@ export const Game: React.FC<GameProps> = ({
             word_length: game.word_length,
             target_word: game.target_word,
             game_date: game.game_date,
-            is_random_mode: game.is_random_mode,
-            word_seed: game.word_seed,
             is_complete: game.is_complete,
             guesses: game.guesses || [],
             isWon: game.isWon,
@@ -496,8 +464,6 @@ export const Game: React.FC<GameProps> = ({
           language: cachedGame.language,
           wordLength: cachedGame.word_length,
           date: gameDate,
-          isRandomMode: false,
-          wordSeed: undefined,
         };
         applyLoadedGame(state, target);
         return;
@@ -509,7 +475,6 @@ export const Game: React.FC<GameProps> = ({
         language,
         wordLength,
         gameDate: playDate,
-        isRandomMode: false,
       });
       if (currentResponse.game && currentResponse.game.is_complete !== 1) {
         const target = currentResponse.game.target_word;
@@ -525,8 +490,6 @@ export const Game: React.FC<GameProps> = ({
             language: currentResponse.game.language,
             wordLength: currentResponse.game.word_length,
             date: effectiveDate,
-            isRandomMode: false,
-            wordSeed: undefined,
           };
           applyNewOrResetGame(resetState, expectedTarget);
           await apiClient.saveGame({
@@ -534,7 +497,6 @@ export const Game: React.FC<GameProps> = ({
             wordLength,
             targetWord: expectedTarget,
             gameDate: effectiveDate,
-            isRandomMode: false,
             guesses: [],
             isComplete: false,
             isWon: false,
@@ -545,8 +507,6 @@ export const Game: React.FC<GameProps> = ({
             word_length: currentResponse.game.word_length,
             target_word: expectedTarget,
             game_date: effectiveDate,
-            is_random_mode: 0,
-            word_seed: null,
             is_complete: 0,
             guesses: [],
             isWon: false,
@@ -567,8 +527,6 @@ export const Game: React.FC<GameProps> = ({
           language: currentResponse.game.language,
           wordLength: currentResponse.game.word_length,
           date: gameDate,
-          isRandomMode: false,
-          wordSeed: undefined,
         };
         applyLoadedGame(currentGame, target);
         gameCacheUtils.updateCachedGame(language, wordLength, gameDate, {
@@ -577,8 +535,6 @@ export const Game: React.FC<GameProps> = ({
           word_length: currentResponse.game.word_length,
           target_word: target,
           game_date: gameDate,
-          is_random_mode: 0,
-          word_seed: null,
           is_complete: 0,
           guesses: currentResponse.game.guesses || [],
           isWon: false,
@@ -593,7 +549,6 @@ export const Game: React.FC<GameProps> = ({
         language,
         wordLength,
         gameDate: playDate,
-        isRandomMode: false,
       });
       if (completedResponse.game) {
         const target = completedResponse.game.target_word;
@@ -606,8 +561,6 @@ export const Game: React.FC<GameProps> = ({
           language: completedResponse.game.language,
           wordLength: completedResponse.game.word_length,
           date: completedResponse.game.game_date,
-          isRandomMode: false,
-          wordSeed: undefined,
         };
         applyLoadedGame(completedGame, target);
         gameCacheUtils.updateCachedGame(language, wordLength, completedResponse.game.game_date, {
@@ -616,8 +569,6 @@ export const Game: React.FC<GameProps> = ({
           word_length: completedResponse.game.word_length,
           target_word: target,
           game_date: completedResponse.game.game_date,
-          is_random_mode: 0,
-          word_seed: null,
           is_complete: 1,
           guesses: completedResponse.game.guesses || [],
           isWon: completedResponse.game.isWon,
@@ -633,79 +584,18 @@ export const Game: React.FC<GameProps> = ({
       console.error('Failed to load game:', err);
       clearGameDisplay();
     }
-  }, [language, wordLength, selectedPlayDate, randomMode, dictionary, loading, applyLoadedGame, applyNewOrResetGame, clearGameDisplay]);
-
-  /** Start a training game with a specific word index (modulo answer count).
-   *  Switches to Practice mode automatically if not already in it. */
-  const handleStartGameWithIndex = useCallback((index: number) => {
-    if (!dictionary) return;
-
-    // Switch to Practice mode if needed
-    if (!randomMode) {
-      const prefs = loadPreferences();
-      prefs.randomMode = true;
-      savePreferences(prefs);
-      setRandomMode(true);
-      setSelectedPlayDate('');
-    }
-
-    const answers = dictionary.answerWordsOriginal;
-    const answerCount = answers.length;
-    const effectiveIndex = ((index % answerCount) + answerCount) % answerCount; // handle negatives
-    const target = answers[effectiveIndex];
-    
-    const newState: GameState = {
-      guesses: [],
-      currentGuess: '',
-      isComplete: false,
-      isWon: false,
-      language,
-      wordLength,
-      date: Date.now().toString(),
-      isRandomMode: true,
-      wordSeed: effectiveIndex,
-    };
-
-    wordIndexGameStartedRef.current = true;
-    applyNewOrResetGame(newState, target);
-  }, [dictionary, randomMode, language, wordLength, applyNewOrResetGame]);
+  }, [language, wordLength, selectedPlayDate, dictionary, loading, applyLoadedGame, applyNewOrResetGame, clearGameDisplay]);
 
   /** Start game; optionally pass first key so it's applied immediately. Returns true if first key was applied. */
   const handleStartGame = useCallback(async (optionalFirstKey?: string): Promise<boolean> => {
     if (!dictionary) return false;
     const playDate = selectedPlayDate || formatDate();
-    let target: string;
-    let wordSeed: number | undefined;
 
     try {
-      if (randomMode) {
-        // Training mode: always start new game (apply first key so no setTimeout race)
-        wordSeed = Date.now();
-        target = getWordFromSeed(dictionary, wordSeed);
-        
-        const newState: GameState = {
-          guesses: [],
-          currentGuess: optionalFirstKey ?? '',
-          isComplete: false,
-          isWon: false,
-          language,
-          wordLength,
-          date: Date.now().toString(),
-          isRandomMode: true,
-          wordSeed: wordSeed,
-        };
-
-        applyNewOrResetGame(newState, target);
-
-        // Don't save Training mode games to DB
-        return !!optionalFirstKey;
-      } else {
-        // Daily mode: check for existing game first
         const currentResponse = await apiClient.getCurrentGame({
           language,
           wordLength,
           gameDate: playDate,
-          isRandomMode: false,
         });
         if (currentResponse.game && currentResponse.game.is_complete !== 1) {
           // Found incomplete game - continue playing it (unless daily answer changed)
@@ -723,8 +613,6 @@ export const Game: React.FC<GameProps> = ({
               language: currentResponse.game.language,
               wordLength: currentResponse.game.word_length,
               date: effectiveDate,
-              isRandomMode: false,
-              wordSeed: undefined,
             };
             applyNewOrResetGame(resetState, expectedTarget);
             await apiClient.saveGame({
@@ -732,7 +620,6 @@ export const Game: React.FC<GameProps> = ({
               wordLength,
               targetWord: expectedTarget,
               gameDate: effectiveDate,
-              isRandomMode: false,
               guesses: [],
               isComplete: false,
               isWon: false,
@@ -753,8 +640,6 @@ export const Game: React.FC<GameProps> = ({
             language: currentResponse.game.language,
             wordLength: currentResponse.game.word_length,
             date: gameDate,
-            isRandomMode: false,
-            wordSeed: undefined,
           };
           applyLoadedGame(currentGame, target);
           return false; // key not applied, caller will setTimeout to add it
@@ -765,7 +650,6 @@ export const Game: React.FC<GameProps> = ({
           language,
           wordLength,
           gameDate: playDate,
-          isRandomMode: false,
         });
         if (completedResponse.game) {
           // Restore the completed game
@@ -779,15 +663,13 @@ export const Game: React.FC<GameProps> = ({
             language: completedResponse.game.language,
             wordLength: completedResponse.game.word_length,
             date: completedResponse.game.game_date,
-            isRandomMode: false,
-            wordSeed: undefined,
           };
           applyLoadedGame(completedGame, target);
           return false;
         }
 
         // No existing game, start a new one (DB record created on first word submitted); apply first key
-        target = getDailyWord(dictionary, playDate);
+        const target = getDailyWord(dictionary, playDate);
         const newState: GameState = {
           guesses: [],
           currentGuess: optionalFirstKey ?? '',
@@ -796,28 +678,25 @@ export const Game: React.FC<GameProps> = ({
           language,
           wordLength,
           date: playDate,
-          isRandomMode: false,
-          wordSeed: undefined,
         };
 
         applyNewOrResetGame(newState, target);
         return !!optionalFirstKey;
-      }
     } catch (err) {
       console.error('Failed to start game:', err);
       setError('Failed to start game');
       return false;
     }
-  }, [dictionary, language, wordLength, randomMode, selectedPlayDate, applyLoadedGame, applyNewOrResetGame]);
+  }, [dictionary, language, wordLength, selectedPlayDate, applyLoadedGame, applyNewOrResetGame]);
 
   // Load games for calendar when it opens; detect and wipe stale incomplete games
   useEffect(() => {
-    if (showCalendar && !randomMode) {
+    if (showCalendar) {
       const loadGames = async () => {
         try {
           const response = await apiClient.getHistory(language, wordLength, 10000);
           // Filter to only daily games (non-random mode)
-          const dailyGames = response.games.filter((game: any) => !game.isRandomMode);
+          const dailyGames = response.games;
 
           const staleDates = new Set<string>();
           if (dictionary) {
@@ -846,7 +725,6 @@ export const Game: React.FC<GameProps> = ({
                   wordLength,
                   targetWord: expectedTarget,
                   gameDate,
-                  isRandomMode: false,
                   guesses: [],
                   isComplete: false,
                   isWon: false,
@@ -880,7 +758,7 @@ export const Game: React.FC<GameProps> = ({
       };
       loadGames();
     }
-  }, [showCalendar, language, wordLength, randomMode, dictionary]);
+  }, [showCalendar, language, wordLength, dictionary]);
 
   // Keep the closed calendar on the month of the selected puzzle date
   useEffect(() => {
@@ -907,7 +785,7 @@ export const Game: React.FC<GameProps> = ({
   // Auto-start game when first letter is typed (instead of Play button)
   const handleKeyPress = useCallback(async (key: string) => {
     const normalizedKey = key.toLowerCase();
-    const needStart = dictionary && (!gameState || (randomMode && gameState?.isComplete));
+    const needStart = dictionary && !gameState;
     const currentGuess = needStart ? (gameState?.currentGuess ?? '') : (gameState?.currentGuess ?? '');
     const transformedKey = typedLetter(normalizedKey, currentGuess, wordLength, keyboardRtl, language);
 
@@ -933,7 +811,7 @@ export const Game: React.FC<GameProps> = ({
       const newGuess = keyboardRtl ? transformedKey + gameState.currentGuess : gameState.currentGuess + transformedKey;
       setGameState({ ...gameState, currentGuess: newGuess });
     }
-  }, [gameState, wordLength, dictionary, language, randomMode, keyboardRtl, handleStartGame]);
+  }, [gameState, wordLength, dictionary, language, keyboardRtl, handleStartGame]);
 
   const handleEnter = useCallback(() => {
     if (!gameState || gameState.isComplete || !dictionary) return;
@@ -1025,8 +903,7 @@ export const Game: React.FC<GameProps> = ({
   
   // Swipe gesture handlers for date navigation
   const onTouchStart = useCallback((e: React.TouchEvent) => {
-    // Only enable swipe for Daily mode (not Training)
-    if (randomMode || showCalendar || view === 'statistics') return;
+    if (showCalendar || view === 'statistics') return;
     
     // Don't trigger swipe if starting on interactive elements
     const target = e.target as HTMLElement;
@@ -1046,15 +923,15 @@ export const Game: React.FC<GameProps> = ({
     swipeStartDateRef.current = isValidDate ? selectedPlayDate : today;
     touchStartRef.current = e.targetTouches[0].clientX;
     touchEndRef.current = null;
-  }, [randomMode, selectedPlayDate, showCalendar, view]);
+  }, [selectedPlayDate, showCalendar, view]);
   
   const onTouchMove = useCallback((e: React.TouchEvent) => {
-    if (randomMode || !touchStartRef.current) return;
+    if (!touchStartRef.current) return;
     touchEndRef.current = e.targetTouches[0].clientX;
-  }, [randomMode]);
+  }, []);
   
   const onTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (randomMode || !touchStartRef.current || !touchEndRef.current || !swipeStartDateRef.current) {
+    if (!touchStartRef.current || !touchEndRef.current || !swipeStartDateRef.current) {
       touchStartRef.current = null;
       touchEndRef.current = null;
       swipeStartDateRef.current = null;
@@ -1116,53 +993,11 @@ export const Game: React.FC<GameProps> = ({
     touchStartRef.current = null;
     touchEndRef.current = null;
     swipeStartDateRef.current = null;
-  }, [randomMode, gameState, handleDateChange]);
-
-  const handleRandomModeChange = useCallback(async (newRandomMode: boolean) => {
-    const prefs = loadPreferences();
-    prefs.randomMode = newRandomMode;
-    savePreferences(prefs);
-    setRandomMode(newRandomMode);
-    if (!newRandomMode) {
-      const date = await openVariant(GAME_ID, [language, wordLength]);
-      setSelectedPlayDate(date);
-    } else {
-      setSelectedPlayDate('');
-      clearGameDisplay();
-    }
-  }, [clearGameDisplay, language, wordLength]);
-
-  const handleRestartPractice = useCallback(() => {
-    if (!dictionary || !randomMode) return;
-    const wordSeed = Date.now();
-    const target = getWordFromSeed(dictionary, wordSeed);
-    const newState: GameState = {
-      guesses: [],
-      currentGuess: '',
-      isComplete: false,
-      isWon: false,
-      language,
-      wordLength,
-      date: Date.now().toString(),
-      isRandomMode: true,
-      wordSeed,
-    };
-    applyNewOrResetGame(newState, target);
-  }, [dictionary, randomMode, language, wordLength, applyNewOrResetGame]);
+  }, [gameState, handleDateChange]);
 
   // Handle keyboard events
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
-      // Ctrl+Shift+G (or Cmd+Shift+G): open word index popup — available at any time when dictionary is loaded
-      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'g' || e.key === 'G')) {
-        e.preventDefault();
-        if (dictionary) {
-          setWordIndexInput('');
-          setShowWordIndexPopup(true);
-        }
-        return;
-      }
-
       if (showCalendar && e.key === 'Escape') {
         e.preventDefault();
         setShowCalendar(false);
@@ -1170,12 +1005,12 @@ export const Game: React.FC<GameProps> = ({
       }
 
       // Don't process game keys when a popup is open
-      if (showWordIndexPopup || showCalendar || view === 'statistics' || isHelpOpen()) return;
+      if (showCalendar || view === 'statistics' || isHelpOpen()) return;
 
       if (loading) return;
 
       // If no game or (Training + completed game) and it's a letter, start the game first (same as handleKeyPress)
-      const needStart = dictionary && (!gameState || (randomMode && gameState?.isComplete));
+      const needStart = dictionary && !gameState;
       if (needStart && e.key.length === 1 && /[a-zA-Zа-яА-ЯёЁ\u0590-\u05FF]/.test(e.key)) {
         const normalizedKey = e.key.toLowerCase();
         const currentGuess = gameState?.currentGuess ?? '';
@@ -1208,7 +1043,7 @@ export const Game: React.FC<GameProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [loading, gameState, randomMode, dictionary, wordLength, language, keyboardRtl, handleEnter, handleBackspace, handleKeyPress, handleStartGame, showWordIndexPopup, showCalendar, view]);
+  }, [loading, gameState, dictionary, wordLength, language, keyboardRtl, handleEnter, handleBackspace, handleKeyPress, handleStartGame, showCalendar, view]);
 
   useEffect(() => {
     const bar = headerBarRef.current;
@@ -1223,7 +1058,7 @@ export const Game: React.FC<GameProps> = ({
     return <div className="error">Error: {error}</div>;
   }
 
-  const calendarOpen = showCalendar && !randomMode;
+  const calendarOpen = showCalendar;
   const showKeyboard = Boolean(dictionary);
 
   return (
@@ -1380,15 +1215,8 @@ export const Game: React.FC<GameProps> = ({
       </div>
       <div
         ref={playAreaRef}
-        className={`game-play-area${randomMode ? ' game-play-area--random' : ''}${gameState?.isComplete ? ' game-play-area--complete' : ''}`}
+        className={`game-play-area${gameState?.isComplete ? ' game-play-area--complete' : ''}`}
       >
-        {randomMode && (
-          <div className="random-watermark" aria-hidden="true">
-            {Array.from({ length: 30 }).map((_, i) => (
-              <span key={i} className="random-watermark__text">Random</span>
-            ))}
-          </div>
-        )}
         <div className="game-play-area__content">
           {!dictionary && !loading && (
             <GameBoard
@@ -1499,58 +1327,6 @@ export const Game: React.FC<GameProps> = ({
               }}
               blinkingDates={calendarBlinkingDates}
             />
-          </div>
-        </div>
-      )}
-      {showWordIndexPopup && (
-        <div className="word-index-overlay" onClick={() => setShowWordIndexPopup(false)}>
-          <div className="word-index-popup" onClick={(e) => e.stopPropagation()}>
-            <h3>Select Word by Index</h3>
-            <p className="word-index-info">
-              Enter a number (0–{dictionary ? dictionary.answerWordsOriginal.length - 1 : '?'}). 
-              Values outside this range will wrap around.
-            </p>
-            <input
-              type="number"
-              className="word-index-input"
-              value={wordIndexInput}
-              onChange={(e) => setWordIndexInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && wordIndexInput.trim()) {
-                  const num = parseInt(wordIndexInput.trim(), 10);
-                  if (!isNaN(num)) {
-                    handleStartGameWithIndex(num);
-                    setShowWordIndexPopup(false);
-                  }
-                } else if (e.key === 'Escape') {
-                  setShowWordIndexPopup(false);
-                }
-                e.stopPropagation();
-              }}
-              placeholder="Word index..."
-              autoFocus
-            />
-            <div className="word-index-buttons">
-              <button
-                className="word-index-btn word-index-btn-go"
-                onClick={() => {
-                  const num = parseInt(wordIndexInput.trim(), 10);
-                  if (!isNaN(num)) {
-                    handleStartGameWithIndex(num);
-                    setShowWordIndexPopup(false);
-                  }
-                }}
-                disabled={!wordIndexInput.trim() || isNaN(parseInt(wordIndexInput.trim(), 10))}
-              >
-                Go
-              </button>
-              <button
-                className="word-index-btn word-index-btn-cancel"
-                onClick={() => setShowWordIndexPopup(false)}
-              >
-                Cancel
-              </button>
-            </div>
           </div>
         </div>
       )}

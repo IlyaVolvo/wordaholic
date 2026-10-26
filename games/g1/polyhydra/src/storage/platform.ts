@@ -12,7 +12,8 @@ export type StoredHydra = {
   board_count: number;
   game_date: string;
   target_words: string[];
-  board_guesses: string[][];
+  /** Each submitted word once, in order. */
+  guesses: string[];
   current_guess: string;
   invalid_pending: number;
   is_complete: number;
@@ -72,27 +73,66 @@ export function extraAttempts(boardCount: number): number {
   return extraAttemptsForBoardCount(boardCount);
 }
 
+function guessWins(guess: string, target: string, language: string): boolean {
+  return Boolean(guess && target && isWinningGuessForLanguage(guess, target, language));
+}
+
+/** Per-board rows derived from the shared guess list. A solved board stops at the guess that won. */
+export function boardRows(game: Pick<StoredHydra, 'guesses' | 'target_words' | 'language' | 'board_count'>): string[][] {
+  const guesses = Array.isArray(game.guesses) ? game.guesses : [];
+  const targets = Array.isArray(game.target_words) ? game.target_words : [];
+  const count = Math.max(targets.length, game.board_count || 0);
+  return Array.from({ length: count }, (_, i) => {
+    const target = targets[i] || '';
+    const rows: string[] = [];
+    for (const guess of guesses) {
+      if (guessWins(guess, target, game.language)) {
+        rows.push(target || guess);
+        break;
+      }
+      rows.push(guess);
+    }
+    return rows;
+  });
+}
+
+/**
+ * Collapse the old per-board copies into one shared list.
+ * A board that continues past an attempt still has the typed word.
+ * An attempt that ended every board still in play stores one of those boards' saved words.
+ */
+export function collapseBoardGuesses(
+  boardGuesses: string[][],
+  _targets: string[]
+): string[] {
+  const n = Math.max(0, ...boardGuesses.map((list) => list.length));
+  const guesses: string[] = [];
+  for (let t = 0; t < n; t++) {
+    let typed = '';
+    let ended = '';
+    for (const list of boardGuesses) {
+      if (!list || list.length <= t) continue;
+      if (list.length > t + 1) typed = list[t];
+      else if (!ended) ended = list[t];
+    }
+    guesses.push(typed || ended);
+  }
+  return guesses;
+}
+
 export function isHydraWon(game: StoredHydra): boolean {
   if (game.is_won === 1) return true;
   const targets = game.target_words || [];
   if (!targets.length) return false;
-  return targets.every((target, i) => {
-    const guesses = game.board_guesses?.[i] || [];
-    const last = guesses[guesses.length - 1];
-    return Boolean(last && isWinningGuessForLanguage(last, target, game.language));
-  });
+  return targets.every((target) => (game.guesses || []).some((guess) => guessWins(guess, target, game.language)));
 }
 
 export function isHydraDoomed(game: StoredHydra): boolean {
   if (isHydraWon(game)) return false;
   const targets = game.target_words || [];
   if (!targets.length) return false;
-  const lists = asGuessLists(game.board_guesses, game.board_count);
-  const used = Math.max(0, ...lists.map((g) => g.length));
-  const solved = targets.reduce((n, target, i) => {
-    const last = lists[i]?.[lists[i].length - 1];
-    return n + (last && isWinningGuessForLanguage(last, target, game.language) ? 1 : 0);
-  }, 0);
+  const used = (game.guesses || []).length;
+  const solved = targets.filter((target) => (game.guesses || []).some((guess) => guessWins(guess, target, game.language))).length;
   const wordsLeft = targets.length - solved;
   const attemptsLeft = hydraMaxGuesses(game.board_count) - used;
   return attemptsLeft < wordsLeft;
@@ -102,9 +142,7 @@ export function isHydraComplete(game: StoredHydra): boolean {
   if (isHydraWon(game)) return true;
   if (isHydraDoomed(game)) return true;
   if (game.is_complete === 1) return true;
-  const max = hydraMaxGuesses(game.board_count);
-  const used = Math.max(0, ...asGuessLists(game.board_guesses, game.board_count).map((g) => g.length));
-  return used >= max;
+  return (game.guesses || []).length >= hydraMaxGuesses(game.board_count);
 }
 
 function toRecord(game: StoredHydra, numericId = 0): GameRecord {
@@ -127,13 +165,17 @@ function fromRecord(row: Record<string, unknown>): StoredHydra | null {
   const targets = Array.isArray(row.target_words)
     ? row.target_words.map((w) => String(w))
     : [];
+  const legacyBoards = row.board_guesses;
+  const guesses = Array.isArray(row.guesses) && !Array.isArray(row.guesses[0])
+    ? row.guesses.map((w) => String(w || ''))
+    : collapseBoardGuesses(asGuessLists(legacyBoards, board_count), targets);
   return {
     language,
     word_length,
     board_count,
     game_date: dateMatch[1],
     target_words: targets,
-    board_guesses: asGuessLists(row.board_guesses, board_count),
+    guesses,
     current_guess: String(row.current_guess || ''),
     invalid_pending: Number(row.invalid_pending) || 0,
     is_complete: Number(row.is_complete) || 0,
@@ -163,6 +205,13 @@ export async function refreshGamesFromIndexedDb(): Promise<StoredHydra[]> {
       completed_at: complete ? game.completed_at || game.updated_at : game.completed_at,
     };
     map.set(gameIdentity(next), next);
+    const legacy = Array.isArray((row as { board_guesses?: unknown }).board_guesses);
+    const sameGuesses =
+      Array.isArray((row as { guesses?: unknown }).guesses) &&
+      JSON.stringify((row as { guesses?: unknown }).guesses) === JSON.stringify(next.guesses);
+    if (legacy || !sameGuesses || next.is_complete !== Number(row.is_complete) || next.is_won !== Number(row.is_won)) {
+      await putStoredGame(next);
+    }
   }
   gamesCache = map;
   return [...map.values()];
@@ -181,7 +230,7 @@ export async function listStoredGames(): Promise<StoredHydra[]> {
 export async function putStoredGame(game: StoredHydra): Promise<void> {
   const next: StoredHydra = {
     ...game,
-    board_guesses: asGuessLists(game.board_guesses, game.board_count),
+    guesses: [...(game.guesses || [])].map((w) => String(w || '')),
     target_words: [...(game.target_words || [])],
   };
   await storage.putRecord(toRecord(next));

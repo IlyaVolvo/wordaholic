@@ -46,7 +46,28 @@ function isHydraRow(row) {
   if (row.gameId === 'letterix') return false;
   if (row.gameId === 'polyhydra') return true;
   if (row.gameId === 'polywordlot' || row.gameId === 'transword') return false;
-  return Number(row.board_count) >= 2 && (Array.isArray(row.target_words) || Array.isArray(row.board_guesses));
+  return (
+    Number(row.board_count) >= 2 &&
+    (Array.isArray(row.target_words) || Array.isArray(row.board_guesses) || Array.isArray(row.guesses))
+  );
+}
+
+function collapseBoardGuesses(boardGuesses) {
+  const lists = Array.isArray(boardGuesses) ? boardGuesses : [];
+  const n = Math.max(0, ...lists.map((list) => (Array.isArray(list) ? list.length : 0)));
+  const guesses = [];
+  for (let t = 0; t < n; t++) {
+    let typed = '';
+    let ended = '';
+    for (const list of lists) {
+      if (!Array.isArray(list) || list.length <= t) continue;
+      const word = String(list[t] || '');
+      if (list.length > t + 1) typed = word;
+      else if (!ended) ended = word;
+    }
+    guesses.push(typed || ended);
+  }
+  return guesses;
 }
 
 function hydraFields(row) {
@@ -55,17 +76,19 @@ function hydraFields(row) {
   const target_words = Array.isArray(row.target_words)
     ? row.target_words.map((w) => String(w || '').trim())
     : [];
-  const board_guesses = asGuessLists(row.board_guesses, board_count);
+  const shared = Array.isArray(row.guesses) && !Array.isArray(row.guesses[0]);
+  const guesses = shared ? asWords(row.guesses) : collapseBoardGuesses(asGuessLists(row.board_guesses, board_count));
   const word_length =
     Number.isFinite(stated) && stated > 0
       ? stated
-      : target_words[0]?.length || board_guesses.find((g) => g[0])?.[0]?.length || 0;
+      : target_words[0]?.length || guesses[0]?.length || 0;
   return {
     language: String(row.language || '').trim(),
     word_length,
     board_count,
     target_words,
-    board_guesses,
+    guesses,
+    won: Number(row.is_won) === 1 || row.won === true,
     game_date: asGameDate(row.game_date || row.gameDate),
     updated_at: row.updated_at || row.updatedAt || '',
     completed_at: row.completed_at || row.completedAt || '',
@@ -73,18 +96,14 @@ function hydraFields(row) {
 }
 
 function hydraUsed(row) {
-  const hydra = hydraFields(row);
-  return Math.max(0, ...hydra.board_guesses.map((g) => g.length));
+  return hydraFields(row).guesses.length;
 }
 
 function hydraWon(row) {
   const hydra = hydraFields(row);
+  if (hydra.won) return true;
   if (!hydra.target_words.length || hydra.target_words.length !== hydra.board_count) return false;
-  return hydra.target_words.every((target, i) => {
-    const guesses = hydra.board_guesses[i] || [];
-    const last = guesses[guesses.length - 1];
-    return Boolean(last && sameWord(last, target));
-  });
+  return hydra.target_words.every((target) => hydra.guesses.some((guess) => sameWord(guess, target)));
 }
 
 function polyFields(row) {
@@ -110,7 +129,22 @@ function isLetterixRow(row) {
   if (!row || typeof row !== 'object') return false;
   if (row.gameId === 'letterix') return true;
   if (row.gameId) return false;
-  return row.W != null && row.H != null && (row.best_score != null || row.first_score != null);
+  return row.W != null && row.H != null && (row.score != null || row.best_score != null || row.first_score != null);
+}
+
+function letterixScore(row) {
+  if (row?.score != null && row.score !== '' && Number.isFinite(Number(row.score))) return Number(row.score);
+  if (row?.best_score != null && row.best_score !== '' && Number.isFinite(Number(row.best_score))) {
+    return Number(row.best_score);
+  }
+  if (row?.first_score != null && row.first_score !== '' && Number.isFinite(Number(row.first_score))) {
+    return Number(row.first_score);
+  }
+  return null;
+}
+
+function letterixWords(row) {
+  return Array.isArray(row?.words) ? row.words.map((word) => String(word)) : [];
 }
 
 function letterixFields(row) {
@@ -119,39 +153,21 @@ function letterixFields(row) {
     W: Number(row.W),
     H: Number(row.H),
     game_date: asGameDate(row.game_date || row.gameDate),
-    first_score: row.first_score == null ? null : Number(row.first_score),
-    best_score: row.best_score == null ? null : Number(row.best_score),
-    plays: letterixPlays(row),
+    score: letterixScore(row),
+    words: letterixWords(row),
     updated_at: row.updated_at || row.updatedAt || '',
     completed_at: row.completed_at || row.completedAt || '',
   };
 }
 
-function letterixPlays(row) {
-  const n = Number(row?.plays);
-  return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
-}
-
-function earlierLetterixFirst(local, incoming) {
-  if (local.first_score == null) return incoming.first_score ?? null;
-  if (incoming.first_score == null) return local.first_score;
-  const localTime = Date.parse(local.completed_at || '') || 0;
-  const incomingTime = Date.parse(incoming.completed_at || '') || 0;
-  return localTime <= incomingTime ? local.first_score : incoming.first_score;
-}
-
 function pickLetterix(local, incoming) {
-  const localBest = Number(local.best_score) || 0;
-  const incomingBest = Number(incoming.best_score) || 0;
-  const first = earlierLetterixFirst(local, incoming);
-  const plays = Math.max(letterixPlays(local), letterixPlays(incoming));
-  if (incomingBest > localBest || (incomingBest === localBest && local.first_score == null && first != null)) {
-    incoming.best_score = Math.max(localBest, incomingBest);
-    if (first != null) incoming.first_score = first;
-    if (plays > 0) incoming.plays = plays;
-    return incoming;
-  }
-  if (plays > 0) local.plays = plays;
+  const localScore = letterixScore(local);
+  const incomingScore = letterixScore(incoming);
+  const localN = localScore == null ? -1 : localScore;
+  const incomingN = incomingScore == null ? -1 : incomingScore;
+  if (incomingN > localN) return incoming;
+  if (incomingN < localN) return local;
+  if (!letterixWords(local).length && letterixWords(incoming).length) return incoming;
   return local;
 }
 
@@ -170,7 +186,9 @@ function isTranswordRow(row) {
 
 export function isCompletedRecord(row) {
   if (!row || typeof row !== 'object' || isPracticeRecord(row)) return false;
-  if (isLetterixRow(row)) return Number(row.is_complete) === 1 || row.best_score != null || row.first_score != null;
+  if (isLetterixRow(row)) {
+    return Number(row.is_complete) === 1 || row.score != null || row.best_score != null || row.first_score != null;
+  }
   if (isTranswordRow(row)) {
     const path = asWords(row.path);
     return Boolean(row.isComplete) || Boolean(row.end && path.includes(row.end));
@@ -212,10 +230,9 @@ export function toExportRecord(row) {
       W: game.W,
       H: game.H,
       game_date: game.game_date,
-      first_score: game.first_score,
-      best_score: game.best_score,
+      score: game.score,
     };
-    if (game.plays > 0) out.plays = game.plays;
+    if (game.words.length) out.words = game.words;
     if (game.updated_at) out.updated_at = game.updated_at;
     if (game.completed_at) out.completed_at = game.completed_at;
     return out;
@@ -229,7 +246,7 @@ export function toExportRecord(row) {
       board_count: hydra.board_count,
       target_words: hydra.target_words,
       game_date: hydra.game_date,
-      board_guesses: hydra.board_guesses,
+      guesses: hydra.guesses,
       won: hydraWon(hydra),
     };
     if (hydra.updated_at) out.updated_at = hydra.updated_at;
@@ -268,7 +285,7 @@ export function completedRecordId(gameId, row) {
   }
   const poly = polyFields(row);
   if (!poly.language || !poly.word_length || !poly.game_date) return '';
-  return `${gameId}:game:${poly.language}|${poly.word_length}|${poly.game_date}|0|`;
+  return `${gameId}:game:${poly.language}|${poly.word_length}|${poly.game_date}`;
 }
 
 export function toStoredRecord(gameId, row, numericId = 0) {
@@ -283,9 +300,8 @@ export function toStoredRecord(gameId, row, numericId = 0) {
       W: game.W,
       H: game.H,
       game_date: game.game_date,
-      first_score: game.first_score,
-      best_score: game.best_score,
-      ...(game.plays > 0 ? { plays: game.plays } : {}),
+      score: game.score,
+      words: game.words,
       is_complete: 1,
       updated_at: game.updated_at || new Date().toISOString(),
       completed_at: game.completed_at || game.updated_at || new Date().toISOString(),
@@ -325,7 +341,7 @@ export function toStoredRecord(gameId, row, numericId = 0) {
       board_count: hydra.board_count,
       target_words: hydra.target_words,
       game_date: hydra.game_date,
-      board_guesses: hydra.board_guesses,
+      guesses: hydra.guesses,
       current_guess: '',
       invalid_pending: 0,
       is_complete: complete ? 1 : 0,
@@ -344,8 +360,6 @@ export function toStoredRecord(gameId, row, numericId = 0) {
     word_length: poly.word_length,
     target_word: poly.target_word,
     game_date: poly.game_date,
-    is_random_mode: 0,
-    word_seed: null,
     is_complete: 1,
     guesses: poly.guesses,
     updated_at: poly.updated_at || new Date().toISOString(),

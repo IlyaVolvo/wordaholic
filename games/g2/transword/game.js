@@ -1,9 +1,8 @@
 import { WordGraph } from './graph.js';
-import { bfs, generatePuzzles, shortestPath } from './solver.js';
+import { bfs, shortestPath } from './solver.js';
 import {
   formatLocalDate,
   getDailyPuzzle,
-  difficultyRangeFromValue,
   isPathSolved,
 } from './dailyPuzzle.js';
 import { getDaily, upsertDaily, listDailies, computeDailyStats } from './daily-store.js';
@@ -51,7 +50,7 @@ const OP_LABELS = { substitute: 'replaced', insert: 'added', delete: 'removed', 
 
 const DEFAULT_DISPLAY_PREFS = { showTime: true, showOptimal: true, mode: 'daily' };
 
-/** @type {{ showTime: boolean, showOptimal: boolean, mode?: 'daily'|'practice' }} */
+/** @type {{ showTime: boolean, showOptimal: boolean }} */
 let displayPrefs = { ...DEFAULT_DISPLAY_PREFS };
 
 function normalizeDisplayPrefs(raw) {
@@ -59,7 +58,7 @@ function normalizeDisplayPrefs(raw) {
   return {
     showTime: raw.showTime !== false,
     showOptimal: raw.showOptimal !== false,
-    mode: raw.mode === 'practice' ? 'practice' : 'daily',
+    mode: 'daily',
   };
 }
 
@@ -90,7 +89,6 @@ async function hydrateDisplayPrefs() {
       /* ignore */
     }
   }
-  playMode = 'daily';
   displayPrefs.mode = 'daily';
 }
 
@@ -139,7 +137,6 @@ let timerStarted = false;
 let inputDraft = '';
 let solved = false;
 let readOnly = false;
-let playMode = 'daily';
 /** Times the player entered a position with no path to the target. */
 let deadendCount = 0;
 /** Times the player asked for a next-word hint. */
@@ -221,46 +218,18 @@ function currentCombo() {
 /** Combo the current puzzle was started with — used so mid-game setting changes persist the old game. */
 let activeCombo = null;
 
-/** In-memory practice sessions only — never written to IndexedDB. */
-const practiceSessions = new Map();
-
-function practiceKey(combo = currentCombo()) {
-  return `${combo.language}|${combo.vocabLevel}|${combo.difficulty}`;
-}
-
-function snapshotPractice(combo = activeCombo) {
-  if (!puzzle || !combo) return;
-  currentDraft();
-  practiceSessions.set(practiceKey(combo), {
-    start: puzzle.start,
-    end: puzzle.end,
-    dist: puzzle.dist,
-    path: [...chain],
-    elapsedMs: elapsedMsStored,
-    timerStarted,
-    draft: solved ? '' : inputDraft,
-    deadendCount,
-    helpCount,
-    solved,
-  });
-}
-
 function rememberActiveCombo() {
   activeCombo = currentCombo();
 }
 
-function gameStateLocalKey(fullKey) {
-  const prefix = `${GAME_ID}:`;
-  const key = String(fullKey || '');
-  return key.startsWith(prefix) ? key.slice(prefix.length) : key;
-}
-
 async function purgePracticeState() {
   const rows = await storage.listGameStates(GAME_ID);
+  const prefix = `${GAME_ID}:`;
   for (const row of rows) {
-    const key = gameStateLocalKey(row.key);
-    if (!key.startsWith('practice:')) continue;
-    await storage.deleteGameState(GAME_ID, key);
+    const key = String(row.key || '');
+    const local = key.startsWith(prefix) ? key.slice(prefix.length) : key;
+    if (!local.startsWith('practice:')) continue;
+    await storage.deleteGameState(GAME_ID, local);
   }
 }
 
@@ -404,18 +373,8 @@ async function loadLanguagesCatalog() {
 }
 
 function applyModeChrome() {
-  playMode = 'daily';
   displayPrefs.mode = 'daily';
   updateDateDisplay();
-}
-
-function setModeMenuOpen(open) {
-  const list = $('#mode-list');
-  const trigger = $('#mode-trigger');
-  const chev = trigger?.querySelector('.language-dropdown-chevron');
-  list?.classList.toggle('hidden', !open);
-  trigger?.setAttribute('aria-expanded', open ? 'true' : 'false');
-  if (chev) chev.textContent = open ? '▲' : '▼';
 }
 
 function formatDateDisplay(selectedDate, today) {
@@ -489,20 +448,6 @@ function setLanguageMenuOpen(open) {
   if (chev) chev.textContent = open ? '▲' : '▼';
 }
 
-async function setPlayMode(mode) {
-  if (mode !== 'daily' && mode !== 'practice') return;
-  await persistLeavingGame();
-  playMode = mode;
-  displayPrefs.mode = mode;
-  saveDisplayPrefs();
-  applyModeChrome();
-  if (mode === 'daily') {
-    await beginForCurrentSettings();
-  } else {
-    loadPracticeForSelection();
-  }
-}
-
 async function switchLanguage(code, startPuzzle = true) {
   const opt = languageOptions.find((l) => l.code === code) || languageOptions.find((l) => l.dir === code);
   if (!opt) throw new Error(`Unknown language ${code}`);
@@ -522,84 +467,6 @@ async function switchLanguage(code, startPuzzle = true) {
   if (startPuzzle) {
     await beginForCurrentSettings();
   }
-}
-
-function applyPracticeSnapshot(snap) {
-  const start = canonicalWord(snap.start);
-  const end = canonicalWord(snap.end);
-  puzzle = {
-    start,
-    end,
-    dist: optimalStepCount(start, end, snap.dist),
-  };
-  chain = Array.isArray(snap.path) && snap.path.length ? snap.path.map((word) => canonicalWord(word)) : [start];
-  elapsedMsStored = Number(snap.elapsedMs) || 0;
-  timerStarted = !!snap.timerStarted || elapsedMsStored > 0 || chain.length > 1;
-  inputDraft = snap.solved ? '' : String(snap.draft || '');
-  resetAssist(snap);
-  solved = !!snap.solved;
-  readOnly = false;
-  rememberActiveCombo();
-  showTarget();
-  $('#optimal-count').textContent = String(puzzle.dist);
-  if (solved) {
-    stopTimer();
-    setSessionActive(GAME_ID, false);
-    renderChain();
-    showWin(false);
-    return;
-  }
-  setSessionActive(GAME_ID, true);
-  $('#win-overlay').classList.add('hidden');
-  if (timerStarted) startTimer();
-  else {
-    stopTimer(false);
-    updateTimerDisplay();
-  }
-  renderChain();
-}
-
-function startPracticePuzzle() {
-  loadPracticeForSelection({ fresh: true });
-}
-
-function loadPracticeForSelection({ fresh = false } = {}) {
-  const combo = currentCombo();
-  if (!fresh) {
-    const snap = practiceSessions.get(practiceKey(combo));
-    if (snap) {
-      applyPracticeSnapshot(snap);
-      return;
-    }
-  }
-  readOnly = false;
-  solved = false;
-  elapsedMsStored = 0;
-  timerStarted = false;
-  inputDraft = '';
-  stopTimer(false);
-  const [min, max] = difficultyRangeFromValue(selectedDifficulty());
-  const puzzles = generatePuzzles(puzzleGraph, { minSteps: min, maxSteps: max, count: 5, sampleSize: 400 });
-  if (!puzzles.length) {
-    alert('Could not find a puzzle for this difficulty / level.');
-    return;
-  }
-  const pick = puzzles[Math.floor(Math.random() * puzzles.length)];
-  puzzle = {
-    start: pick.start,
-    end: pick.end,
-    dist: optimalStepCount(pick.start, pick.end, pick.path.length - 1),
-  };
-  chain = [puzzle.start];
-  resetAssist();
-  rememberActiveCombo();
-  practiceSessions.delete(practiceKey(combo));
-  setSessionActive(GAME_ID, true);
-  showTarget();
-  $('#optimal-count').textContent = String(puzzle.dist);
-  $('#win-overlay').classList.add('hidden');
-  updateTimerDisplay();
-  renderChain();
 }
 
 async function loadDailyForSelection() {
@@ -741,10 +608,6 @@ async function persistLeavingGame() {
   stopTimer(true);
   const combo = activeCombo;
   if (!puzzle || !combo) return;
-  if (playMode === 'practice') {
-    snapshotPractice(combo);
-    return;
-  }
   if (solved && readOnly) return;
   await upsertDaily(dailyFields({ combo, elapsedMs: elapsedMsStored, draft: inputDraft, timerStarted }));
 }
@@ -754,12 +617,8 @@ async function pauseAndPersist() {
 }
 
 async function beginForCurrentSettings() {
-  if (playMode === 'daily') {
-    selectedGameDate = await openVariant(GAME_ID, dailyVariantParts());
-    await loadDailyForSelection();
-    return;
-  }
-  loadPracticeForSelection();
+  selectedGameDate = await openVariant(GAME_ID, dailyVariantParts());
+  await loadDailyForSelection();
 }
 
 function diffLetters(prev, cur, op) {
@@ -847,8 +706,7 @@ function makeWordNode(word, isStart, isEnd, canUndo, prevWord, isDeadend = false
         chain.pop();
         syncDeadendState();
         renderChain();
-        if (playMode === 'practice') snapshotPractice();
-        else await persistDailyProgress();
+        await persistDailyProgress();
       }
     });
     wrap.appendChild(x);
@@ -969,7 +827,7 @@ function makeInputNode() {
 }
 
 async function persistDailyProgress() {
-  if (playMode !== 'daily' || !puzzle) return;
+  if (!puzzle) return;
   await upsertDaily(dailyFields());
 }
 
@@ -1003,20 +861,15 @@ async function submitWord(word, opts = {}) {
     updateAssistChrome();
     renderChain();
     inputDraft = '';
-    if (playMode === 'daily') {
-      readOnly = true;
-      await upsertDaily(dailyFields({ elapsedMs: elapsedMsStored, isComplete: true, draft: '' }));
-    } else {
-      snapshotPractice();
-    }
+    readOnly = true;
+    await upsertDaily(dailyFields({ elapsedMs: elapsedMsStored, isComplete: true, draft: '' }));
     showWin(true);
     return;
   }
   inputDraft = '';
   syncDeadendState({ countEntry: true });
   renderChain();
-  if (playMode === 'practice') snapshotPractice();
-  else await persistDailyProgress();
+  await persistDailyProgress();
 }
 
 async function requestHelp() {
@@ -1117,12 +970,6 @@ function showWin(freshSolve = true) {
   if (winDeadend) winDeadend.textContent = formatStepShare(deadendCount, steps);
   if (winHelp) winHelp.textContent = formatStepShare(helpCount, steps);
 
-  const winNew = $('#win-new-btn');
-  if (playMode === 'practice') {
-    winNew?.classList.remove('hidden');
-  } else {
-    winNew?.classList.add('hidden');
-  }
   $('#win-overlay').classList.remove('hidden');
   void freshSolve;
 }
@@ -1209,7 +1056,6 @@ async function renderCalendar() {
         closeHistory();
         await pauseAndPersist();
         selectedGameDate = await selectVariantDate(GAME_ID, dailyVariantParts(), dateStr);
-        playMode = 'daily';
         displayPrefs.mode = 'daily';
         saveDisplayPrefs();
         applyModeChrome();
@@ -1389,10 +1235,6 @@ async function init() {
     }
   });
   window.addEventListener('resize', placeDisplayPopover);
-  $('#win-new-btn')?.addEventListener('click', () => {
-    $('#win-overlay').classList.add('hidden');
-    startPracticePuzzle();
-  });
   $('#win-close-btn')?.addEventListener('click', () => {
     $('#win-overlay').classList.add('hidden');
   });

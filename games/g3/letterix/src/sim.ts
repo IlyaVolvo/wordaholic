@@ -39,6 +39,8 @@ export type Sim = {
   paused: boolean;
   decideMsLeft: number;
   offer: Match[];
+  /** Words the player took, in order. Display spelling when the match has one. */
+  words: string[];
   suppressed: Suppression[];
   fallAccum: number;
   spawnWaitPx: number;
@@ -75,6 +77,7 @@ export type PersistedSim = {
   paused: boolean;
   decideMsLeft: number;
   offer: Match[];
+  words?: string[];
   suppressed: Suppression[];
   fallAccum: number;
   spawnWaitPx?: number;
@@ -278,10 +281,15 @@ function resolve(sim: Sim) {
   touch(sim);
 }
 
+function takenWord(m: Match): string {
+  return m.display || m.text;
+}
+
 function commitClear(sim: Sim) {
   const doomed = new Set<string>();
   let base = 0;
   for (const m of sim.offer) {
+    sim.words.push(takenWord(m));
     base += m.value;
     for (const cell of m.cells) doomed.add(`${cell.r},${cell.c}`);
   }
@@ -360,6 +368,7 @@ export function createSim(opts: {
     paused: false,
     decideMsLeft: 0,
     offer: [],
+    words: [],
     suppressed: [],
     fallAccum: 0,
     spawnWaitPx: 0,
@@ -732,6 +741,7 @@ export function exportState(sim: Sim): PersistedSim {
     paused: sim.paused,
     decideMsLeft: sim.decideMsLeft,
     offer: sim.offer.map((m) => ({ ...m, cells: m.cells.map((c) => ({ ...c })) })),
+    words: sim.words.slice(),
     suppressed: sim.suppressed.map((s) => ({ ...s })),
     fallAccum: sim.fallAccum,
     spawnWaitPx: sim.spawnWaitPx,
@@ -769,6 +779,7 @@ export function importState(data: PersistedSim, lex: Lexicon = EMPTY_LEX as Lexi
   sim.paused = data.paused;
   sim.decideMsLeft = data.decideMsLeft;
   sim.offer = data.offer.map((m) => ({ ...m, cells: m.cells.map((c) => ({ ...c })) }));
+  sim.words = Array.isArray(data.words) ? data.words.map((word) => String(word)) : [];
   sim.suppressed = data.suppressed.map((s) => ({ ...s }));
   sim.fallAccum = data.fallAccum;
   sim.spawnWaitPx = typeof data.spawnWaitPx === 'number' && data.spawnWaitPx > 0 ? data.spawnWaitPx : 0;

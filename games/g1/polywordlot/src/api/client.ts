@@ -31,8 +31,6 @@ export interface GameResponse {
     word_length: number;
     target_word: string;
     game_date: string;
-    is_random_mode: number;
-    word_seed: number | null;
     is_complete: number;
     isWon: boolean;
     guessesCount: number;
@@ -48,19 +46,12 @@ function matchesGame(
     language?: string;
     wordLength?: number;
     gameDate?: string;
-    isRandomMode?: boolean;
-    wordSeed?: number;
     isComplete?: boolean;
   }
 ): boolean {
   if (params.language && game.language !== params.language) return false;
   if (params.wordLength != null && game.word_length !== params.wordLength) return false;
   if (params.gameDate && game.game_date !== params.gameDate) return false;
-  if (params.isRandomMode !== undefined) {
-    const want = params.isRandomMode ? 1 : 0;
-    if (game.is_random_mode !== want) return false;
-  }
-  if (params.wordSeed != null && game.word_seed !== params.wordSeed) return false;
   if (params.isComplete !== undefined) {
     const want = params.isComplete ? 1 : 0;
     if (game.is_complete !== want) return false;
@@ -124,8 +115,6 @@ class ApiClient {
     language?: string;
     wordLength?: number;
     gameDate?: string;
-    isRandomMode?: boolean;
-    wordSeed?: number;
   }): Promise<GameResponse> {
     const games = await listStoredGames();
     const found = games.find((g) => matchesGame(g, { ...params, isComplete: false }));
@@ -137,8 +126,6 @@ class ApiClient {
     language?: string;
     wordLength?: number;
     gameDate?: string;
-    isRandomMode?: boolean;
-    wordSeed?: number;
   }): Promise<GameResponse> {
     const games = await listStoredGames();
     const found = games.find((g) => matchesGame(g, { ...params, isComplete: true }));
@@ -151,22 +138,15 @@ class ApiClient {
     wordLength: number;
     targetWord: string;
     gameDate: string;
-    isRandomMode?: boolean;
-    wordSeed?: number;
     guesses?: unknown;
     isComplete: boolean;
     isWon: boolean;
   }): Promise<{ success: boolean; gameId: number }> {
-    if (gameData.isRandomMode) return { success: true, gameId: 0 };
     const games = await listStoredGames();
-    const isRandom = 0;
-    const seed = gameData.wordSeed ?? null;
     const identity = gameIdentity({
       language: gameData.language,
       word_length: gameData.wordLength,
       game_date: gameData.gameDate,
-      is_random_mode: isRandom,
-      word_seed: seed,
     });
     const existing = games.find((g) => gameIdentity(g) === identity);
     const now = new Date().toISOString();
@@ -191,8 +171,6 @@ class ApiClient {
       word_length: gameData.wordLength,
       target_word: gameData.targetWord,
       game_date: gameData.gameDate,
-      is_random_mode: isRandom,
-      word_seed: seed,
       is_complete: gameData.isComplete ? 1 : 0,
       guesses: asGuessWords(gameData.guesses),
       updated_at: now,
@@ -240,8 +218,6 @@ class ApiClient {
           game_date: game.game_date,
           gameStarted: started,
           gameEnded: ended,
-          isRandomMode: game.is_random_mode === 1,
-          wordSeed: game.word_seed,
           isComplete: game.is_complete === 1,
           isWon: outcome.isWon,
           guessesCount: outcome.guessesCount,
@@ -265,7 +241,6 @@ class ApiClient {
           (g) =>
             g.language === params.language &&
             g.word_length === params.wordLength &&
-            g.is_random_mode === 0 &&
             g.game_date >= params.startDate &&
             g.game_date <= params.endDate
         )
@@ -284,7 +259,6 @@ class ApiClient {
 
   async savePreferences(selectedLanguages: string[] | null): Promise<{ success: boolean }> {
     const prefs = (await getPrefs()) || {
-      randomMode: false,
       language: 'en',
       wordLength: 5,
     };

@@ -34,8 +34,9 @@ import {
   listLanguageScores,
   listVariantScores,
   loadRun,
-  playCount,
   loadScores,
+  storedScore,
+  storedWords,
   savePrefs,
   saveRun,
   saveScores,
@@ -318,8 +319,8 @@ export const Game: React.FC<{
   const dayResults = useMemo(() => {
     const map = new Map<string, { score: number }>();
     for (const row of history) {
-      const score = row.best_score ?? row.first_score;
-      if (playCount(row) > 0 && score != null) map.set(row.game_date, { score: Number(score) });
+      const score = storedScore(row);
+      if (score != null) map.set(row.game_date, { score });
     }
     return map;
   }, [history]);
@@ -690,6 +691,13 @@ export const Game: React.FC<{
           <div className="letterix-end" role="status">
             <span>Game over</span>
             <strong>{hud.score}</strong>
+            {storedWords(scores).length > 0 && (
+              <ol className="letterix-end-words">
+                {storedWords(scores).map((word, index) => (
+                  <li key={`${index}-${word}`}>{word}</li>
+                ))}
+              </ol>
+            )}
           </div>
         )}
       </div>
@@ -944,8 +952,7 @@ function Tip({ label, className, children }: { label: string; className?: string
 type StatAverages = { W: number; H: number; twoWeeks: number | null; fourWeeks: number | null; forever: number | null };
 
 function dayScore(row: ScoreRecord): number | null {
-  const score = row.best_score ?? row.first_score;
-  return score == null ? null : Number(score);
+  return storedScore(row);
 }
 
 function shiftIsoDate(iso: string, days: number): string {

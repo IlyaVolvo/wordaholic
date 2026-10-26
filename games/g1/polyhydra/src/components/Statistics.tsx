@@ -41,7 +41,7 @@ type BoardGroup = {
 };
 
 function usedGuesses(game: StoredHydra): number {
-  return Math.max(0, ...game.board_guesses.map((g) => g.length));
+  return (game.guesses || []).length;
 }
 
 /** Extra guesses beyond board count: 0…5 win, 6 loss. Wins in fewer than N map to 0. */

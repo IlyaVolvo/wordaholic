@@ -38,6 +38,8 @@ import {
   putStoredGame,
   refreshGamesFromIndexedDb,
   STORAGE_IMPORTED_EVENT,
+  boardRows,
+  collapseBoardGuesses,
   type StoredHydra,
 } from '../storage/platform';
 import {
@@ -410,7 +412,7 @@ export const Game: React.FC<GameProps> = ({
         board_count: boardCount,
         game_date: next.date,
         target_words: next.targets,
-        board_guesses: next.boardGuesses,
+        guesses: collapseBoardGuesses(next.boardGuesses, next.targets),
         current_guess: next.currentGuess,
         invalid_pending: next.invalidPending ? 1 : 0,
         is_complete: historyComplete ? 1 : 0,
@@ -425,7 +427,7 @@ export const Game: React.FC<GameProps> = ({
           board_count: boardCount,
           game_date: next.date,
           target_words: next.targets,
-          board_guesses: next.boardGuesses,
+          guesses: collapseBoardGuesses(next.boardGuesses, next.targets),
           current_guess: next.currentGuess,
           invalid_pending: next.invalidPending ? 1 : 0,
           is_complete: historyComplete ? 1 : 0,
@@ -444,12 +446,13 @@ export const Game: React.FC<GameProps> = ({
   );
 
   const applyStored = useCallback((stored: StoredHydra, dict: DictionaryEntry) => {
+    const rows = boardRows(stored);
     setTargets(stored.target_words);
-    setBoardGuesses(stored.board_guesses);
+    setBoardGuesses(rows);
     setCurrentGuess(stored.current_guess || '');
     setInvalidPending(stored.invalid_pending === 1);
     const frozen =
-      stored.is_won === 1 || usedGuessCount(stored.board_guesses) >= hydraMaxGuesses(stored.board_count);
+      stored.is_won === 1 || usedGuessCount(rows) >= hydraMaxGuesses(stored.board_count);
     setIsComplete(frozen);
     setIsWon(stored.is_won === 1);
     completedAtRef.current = stored.completed_at || (stored.is_complete === 1 ? stored.updated_at : null);
@@ -523,7 +526,8 @@ export const Game: React.FC<GameProps> = ({
         if (cancelled) return;
         if (stored && stored.target_words?.length === boardCount) {
           applyStored(stored, dict);
-          const progress = hydraProgress(stored.target_words, stored.board_guesses, language, boardCount);
+          const rows = boardRows(stored);
+          const progress = hydraProgress(stored.target_words, rows, language, boardCount);
           if (progress.playFrozen) {
             if (progress.won) {
               setWinMessage(formatWinAnnounce(win, progress.used, boardCount));
@@ -531,7 +535,7 @@ export const Game: React.FC<GameProps> = ({
               setLoseMessage(
                 await loadLoseMessage(
                   language,
-                  remainingTargets(stored.target_words, stored.board_guesses, language).join(', ')
+                  remainingTargets(stored.target_words, rows, language).join(', ')
                 )
               );
             }
@@ -744,7 +748,7 @@ export const Game: React.FC<GameProps> = ({
         gameStarted: g.updated_at,
         isComplete: g.is_complete === 1,
         isWon: g.is_won === 1,
-        guesses: (g.board_guesses || []).flat(),
+        guesses: g.guesses || [],
       })),
       {
         game_date: selectedPlayDate,
@@ -1426,7 +1430,7 @@ export const Game: React.FC<GameProps> = ({
                         <span className="hydra-board-mode hydra-board-mode--spacer" aria-hidden="true" />
                       )}
                       <span className="hydra-board-label-text">
-                        {board.solved || isComplete ? board.target.toUpperCase() : i + 1}
+                        {isComplete ? board.target.toUpperCase() : i + 1}
                         {board.solved ? ` ${board.words.length}` : ''}
                       </span>
                       <span className="hydra-board-mode hydra-board-mode--spacer" aria-hidden="true" />

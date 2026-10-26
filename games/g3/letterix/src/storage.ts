@@ -12,9 +12,13 @@ export type ScoreRecord = {
   W: number;
   H: number;
   game_date: string;
-  first_score: number | null;
-  best_score: number | null;
-  plays?: number;
+  score: number | null;
+  /** Words taken, in order. Absent on days finished before this field existed. */
+  words?: string[];
+  /** @deprecated Read-only leftover. Migrated into `score`. */
+  first_score?: number | null;
+  /** @deprecated Read-only leftover. Migrated into `score`. */
+  best_score?: number | null;
   is_complete: 1;
   updated_at: string;
   completed_at: string | null;
@@ -66,26 +70,72 @@ export async function listVariantScores(language: string, W: number, H: number):
 
 export async function listLanguageScores(language: string): Promise<ScoreRecord[]> {
   const rows = (await storage.listRecords(GAME_ID)) as ScoreRecord[];
-  return rows.filter((row) => row.language === language && row.game_date);
+  const kept: ScoreRecord[] = [];
+  for (const row of rows) {
+    if (row.language !== language || !row.game_date) continue;
+    const next = normalizedScore(row);
+    if (scoreShapeChanged(row, next)) await storage.putRecord(next);
+    kept.push(next);
+  }
+  return kept;
 }
 
 export async function loadScores(language: string, W: number, H: number, date: string): Promise<ScoreRecord | null> {
   const row = (await storage.getRecord(recordId(language, W, H, date))) as ScoreRecord | null;
-  return row || null;
+  if (!row) return null;
+  const next = normalizedScore(row);
+  if (scoreShapeChanged(row, next)) await storage.putRecord(next);
+  return next;
 }
 
-/** Finished games stored for a day. Older records without a count count as one. */
-export function playCount(row: Pick<ScoreRecord, 'plays' | 'first_score' | 'best_score'> | null | undefined): number {
-  if (!row) return 0;
-  if (typeof row.plays === 'number' && row.plays > 0) return row.plays;
-  if (row.first_score == null && row.best_score == null) return 0;
-  return 1;
+/** The number the calendar and averages already show: `score`, else the old best, else the old first. */
+export function storedScore(row: Pick<ScoreRecord, 'score' | 'best_score' | 'first_score'> | null | undefined): number | null {
+  if (!row) return null;
+  if (row.score != null && Number.isFinite(Number(row.score))) return Number(row.score);
+  if (row.best_score != null && Number.isFinite(Number(row.best_score))) return Number(row.best_score);
+  if (row.first_score != null && Number.isFinite(Number(row.first_score))) return Number(row.first_score);
+  return null;
+}
+
+export function storedWords(row: Pick<ScoreRecord, 'words'> | null | undefined): string[] {
+  if (!row || !Array.isArray(row.words)) return [];
+  return row.words.map((word) => String(word));
+}
+
+function normalizedScore(row: ScoreRecord, now = new Date().toISOString()): ScoreRecord {
+  const score = storedScore(row);
+  const record: ScoreRecord = {
+    id: row.id,
+    gameId: GAME_ID,
+    kind: 'game',
+    language: row.language,
+    W: row.W,
+    H: row.H,
+    game_date: row.game_date,
+    score,
+    words: storedWords(row),
+    is_complete: 1,
+    updated_at: row.updated_at || now,
+    completed_at: row.completed_at || row.updated_at || now,
+  };
+  return record;
+}
+
+function scoreShapeChanged(row: ScoreRecord, next: ScoreRecord): boolean {
+  if (row.first_score != null || row.best_score != null || (row as { plays?: number }).plays != null) return true;
+  if (row.score !== next.score) return true;
+  const before = storedWords(row).join('\n');
+  return before !== next.words?.join('\n');
 }
 
 export async function saveScores(sim: Sim, previous: ScoreRecord | null): Promise<ScoreRecord> {
   const now = new Date().toISOString();
-  const first = previous?.first_score == null ? sim.score : previous.first_score;
-  const best = Math.max(previous?.best_score == null ? 0 : Number(previous.best_score), sim.score);
+  const already = storedScore(previous);
+  if (previous && already != null) {
+    const kept = normalizedScore(previous, now);
+    if (scoreShapeChanged(previous, kept)) await storage.putRecord(kept);
+    return kept;
+  }
   const record: ScoreRecord = {
     id: recordId(sim.language, sim.W, sim.H, sim.date),
     gameId: GAME_ID,
@@ -94,12 +144,11 @@ export async function saveScores(sim: Sim, previous: ScoreRecord | null): Promis
     W: sim.W,
     H: sim.H,
     game_date: sim.date,
-    first_score: first,
-    best_score: Math.max(best, first),
-    plays: playCount(previous) + 1,
+    score: sim.score,
+    words: sim.words.slice(),
     is_complete: 1,
     updated_at: now,
-    completed_at: previous?.first_score == null ? now : previous.completed_at || now,
+    completed_at: now,
   };
   await storage.putRecord(record);
   return record;

@@ -26,7 +26,6 @@ function getDefaultLanguage(): string {
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
-  randomMode: false,
   language: getDefaultLanguage(),
   wordLength: 5,
   selectedLanguages: undefined,

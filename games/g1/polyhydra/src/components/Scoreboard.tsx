@@ -64,9 +64,9 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
   const phone = usePhoneLayout();
   const [open, setOpen] = useState<number | null>(null);
   const visible = new Set(inView);
-  const labeled = !phone && cells.some((cell) => (cell.solved || revealed) && cell.answer);
+  const labeled = !phone && revealed && cells.some((cell) => cell.answer);
   const openCell = phone && open != null ? cells[open] : undefined;
-  const openWord = openCell?.solved && openCell.answer ? openCell.answer.toUpperCase() : '';
+  const openWord = revealed && openCell?.answer ? openCell.answer.toUpperCase() : '';
   const selectedIndex = inView[0];
   const phoneCols = cells.length > 8 ? Math.ceil(cells.length / 2) : Math.max(1, cells.length);
 
@@ -148,7 +148,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
       >
         {cells.map((cell, i) => {
           const detail = phone && open === i;
-          const showWord = !phone && Boolean((cell.solved || revealed) && cell.answer);
+          const showWord = !phone && revealed && Boolean(cell.answer);
           const attempt =
             phone || !cell.solved || cell.solvedAt == null ? null : cell.solvedAt;
           const showCheck = phone && cell.solved;
@@ -177,7 +177,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
               aria-label={`Board ${i + 1}${
                 showCheck ? ', solved' : ''
               }${showNm || tracked ? `, ${cell.greens} green, ${cell.yellows} yellow` : ''}${
-                detail && cell.solved && cell.answer ? `, ${cell.answer}` : ''
+                detail && revealed && cell.answer ? `, ${cell.answer}` : ''
               }${showWord ? `, ${cell.answer}${attempt != null ? `, guess ${attempt}` : ''}` : ''}${
                 locked ? ', solved' : ''
               }`}

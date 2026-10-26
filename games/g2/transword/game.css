@@ -938,24 +938,6 @@ h1 {
   border-color: var(--accent);
 }
 
-.restart-practice-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  background: transparent;
-  color: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius);
-  flex-shrink: 0;
-}
-.restart-practice-button:hover:not(:disabled) {
-  background: var(--accent);
-  color: #fff;
-}
-
 .date-picker-btn {
   display: inline-flex;
   align-items: center;
@@ -1274,18 +1256,6 @@ select:focus { outline: none; border-color: var(--accent); }
 .win-path .op-inline.insert     { background: var(--green);  color: #000; }
 .win-path .op-inline.delete     { background: var(--red);    color: #fff; }
 .win-path .op-inline.anagram    { background: var(--purple); color: #fff; }
-
-#win-new-btn {
-  margin-top: 0.5rem;
-  padding: 0.6rem 2rem;
-  font-size: 0.95rem;
-  background: var(--green);
-  border-color: var(--green);
-  color: #000;
-  font-weight: 600;
-}
-
-#win-new-btn:hover { background: #2fc98e; border-color: #2fc98e; }
 
 /* ================================================================== */
 /*  Scrollbar                                                          */

@@ -6,8 +6,6 @@ interface CachedGame {
   word_length: number;
   target_word: string;
   game_date: string;
-  is_random_mode: number;
-  word_seed: number | null;
   is_complete: number;
   guesses: string[];
   isWon: boolean;

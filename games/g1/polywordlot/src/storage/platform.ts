@@ -22,8 +22,6 @@ export type StoredGame = {
   word_length: number;
   target_word: string;
   game_date: string;
-  is_random_mode: number;
-  word_seed: number | null;
   is_complete: number;
   guesses: string[];
   updated_at: string;
@@ -31,7 +29,6 @@ export type StoredGame = {
 };
 
 export type PolywordlotPrefs = {
-  randomMode: boolean;
   language: string;
   wordLength: number;
   selectedLanguages?: string[];
@@ -57,10 +54,8 @@ export function gameIdentity(g: {
   language: string;
   word_length: number;
   game_date: string;
-  is_random_mode: number;
-  word_seed?: number | null;
 }): string {
-  return `${g.language}|${g.word_length}|${g.game_date}|${g.is_random_mode}|${g.word_seed ?? ''}`;
+  return `${g.language}|${g.word_length}|${g.game_date}`;
 }
 
 export function gameRecordId(g: Parameters<typeof gameIdentity>[0]): string {
@@ -90,13 +85,12 @@ async function migrateOnce(): Promise<void> {
   let maxId = legacy.nextId || 1;
   for (const game of legacy.games) {
     if (!game || typeof game !== 'object') continue;
-    if (Number((game as StoredGame).is_random_mode) === 1) continue;
+    if (Number((game as { is_random_mode?: number }).is_random_mode) === 1) continue;
     await putStoredGame(game as StoredGame, { skipCache: true });
     maxId = Math.max(maxId, (game.id || 0) + 1);
   }
 
   const prefs: PolywordlotPrefs = {
-    randomMode: legacyPrefs.randomMode === true,
     language: typeof legacyPrefs.language === 'string' ? legacyPrefs.language : 'en',
     wordLength: Number(legacyPrefs.wordLength) || 5,
     selectedLanguages: Array.isArray(legacyPrefs.selectedLanguages)
@@ -211,8 +205,6 @@ function fromRecord(row: GameRecord | Record<string, unknown>): StoredGame | nul
     word_length,
     target_word,
     game_date: gameDateMatch ? gameDateMatch[1] : gameDateRaw,
-    is_random_mode: Number(row.is_random_mode) || 0,
-    word_seed: row.word_seed == null ? null : Number(row.word_seed),
     is_complete: Number(row.is_complete) || 0,
     guesses,
     updated_at: String(row.updated_at || new Date().toISOString()),
@@ -226,15 +218,9 @@ async function purgePracticeRecords(): Promise<void> {
     if (Number(row.is_random_mode) !== 1) continue;
     await storage.deleteRecord(row.id);
   }
-  if (gamesCache) {
-    for (const [id, game] of [...gamesCache.entries()]) {
-      if (game.is_random_mode) gamesCache.delete(id);
-    }
-  }
 }
 
 function isCompletedDaily(game: StoredGame): boolean {
-  if (game.is_random_mode) return false;
   if (game.guesses.length >= MAX_GUESSES) return true;
   const last = game.guesses[game.guesses.length - 1];
   if (last && game.target_word && isWinningGuessForLanguage(last, game.target_word, game.language)) {
@@ -251,7 +237,7 @@ export async function refreshGamesFromIndexedDb(): Promise<StoredGame[]> {
   await ensurePolywordlotMigrated();
   gamesCache = null;
   await purgePracticeRecords();
-  const rows = (await storage.listRecords(GAME_ID)) as GameRecord[];
+  const rows = (await storage.listRecords(GAME_ID)) as Array<GameRecord & { is_random_mode?: number; word_seed?: number | null }>;
   const languages = [
     ...new Set(rows.map((row) => String(row.language || '').trim()).filter((language) => language.length > 0)),
   ];
@@ -259,21 +245,33 @@ export async function refreshGamesFromIndexedDb(): Promise<StoredGame[]> {
 
   const map = new Map<string, StoredGame>();
   for (const row of rows) {
+    if (Number(row.is_random_mode) === 1) {
+      if (row.id) await storage.deleteRecord(row.id);
+      continue;
+    }
     const game = fromRecord(row as GameRecord);
-    if (!game || game.is_random_mode) continue;
+    if (!game) continue;
     const complete = isCompletedDaily(game);
     const next: StoredGame = {
       ...game,
       is_complete: complete ? 1 : 0,
       completed_at: complete ? game.completed_at || game.updated_at : game.completed_at,
     };
+    const newId = gameRecordId(next);
     map.set(gameIdentity(next), next);
     const rawGuesses = (row as GameRecord).guesses;
+    const idMoved = Boolean(row.id) && row.id !== newId;
     const needsRewrite =
+      idMoved ||
+      row.is_random_mode != null ||
+      row.word_seed != null ||
       next.is_complete !== Number(row.is_complete) ||
       next.game_date !== String(row.game_date || '') ||
       (Array.isArray(rawGuesses) && rawGuesses.some((guess) => typeof guess !== 'string'));
-    if (needsRewrite) await putStoredGame(next, { skipCache: true });
+    if (needsRewrite) {
+      if (idMoved) await storage.deleteRecord(row.id);
+      await putStoredGame(next, { skipCache: true });
+    }
   }
   gamesCache = map;
   return [...map.values()];
@@ -294,7 +292,6 @@ export async function putStoredGame(
   game: StoredGame,
   opts: { skipCache?: boolean } = {}
 ): Promise<void> {
-  if (Number(game.is_random_mode) === 1) return;
   if (!opts.skipCache) await ensurePolywordlotMigrated();
   const next = { ...game, guesses: asGuessWords(game.guesses) };
   await storage.putRecord(toRecord(next));
