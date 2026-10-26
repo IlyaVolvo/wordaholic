@@ -1,4 +1,6 @@
+between 8494667
 thought 7290195
+without 7065556
 example 6755565
 process 6400764
 already 5869569
@@ -105,6 +107,7 @@ leaving 1674855
 becomes 1670006
 central 1665433
 laughed 1664310
+towards 1656328
 exactly 1646023
 workers 1628971
 student 1626259
@@ -133,6 +136,7 @@ contact 1465787
 leading 1464027
 numbers 1459148
 support 1452094
+despite 1442601
 require 1427758
 watched 1426499
 appears 1423276
@@ -591,6 +595,7 @@ defence 372379
 minimum 371952
 proceed 371251
 satisfy 371148
+because 370943
 figured 369476
 knocked 368623
 circles 368451
@@ -770,6 +775,7 @@ impulse 273677
 battery 273425
 broadly 273071
 carries 272420
+neither 271432
 relates 270765
 arguing 270231
 joining 268737
@@ -823,6 +829,7 @@ greeted 251737
 ashamed 251431
 defects 251349
 routine 251241
+beneath 250695
 charity 249138
 savings 248777
 blinked 248139
@@ -1734,6 +1741,7 @@ retains 84052
 mundane 83956
 topical 83775
 framing 83773
+anytime 83759
 plateau 83741
 sublime 83736
 crosses 83675
