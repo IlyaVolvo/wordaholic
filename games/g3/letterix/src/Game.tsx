@@ -706,7 +706,7 @@ export const Game: React.FC<{
           className={`keys-speed${setup ? '' : ' keys-speed--off'}${!setup && speedShown > 0 ? ' keys-speed--readout' : ''}${speedTipOff ? ' keys-speed--tip-off' : ''}`}
           aria-hidden={!setup && speedShown === 0}
         >
-          <Tip label="Falling speed increase. 100% is twice as fast, and word scores rise by the same amount.">
+          <Tip label="Falling speed increase. 100% is twice as fast, and each letter in a taken word is worth that much more.">
             <label>
               <input
                 type="range"

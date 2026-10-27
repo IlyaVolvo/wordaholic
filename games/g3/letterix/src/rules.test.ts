@@ -5,7 +5,7 @@ import { buildLexicon, lettersFromSeed } from './lexicon.ts';
 import { offeredMatches } from './matches.ts';
 import { drawField } from './render.ts';
 import { PARAMS, pixelInterval } from './params.ts';
-import { dropBonus, earlyBonus, wordValue } from './score.ts';
+import { dropFactor, earlyBonus, scoredWord, wordValue } from './score.ts';
 import {
   createSim,
   confirmChoice,
@@ -13,6 +13,7 @@ import {
   hardDrop,
   injectFalling,
   leaveWords,
+  offerPoints,
   placeFrozen,
   selectChoice,
   selectTop,
@@ -241,8 +242,11 @@ test('word value and drop bonus', () => {
   assert.equal(wordValue('aaa', values), 3);
   assert.equal(wordValue('aaaa', values), 6);
   assert.equal(wordValue('zzz', values), 30);
-  assert.equal(dropBonus(10, 0), 0);
-  assert.equal(dropBonus(10, 4), 6);
+  assert.equal(dropFactor(0, 10), 1);
+  assert.equal(dropFactor(10, 10), 2);
+  assert.equal(dropFactor(5, 10), 1.5);
+  assert.equal(scoredWord('aaaa', [{ drop: 2 }, { drop: 1 }, { drop: 1 }, { drop: 1 }], { a: 1 }, 0), 8);
+  assert.equal(scoredWord('aaaa', [{ drop: 2 }, { drop: 1 }, { drop: 1 }, { drop: 1 }], { a: 1 }, 100), 15);
 });
 
 test('shorter words inside a longer match are dropped; separate words on one row stay', () => {
@@ -511,12 +515,14 @@ test('clearing the overflow letter continues; keeping it ends the game', () => {
   const saved = makeTestDrop();
   assert.equal(saved.phase, 'decide');
   assert.ok(saved.offer.some((m) => m.text === 'test'));
-  const bonus = dropBonus(saved.values.t ?? 1, 3);
+  assert.equal(saved.score, 0);
+  assert.equal(saved.bonus[10][0].drop, dropFactor(3, saved.H));
+  const points = offerPoints(saved);
   assert.equal(saved.choice, 'use');
   runUntil(saved, PARAMS.N * 1000 + 50);
   assert.notEqual(saved.phase, 'over');
   assert.equal(saved.grid[10][0], null);
-  assert.ok(saved.score >= wordValue('test', saved.values) + bonus);
+  assert.equal(saved.score, points);
 
   const kept = makeTestDrop();
   selectChoice(kept, 'skip');
@@ -609,14 +615,14 @@ test('a flashing Hebrew word shows its final form on the last tile', () => {
 test('timeout uses the word by default; space confirms early and adds a small bonus', () => {
   const waited = makeTestDrop();
   const waitedScore = waited.score;
-  const points = waited.offer.reduce((sum, match) => sum + match.value, 0);
+  const points = offerPoints(waited);
   runUntil(waited, PARAMS.N * 1000 + 50);
   assert.notEqual(waited.phase, 'over');
   assert.equal(waited.grid[10][0], null);
   assert.equal(waited.score, waitedScore + points);
 
   const early = makeTestDrop();
-  const base = early.offer.reduce((sum, match) => sum + match.value, 0);
+  const base = offerPoints(early);
   const before = early.score;
   confirmChoice(early, true);
   assert.equal(early.score, before + base + earlyBonus(base));
@@ -627,19 +633,21 @@ test('100% speed is twice as fast and doubles the word score, and mid-game only 
   assert.equal(pixelInterval(28), 53);
   assert.equal(pixelInterval(28, 100), 1493 / 2 / 28);
   const sim = makeTestDrop();
-  const base = sim.offer.reduce((sum, match) => sum + match.value, 0);
+  assert.equal(sim.score, 0);
   setSpeedPercent(sim, 100);
   assert.equal(sim.speedPct, 0);
   setPaused(sim, true);
+  const atBase = offerPoints(sim);
   setSpeedPercent(sim, 1000);
   assert.equal(sim.speedPct, 400);
   setSpeedPercent(sim, 100);
   assert.equal(sim.speedPct, 100);
+  const atFast = offerPoints(sim);
+  assert.ok(atFast > atBase);
   setPaused(sim, false);
-  const before = sim.score;
   assert.equal(sim.choice, 'use');
   confirmChoice(sim, false);
-  assert.equal(sim.score, before + Math.round(base * 2));
+  assert.equal(sim.score, atFast);
 });
 
 test('speed can be set before the game starts', () => {

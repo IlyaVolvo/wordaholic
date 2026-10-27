@@ -3,7 +3,7 @@ import { pickLetter } from './lexicon.ts';
 import { lineGen, matchKey, offeredMatches, type Match, type Suppression } from './matches.ts';
 import { dailySeed, PARAMS, pixelInterval } from './params.ts';
 import { hashSeed, nextUnit } from './rng.ts';
-import { dropBonus, earlyBonus, scaledWordPoints } from './score.ts';
+import { dropFactor, earlyBonus, scoredWord, type LetterBonus } from './score.ts';
 
 export type PieceKind = 'play' | 'settle';
 
@@ -14,6 +14,8 @@ export type Piece = {
   yPx: number;
   selected: boolean;
   kind: PieceKind;
+  /** Drop coefficient kept with this letter while it is in the air. */
+  drop?: number;
 };
 
 export type Phase = 'ready' | 'fall' | 'decide' | 'settle' | 'over';
@@ -30,6 +32,8 @@ export type Sim = {
   rng: bigint;
   nextId: number;
   grid: (string | null)[][];
+  /** Drop coefficient of the letter in the matching grid cell. 1 means no drop bonus. */
+  bonus: LetterBonus[][];
   rowGen: number[];
   colGen: number[];
   falling: Piece[];
@@ -69,6 +73,7 @@ export type PersistedSim = {
   rng: string;
   nextId: number;
   grid: (string | null)[][];
+  bonus?: LetterBonus[][];
   rowGen: number[];
   colGen: number[];
   falling: Piece[];
@@ -102,6 +107,30 @@ function touch(sim: Sim) {
 
 function rowsOf(sim: Sim): number {
   return sim.H + sim.E;
+}
+
+function plainBonus(): LetterBonus {
+  return { drop: 1 };
+}
+
+function blankBonuses(rows: number, cols: number): LetterBonus[][] {
+  return Array.from({ length: rows }, () => Array.from({ length: cols }, plainBonus));
+}
+
+function cellDrop(sim: Sim, row: number, col: number): number {
+  const drop = sim.bonus[row]?.[col]?.drop;
+  return drop && drop > 0 ? drop : 1;
+}
+
+function eraseCell(sim: Sim, row: number, col: number) {
+  if (!sim.grid[row]) return;
+  sim.grid[row][col] = null;
+  if (sim.bonus[row]) sim.bonus[row][col] = plainBonus();
+}
+
+function writeCell(sim: Sim, row: number, col: number, letter: string, drop = 1) {
+  sim.grid[row][col] = letter;
+  sim.bonus[row][col] = { drop: drop > 0 ? drop : 1 };
 }
 
 function bump(sim: Sim, row: number, col: number) {
@@ -159,7 +188,7 @@ function lockPiece(sim: Sim, piece: Piece) {
     sim.missedLock = true;
     return;
   }
-  sim.grid[row][piece.col] = piece.letter;
+  writeCell(sim, row, piece.col, piece.letter, piece.drop ?? 1);
   bump(sim, row, piece.col);
   if (piece.selected) {
     const next = sim.falling.find((f) => f.kind === 'play');
@@ -171,15 +200,15 @@ function beginSettle(sim: Sim): boolean {
   const pieces: Piece[] = [];
   const rows = rowsOf(sim);
   for (let c = 0; c < sim.W; c++) {
-    const stack: { r: number; letter: string }[] = [];
+    const stack: { r: number; letter: string; drop: number }[] = [];
     for (let r = 0; r < rows; r++) {
       const letter = sim.grid[r][c];
-      if (letter) stack.push({ r, letter });
+      if (letter) stack.push({ r, letter, drop: cellDrop(sim, r, c) });
     }
     let write = 0;
     for (const item of stack) {
       if (item.r !== write) {
-        sim.grid[item.r][c] = null;
+        eraseCell(sim, item.r, c);
         bump(sim, item.r, c);
         pieces.push({
           id: sim.nextId++,
@@ -188,6 +217,7 @@ function beginSettle(sim: Sim): boolean {
           yPx: item.r * sim.A,
           selected: false,
           kind: 'settle',
+          drop: item.drop,
         });
       }
       write += 1;
@@ -287,17 +317,15 @@ function takenWord(m: Match): string {
 
 function commitClear(sim: Sim) {
   const doomed = new Set<string>();
-  let base = 0;
   for (const m of sim.offer) {
     sim.words.push(takenWord(m));
-    base += m.value;
     for (const cell of m.cells) doomed.add(`${cell.r},${cell.c}`);
   }
-  sim.score += scaledWordPoints(base, sim.speedPct);
+  sim.score += offerPoints(sim);
   for (const key of doomed) {
     const [r, c] = key.split(',').map((n) => Number(n));
     if (sim.grid[r]?.[c]) {
-      sim.grid[r][c] = null;
+      eraseCell(sim, r, c);
       bump(sim, r, c);
     }
   }
@@ -359,6 +387,7 @@ export function createSim(opts: {
     rng: hashSeed(dailySeed(opts.date, opts.W, opts.H)),
     nextId: 1,
     grid: Array.from({ length: rows }, () => Array(opts.W).fill(null)),
+    bonus: blankBonuses(rows, opts.W),
     rowGen: Array(rows).fill(0),
     colGen: Array(opts.W).fill(0),
     falling: [],
@@ -461,7 +490,8 @@ function releaseUnsupported(sim: Sim, row: number, col: number, select: boolean)
   if (row <= 0 || sim.grid[row - 1]?.[col] || overlapsFalling(sim, row, col)) return false;
   const letter = sim.grid[row]?.[col];
   if (!letter) return false;
-  sim.grid[row][col] = null;
+  const drop = cellDrop(sim, row, col);
+  eraseCell(sim, row, col);
   bump(sim, row, col);
   if (select) {
     for (const f of sim.falling) if (f.kind === 'play') f.selected = false;
@@ -473,6 +503,7 @@ function releaseUnsupported(sim: Sim, row: number, col: number, select: boolean)
     yPx: row * sim.A,
     selected: select,
     kind: 'play',
+    drop,
   });
   return true;
 }
@@ -513,6 +544,8 @@ function shiftHeld(sim: Sim, dir: -1 | 1): boolean {
     const to = from + dir;
     sim.grid[held.row][to] = sim.grid[held.row][from];
     sim.grid[held.row][from] = null;
+    sim.bonus[held.row][to] = sim.bonus[held.row][from];
+    sim.bonus[held.row][from] = plainBonus();
     bump(sim, held.row, from);
     bump(sim, held.row, to);
   }
@@ -533,14 +566,13 @@ function dropHeld(sim: Sim) {
     return;
   }
   if (held.row === 0 || sim.grid[held.row - 1]?.[held.col]) return;
-  sim.grid[held.row][held.col] = null;
+  eraseCell(sim, held.row, held.col);
   bump(sim, held.row, held.col);
   const landRow = Math.round(landY(sim, held.col) / sim.A);
-  const rowsSkipped = held.row - landRow;
-  if (rowsSkipped > 0) sim.score += dropBonus(sim.values[letter] ?? 1, rowsSkipped);
+  const drop = dropFactor(held.row - landRow, sim.H);
   if (landRow < 0 || landRow >= rowsOf(sim)) sim.missedLock = true;
   else {
-    sim.grid[landRow][held.col] = letter;
+    writeCell(sim, landRow, held.col, letter, drop);
     bump(sim, landRow, held.col);
   }
   sim.held = null;
@@ -592,9 +624,7 @@ export function hardDrop(sim: Sim) {
   const startRow = Math.floor(piece.yPx / sim.A + 1e-6);
   const landRow = Math.round(land / sim.A);
   const rowsSkipped = startRow - landRow;
-  if (rowsSkipped > 0) {
-    sim.score += dropBonus(sim.values[piece.letter] ?? 1, rowsSkipped);
-  }
+  if (rowsSkipped > 0) piece.drop = dropFactor(rowsSkipped, sim.H);
   piece.yPx = land;
   lockPiece(sim, piece);
   resolve(sim);
@@ -674,9 +704,13 @@ export function offerHasCell(sim: Sim, row: number, col: number): boolean {
   return sim.offer.some((m) => m.cells.some((cell) => cell.r === row && cell.c === col));
 }
 
+export function matchPoints(sim: Sim, match: Match): number {
+  const bonuses = match.cells.map((cell) => ({ drop: cellDrop(sim, cell.r, cell.c) }));
+  return scoredWord(match.text, bonuses, sim.values, sim.speedPct);
+}
+
 export function offerPoints(sim: Sim): number {
-  const base = sim.offer.reduce((sum, m) => sum + m.value, 0);
-  return scaledWordPoints(base, sim.speedPct);
+  return sim.offer.reduce((sum, match) => sum + matchPoints(sim, match), 0);
 }
 
 export function setCellSize(sim: Sim, A: number) {
@@ -690,7 +724,8 @@ export function setCellSize(sim: Sim, A: number) {
 /** Test hook: put a frozen letter on the board and invalidate that line. */
 export function placeFrozen(sim: Sim, row: number, col: number, letter: string | null) {
   if (row < 0 || col < 0 || row >= rowsOf(sim) || col >= sim.W) return;
-  sim.grid[row][col] = letter;
+  if (letter) writeCell(sim, row, col, letter, 1);
+  else eraseCell(sim, row, col);
   bump(sim, row, col);
   touch(sim);
 }
@@ -733,6 +768,7 @@ export function exportState(sim: Sim): PersistedSim {
     rng: sim.rng.toString(),
     nextId: sim.nextId,
     grid: sim.grid.map((row) => row.slice()),
+    bonus: sim.bonus.map((row) => row.map((cell) => ({ ...cell }))),
     rowGen: sim.rowGen.slice(),
     colGen: sim.colGen.slice(),
     falling: sim.falling.map((f) => ({ ...f })),
@@ -771,6 +807,9 @@ export function importState(data: PersistedSim, lex: Lexicon = EMPTY_LEX as Lexi
   sim.rng = BigInt(data.rng);
   sim.nextId = data.nextId;
   sim.grid = data.grid.map((row) => row.slice());
+  sim.bonus = data.bonus
+    ? data.bonus.map((row) => row.map((cell) => ({ drop: cell?.drop > 0 ? cell.drop : 1 })))
+    : blankBonuses(sim.grid.length, sim.W);
   sim.rowGen = data.rowGen.slice();
   sim.colGen = data.colGen.slice();
   sim.falling = data.falling.map((f) => ({ ...f }));

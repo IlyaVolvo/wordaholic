@@ -144,7 +144,7 @@ export default {
         {
           x: 12,
           y: 93.5,
-          text: 'Bonuses: a letter dropped with Space earns points for every row it skips.\nA faster speed multiplies word points (100% doubles them). Set it while paused (P), before Start, or after the game.',
+          text: 'Bonuses scale a letter’s value and count only when that letter is in a word you take.\nA drop from the loss line doubles that letter; a shorter drop is closer to its base value. Speed raises every letter the same way (100% doubles them). Set speed while paused (P), before Start, or after the game.',
           place: 'top',
         },
       ],

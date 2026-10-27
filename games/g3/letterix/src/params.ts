@@ -10,7 +10,6 @@ export const PARAMS = {
   Nmin: 4,
   Vmax: 10,
   Cword: 0.5,
-  Cdrop: 0.15,
   Cearly: 0.15,
   Trow: 1493,
   N: 2,
