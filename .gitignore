@@ -10,4 +10,6 @@ word-data/**/master.json
 stats-hours/*.json
 stats-places.json
 **/.wrangler/tmp/
+**/.wrangler/state/
+workers/stats/.dev.vars
 docs/letter-frequency-*.md

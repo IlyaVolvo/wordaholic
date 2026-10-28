@@ -131,6 +131,9 @@ h1 {
   margin-bottom: 0.6rem;
 }
 
+.investigate-err:empty { display: none; }
+.investigate-err { color: var(--red); margin: 0.6rem 0 0; }
+
 .row {
   display: flex;
   flex-wrap: wrap;

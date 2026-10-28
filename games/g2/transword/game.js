@@ -33,6 +33,29 @@ import {
 
 mountPortraitGate();
 
+/**
+ * Admin investigation: a chosen first word and target, played with the normal
+ * rules and none of the daily chrome (help, timer, stats, saved progress).
+ * Requires the admin session set by the TransWord admin page.
+ */
+function readInvestigateRequest() {
+  const params = new URLSearchParams(location.search);
+  if (params.get('investigate') !== '1') return { active: false };
+  if (sessionStorage.getItem('wordaholic.twAdmin') !== '1') return { active: true, denied: true };
+  const start = (params.get('start') || '').trim();
+  const target = (params.get('target') || '').trim();
+  const dir = (params.get('dir') || '').trim();
+  if (!start || !target || !dir) return { active: true, invalid: true };
+  return { active: true, spec: { start, target, dir } };
+}
+
+const investigateRequest = readInvestigateRequest();
+const investigateSpec = investigateRequest.spec || null;
+if (investigateRequest.denied) {
+  location.replace('/games/g2/transword/admin/');
+}
+if (investigateSpec) document.body.classList.add('investigate');
+
 const GAME_ID = 'transword';
 const PREFS_KEY = 'wordaholic-transword-prefs';
 const $ = (sel) => document.querySelector(sel);
@@ -368,6 +391,7 @@ async function loadLanguagesCatalog() {
       /* skip */
     }
   }
+  if (investigateSpec) return playable;
   const filtered = playable.filter((l) => preferred.has(l.code));
   return filtered.length ? filtered : playable;
 }
@@ -454,7 +478,7 @@ async function switchLanguage(code, startPuzzle = true) {
   await persistLeavingGame();
   language = opt.code;
   languageDir = opt.dir;
-  setLastLanguage(language);
+  if (!investigateRequest.active) setLastLanguage(language);
   showLoading('Loading language corpus…');
   languageConfig = await loadLanguageConfig(languageDir);
   corpusEntries = await loadCorpus(languageDir);
@@ -464,7 +488,7 @@ async function switchLanguage(code, startPuzzle = true) {
   renderKeyboard();
   renderLanguageDropdown();
   hideLoading();
-  if (startPuzzle) {
+  if (startPuzzle && !investigateRequest.active) {
     await beginForCurrentSettings();
   }
 }
@@ -554,12 +578,17 @@ function currentDraft() {
 function noteTyping() {
   if (solved || readOnly) return;
   currentDraft();
+  if (investigateSpec) return;
   if (timerStarted && timerSegmentStart != null) return;
   timerStarted = true;
   startTimer();
 }
 
 function startTimer() {
+  if (investigateSpec) {
+    stopTimer(false);
+    return;
+  }
   stopTimer(false);
   if (solved || readOnly || !timerStarted) {
     updateTimerDisplay();
@@ -604,6 +633,7 @@ function updateTimerDisplay() {
 }
 
 async function persistLeavingGame() {
+  if (investigateSpec) return;
   currentDraft();
   stopTimer(true);
   const combo = activeCombo;
@@ -808,16 +838,18 @@ function makeInputNode() {
   hint.className = 'error-hint';
   hint.id = 'error-hint';
   wrap.appendChild(input);
-  const help = document.createElement('button');
-  help.type = 'button';
-  help.id = 'btn-help';
-  help.className = 'help-x';
-  help.textContent = '?';
-  help.addEventListener('click', (e) => {
-    e.preventDefault();
-    void requestHelp();
-  });
-  wrap.appendChild(help);
+  if (!investigateSpec) {
+    const help = document.createElement('button');
+    help.type = 'button';
+    help.id = 'btn-help';
+    help.className = 'help-x';
+    help.textContent = '?';
+    help.addEventListener('click', (e) => {
+      e.preventDefault();
+      void requestHelp();
+    });
+    wrap.appendChild(help);
+  }
   node.appendChild(wrap);
   node.appendChild(hint);
   if (!isCoarsePointer()) {
@@ -827,7 +859,7 @@ function makeInputNode() {
 }
 
 async function persistDailyProgress() {
-  if (!puzzle) return;
+  if (investigateSpec || !puzzle) return;
   await upsertDaily(dailyFields());
 }
 
@@ -845,7 +877,7 @@ async function submitWord(word, opts = {}) {
   if (!op) return flashError(input, hint, 'Not a valid single-step transform');
   const isGameStart = chain.length === 1;
   chain.push(normalizedWord);
-  if (isGameStart) {
+  if (isGameStart && !investigateSpec) {
     const combo = currentCombo();
     reportStats({
       games: { transword: { [`${combo.language},${combo.vocabLevel},${combo.difficulty}`]: 1 } },
@@ -856,13 +888,15 @@ async function submitWord(word, opts = {}) {
     solved = true;
     inDeadend = false;
     stopTimer(true);
-    setSessionActive(GAME_ID, false);
-    notifySessionEnded();
     updateAssistChrome();
     renderChain();
     inputDraft = '';
     readOnly = true;
-    await upsertDaily(dailyFields({ elapsedMs: elapsedMsStored, isComplete: true, draft: '' }));
+    if (!investigateSpec) {
+      setSessionActive(GAME_ID, false);
+      notifySessionEnded();
+      await upsertDaily(dailyFields({ elapsedMs: elapsedMsStored, isComplete: true, draft: '' }));
+    }
     showWin(true);
     return;
   }
@@ -1158,24 +1192,100 @@ async function refreshStats() {
 }
 
 async function onComboControlsChanged() {
+  if (investigateSpec) return;
   await persistLeavingGame();
   buildGraphs(corpusEntries);
   await beginForCurrentSettings();
 }
 
+function applyInvestigateChrome() {
+  document.body.classList.add('investigate');
+  const home = document.querySelector('.header-brand-home');
+  if (home) {
+    home.href = '/games/g2/transword/admin/';
+    home.title = 'Back to admin';
+    home.setAttribute('aria-label', 'Back to admin');
+  }
+  const full = document.querySelector('[data-header-name="full"]');
+  const short = document.querySelector('[data-header-name="short"]');
+  if (full) full.textContent = 'Investigate';
+  if (short) short.textContent = 'Inv';
+  document.title = 'TransWord Investigate';
+}
+
+function showInvestigateMessage(message) {
+  puzzle = null;
+  chain = [];
+  const target = $('#target-word');
+  if (target) target.textContent = '';
+  const chainEl = $('#chain');
+  if (!chainEl) return;
+  chainEl.replaceChildren();
+  const msg = document.createElement('p');
+  msg.className = 'investigate-error';
+  msg.textContent = message;
+  chainEl.appendChild(msg);
+}
+
+async function beginInvestigate() {
+  readOnly = false;
+  solved = false;
+  elapsedMsStored = 0;
+  timerStarted = false;
+  inputDraft = '';
+  stopTimer(false);
+  $('#win-overlay')?.classList.add('hidden');
+  if (investigateRequest.invalid || !investigateSpec) {
+    showInvestigateMessage('Choose a first word and a target on the admin page.');
+    return;
+  }
+  const start = canonicalWord(investigateSpec.start);
+  const end = canonicalWord(investigateSpec.target);
+  const missing = [start, end].filter((word, i, all) => !fullGraph?.has(word) && all.indexOf(word) === i);
+  if (missing.length) {
+    const quoted = missing.map((word) => `“${displayWord(word) || word}”`).join(' and ');
+    showInvestigateMessage(
+      missing.length === 1 ? `${quoted} is not in this dictionary.` : `${quoted} are not in this dictionary.`
+    );
+    return;
+  }
+  puzzle = {
+    start,
+    end,
+    dist: optimalStepCount(start, end, 0),
+  };
+  chain = [start];
+  resetAssist();
+  showTarget();
+  if (isPathSolved(chain, start, end)) {
+    solved = true;
+    readOnly = true;
+    renderChain();
+    showWin(false);
+    return;
+  }
+  renderChain();
+}
+
 async function init() {
+  if (investigateRequest.denied) return;
   await storage.open();
-  await purgePracticeState();
-  await hydrateDisplayPrefs();
+  if (!investigateRequest.active) {
+    await purgePracticeState();
+    await hydrateDisplayPrefs();
+  }
   showLoading('Loading languages…');
   languageOptions = await loadLanguagesCatalog();
-  const preferred = getPreferredLanguageCodes();
-  const picked = pickActiveLanguage(
-    preferred,
-    languageOptions.map((l) => l.code)
-  );
-  if (!picked) throw new Error('No TransWord languages available');
-  language = picked;
+  let picked = null;
+  if (!investigateRequest.active) {
+    const preferred = getPreferredLanguageCodes();
+    picked = pickActiveLanguage(
+      preferred,
+      languageOptions.map((l) => l.code)
+    );
+    if (!picked) throw new Error('No TransWord languages available');
+    language = picked;
+  }
   renderLanguageDropdown();
   $('#game').classList.remove('hidden');
   wireDisplayPrefs();
@@ -1288,6 +1398,24 @@ async function init() {
   window.addEventListener('pagehide', () => {
     void pauseAndPersist();
   });
+
+  if (investigateRequest.active) {
+    applyInvestigateChrome();
+    if (investigateRequest.invalid || !investigateSpec) {
+      hideLoading();
+      showInvestigateMessage('Choose a first word and a target on the admin page.');
+      return;
+    }
+    const opt = languageOptions.find((l) => l.dir === investigateSpec.dir);
+    if (!opt) {
+      hideLoading();
+      showInvestigateMessage(`Unknown language “${investigateSpec.dir}”.`);
+      return;
+    }
+    await switchLanguage(opt.code, false);
+    await beginInvestigate();
+    return;
+  }
 
   await switchLanguage(picked, true);
 }
