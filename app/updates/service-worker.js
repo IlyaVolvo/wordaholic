@@ -225,7 +225,8 @@ self.addEventListener('fetch', (event) => {
             url.pathname.startsWith('/word-data/') ||
             url.pathname.startsWith('/games/') ||
             url.pathname.startsWith('/app/') ||
-            url.pathname.startsWith('/help/'))
+            url.pathname.startsWith('/help/') ||
+            url.pathname.startsWith('/scoreboard/'))
         ) {
           const cache = await caches.open(
             url.pathname.startsWith('/data/') || url.pathname.startsWith('/word-data/') ? CACHE_DATA : CACHE_SHELL

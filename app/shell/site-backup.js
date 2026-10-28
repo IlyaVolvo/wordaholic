@@ -1,6 +1,9 @@
 import { storage } from '../storage/idb.js';
 import { getFavoriteLanguages, getLastLanguage, setFavoriteLanguages, setLastLanguage } from '../i18n-prefs/favorites.js';
 import { listGameIds } from '../games-contract.js';
+import { browserId } from '../stats/plays.js';
+import { getNickname } from '../identity/player.js';
+import { applyScoreboardPrefs, scoreboardPrefsForBackup } from '../scoreboard/prefs.js';
 
 const FORMAT = 'wordaholic-site-backup';
 /** Version this build writes. */
@@ -27,6 +30,11 @@ export async function exportSiteBackup(opts = {}) {
     settings: {
       favoriteLanguages: getFavoriteLanguages(),
       lastLanguage: getLastLanguage(),
+      scoreboard: scoreboardPrefsForBackup(),
+    },
+    player: {
+      browserId: browserId(),
+      nickname: getNickname(),
     },
     games,
   };
@@ -258,6 +266,7 @@ async function importFormatV2(parsed) {
     if (parsed.settings.lastLanguage) {
       await setLastLanguage(parsed.settings.lastLanguage);
     }
+    if (parsed.settings.scoreboard) applyScoreboardPrefs(parsed.settings.scoreboard);
   }
 
   let importedGames = 0;

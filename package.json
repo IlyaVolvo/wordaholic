@@ -17,6 +17,7 @@
     "dev:polyhydra": "vite --config games/g1/polyhydra/vite.config.ts",
     "dev:letterix": "vite --config games/g3/letterix/vite.config.ts",
     "serve": "node scripts/serve.js",
+    "dev:stats": "npx wrangler dev --config workers/stats/wrangler.toml --port 8787 --persist-to .wrangler/state",
     "deploy:stats": "npx wrangler deploy --config workers/stats/wrangler.toml"
   },
   "engines": {

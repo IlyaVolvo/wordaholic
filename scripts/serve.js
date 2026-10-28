@@ -3,26 +3,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createStatsStore, PRUNE_INTERVAL_MS } from './stats-store.js';
-import { createStatsHandler } from './stats-http.js';
-import { combineBodies, combineTrends, parseDateRange, parseTrendInterval } from './stats-combine.js';
-import { renderStatsHtml, trendIdentityAllowIds, trendLanguageAllow } from './stats-page.js';
-import { isStatsApiPath, isStatsGeoApiPath, isStatsPagePath } from './stats-path.js';
-import { lookupMissingGeos } from './stats-geo-lookup.js';
-import { buildStatsGeoPayload } from './stats-geo-api.js';
-import { emptyPlacesDocument, parsePlacesDocument } from './stats-places.js';
+import { isStatsWorkerPath } from './stats-path.js';
 import { gameGroup } from '../app/games-contract.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../dist');
 const PORT = Number(process.env.PORT) || 4173;
 const HOST = process.env.HOST || '0.0.0.0';
-
-const statsStore = createStatsStore();
-const handleStats = createStatsHandler(statsStore);
-const HOURS_DIR = path.resolve(process.env.STATS_HOURS_DIR || path.join(__dirname, '../stats-hours'));
-const PLACES_FILE = path.resolve(__dirname, 'stats-places.json');
-setInterval(() => statsStore.prune(), PRUNE_INTERVAL_MS).unref();
+const WORKER_ORIGIN = process.env.STATS_WORKER_ORIGIN || 'http://127.0.0.1:8787';
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -92,105 +80,42 @@ function lanAddresses() {
 }
 
 /**
- * Local /stats page and /api/stats/geo: live dump plus ./stats-hours/*.json.
- * @returns {{ source: string, body: unknown }[]}
+ * Stats, plays, nicknames, and the scoreboard are the Cloudflare Worker.
+ * This process only forwards those routes to the local Worker.
+ * @param {import('node:http').IncomingMessage} req
+ * @param {import('node:http').ServerResponse} res
  */
-function loadStatsInputs() {
-  /** @type {{ source: string, body: unknown }[]} */
-  const inputs = [{ source: 'live', body: statsStore.dump() }];
-  if (fs.existsSync(HOURS_DIR)) {
-    for (const name of fs.readdirSync(HOURS_DIR).filter((n) => /^\d{4}-\d{2}-\d{2}T.+\.json$/.test(n)).sort()) {
-      const file = path.join(HOURS_DIR, name);
-      try {
-        inputs.push({ source: file, body: JSON.parse(fs.readFileSync(file, 'utf8')) });
-      } catch (err) {
-        console.error(err instanceof Error ? err.message : err);
-      }
-    }
+async function proxyWorker(req, res) {
+  const url = new URL(req.url || '/', 'http://localhost');
+  const target = new URL(`${url.pathname}${url.search}`, WORKER_ORIGIN);
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (value == null || key === 'host' || key === 'connection') continue;
+    headers.set(key, Array.isArray(value) ? value.join(', ') : value);
   }
-  return inputs;
-}
-
-function loadPlacesDocument() {
-  if (!fs.existsSync(PLACES_FILE)) return emptyPlacesDocument();
+  headers.set('X-Forwarded-For', clientIp(req));
+  headers.set('CF-Connecting-IP', clientIp(req));
+  /** @type {Buffer | undefined} */
+  let body;
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    body = Buffer.concat(chunks);
+  }
   try {
-    return parsePlacesDocument(JSON.parse(fs.readFileSync(PLACES_FILE, 'utf8')));
+    const upstream = await fetch(target, { method: req.method, headers, body });
+    res.statusCode = upstream.status;
+    upstream.headers.forEach((value, key) => {
+      if (key === 'transfer-encoding' || key === 'content-encoding' || key === 'content-length') return;
+      res.setHeader(key, value);
+    });
+    const bytes = Buffer.from(await upstream.arrayBuffer());
+    res.end(req.method === 'HEAD' ? undefined : bytes);
   } catch (err) {
     console.error(err instanceof Error ? err.message : err);
-    return emptyPlacesDocument();
+    res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Stats worker is not running. Start it with npm run dev:stats');
   }
-}
-
-/**
- * Local /stats: live in-memory dump plus ./stats-hours/*.json (from stats-pull-gcs).
- * GET /api/stats stays the raw JSON dump.
- * @param {import('node:http').IncomingMessage} req
- * @param {import('node:http').ServerResponse} res
- */
-async function handleStatsPage(req, res) {
-  const method = req.method || 'GET';
-  if (method !== 'GET' && method !== 'HEAD') {
-    res.writeHead(405, { Allow: 'GET', 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Method not allowed');
-    return;
-  }
-  let url;
-  try {
-    url = new URL(req.url || '/stats', 'http://localhost');
-  } catch {
-    url = new URL('/stats', 'http://localhost');
-  }
-  const inputs = loadStatsInputs();
-  const range = parseDateRange(url.searchParams.get('from') || '', url.searchParams.get('to') || '');
-  const rows = combineBodies(inputs, range);
-  await lookupMissingGeos(rows);
-  const trends = combineTrends(inputs, range, parseTrendInterval(url.searchParams.get('interval')), {
-    allowIds: trendIdentityAllowIds(rows, url.searchParams),
-    allowLanguages: trendLanguageAllow(url.searchParams),
-  });
-  const html = renderStatsHtml({
-    rows,
-    trends,
-    from: url.searchParams.get('from') || '',
-    to: url.searchParams.get('to') || '',
-    params: url.searchParams,
-  });
-  res.writeHead(200, {
-    'Content-Type': 'text/html; charset=utf-8',
-    'Cache-Control': 'no-store',
-  });
-  res.end(method === 'HEAD' ? undefined : html);
-}
-
-/**
- * @param {import('node:http').IncomingMessage} req
- * @param {import('node:http').ServerResponse} res
- */
-async function handleStatsGeoApi(req, res) {
-  const method = req.method || 'GET';
-  if (method !== 'GET' && method !== 'HEAD') {
-    res.writeHead(405, { Allow: 'GET', 'Content-Type': 'text/plain; charset=utf-8' });
-    res.end('Method not allowed');
-    return;
-  }
-  let url;
-  try {
-    url = new URL(req.url || '/api/stats/geo', 'http://localhost');
-  } catch {
-    url = new URL('/api/stats/geo', 'http://localhost');
-  }
-  const payload = await buildStatsGeoPayload(
-    loadStatsInputs(),
-    url.searchParams.get('from') || '',
-    url.searchParams.get('to') || '',
-    loadPlacesDocument()
-  );
-  const body = JSON.stringify(payload);
-  res.writeHead(200, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'no-store',
-  });
-  res.end(method === 'HEAD' ? undefined : body);
 }
 
 /**
@@ -211,34 +136,8 @@ function legacyGameRedirect(urlPath) {
 const server = http.createServer((req, res) => {
   res.on('finish', () => logAccess(req, res));
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
-  if (isStatsPagePath(urlPath)) {
-    void handleStatsPage(req, res).catch((err) => {
-      console.error(err);
-      if (!res.headersSent) {
-        res.writeHead(500);
-        res.end('Internal error');
-      }
-    });
-    return;
-  }
-  if (isStatsGeoApiPath(urlPath)) {
-    void handleStatsGeoApi(req, res).catch((err) => {
-      console.error(err);
-      if (!res.headersSent) {
-        res.writeHead(500);
-        res.end('Internal error');
-      }
-    });
-    return;
-  }
-  if (isStatsApiPath(urlPath)) {
-    void handleStats(req, res, clientIp(req)).catch((err) => {
-      console.error(err);
-      if (!res.headersSent) {
-        res.writeHead(500);
-        res.end('Internal error');
-      }
-    });
+  if (isStatsWorkerPath(urlPath)) {
+    void proxyWorker(req, res);
     return;
   }
   const moved = legacyGameRedirect(urlPath);

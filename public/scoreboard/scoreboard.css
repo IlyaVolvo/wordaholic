@@ -1,0 +1,140 @@
+.scoreboard-page {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+.scoreboard-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.scoreboard-bar h1 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  margin: 0;
+}
+.scoreboard-bar a {
+  color: var(--accent);
+  font-weight: 600;
+}
+.scoreboard-note,
+.scoreboard-empty {
+  color: var(--muted);
+}
+.scoreboard-favorite {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  margin: 16px 0;
+  box-shadow: var(--shadow);
+}
+.scoreboard-favorite header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+.scoreboard-favorite h2,
+.scoreboard-favorite h3 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+.scoreboard-periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.scoreboard-favorite table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+}
+.scoreboard-favorite th,
+.scoreboard-favorite td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.scoreboard-favorite tr.is-self td {
+  font-weight: 700;
+  background: rgba(196, 92, 38, 0.12);
+}
+.scoreboard-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.scoreboard-add select,
+.scoreboard-bar input {
+  font: inherit;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: white;
+}
+.home-links {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.home-links a,
+.home-links button {
+  font: inherit;
+  color: var(--ink);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.player-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.player-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 35, 43, 0.45);
+}
+.player-dialog-card {
+  position: relative;
+  width: min(440px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.player-dialog-card h2 {
+  font-family: var(--font-display);
+  margin: 0 0 8px;
+}
+.player-lead { margin-top: 0; }
+.player-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0;
+}
+.player-field input[type="text"],
+.player-field input:not([type="checkbox"]) {
+  font: inherit;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.player-error { color: #9d2c2c; min-height: 1.2em; }
+.player-suggestions, .player-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.player-remember { flex-direction: row; align-items: center; }

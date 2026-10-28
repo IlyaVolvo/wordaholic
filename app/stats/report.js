@@ -6,6 +6,8 @@
  *   games?: Record<string, Record<string, number>>,
  * }} delta
  */
+export { reportPlayStart, reportPlayEnd, browserId } from './plays.js';
+
 export function reportStats(delta) {
   if (!delta || typeof delta !== 'object') return;
   try {

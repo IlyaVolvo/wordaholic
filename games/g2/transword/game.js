@@ -24,7 +24,7 @@ import { openHelp } from '../../../app/help/dialog.js';
 import helpTopic from './help/topic.js';
 import { mountPortraitGate } from '../../../app/play/portrait-gate.js';
 import { mountHeaderChrome } from '../../../app/play/header-chrome.js';
-import { reportStats } from '../../../app/stats/report.js';
+import { reportPlayEnd, reportPlayStart } from '../../../app/stats/report.js';
 import {
   calendarMonthForSelection,
   openVariant,
@@ -845,10 +845,13 @@ async function submitWord(word, opts = {}) {
   if (!op) return flashError(input, hint, 'Not a valid single-step transform');
   const isGameStart = chain.length === 1;
   chain.push(normalizedWord);
+  const combo = activeCombo || currentCombo();
   if (isGameStart) {
-    const combo = currentCombo();
-    reportStats({
-      games: { transword: { [`${combo.language},${combo.vocabLevel},${combo.difficulty}`]: 1 } },
+    reportPlayStart({
+      gameId: 1,
+      language: combo.language,
+      variant: `${combo.vocabLevel},${combo.difficulty}`,
+      puzzleDate: combo.gameDate,
     });
   }
   if (opts.fromHelp) helpCount += 1;
@@ -863,6 +866,14 @@ async function submitWord(word, opts = {}) {
     inputDraft = '';
     readOnly = true;
     await upsertDaily(dailyFields({ elapsedMs: elapsedMsStored, isComplete: true, draft: '' }));
+    reportPlayEnd({
+      gameId: 1,
+      language: combo.language,
+      variant: `${combo.vocabLevel},${combo.difficulty}`,
+      puzzleDate: combo.gameDate,
+      value: Math.max(0, Math.round(elapsedMsStored)),
+      helpCount,
+    });
     showWin(true);
     return;
   }

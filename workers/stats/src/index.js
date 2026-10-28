@@ -1,16 +1,36 @@
 import { BODY_MAX_BYTES, parseStatsDelta } from '../../../scripts/stats-delta.js';
-import { archiveClosedHours } from '../../../scripts/stats-archive.js';
-import { gcsConfigured, gcsPlacesObjectKey, getGcsObject, listGcsKeys } from '../../../scripts/gcs-xml-put.js';
-import { emptyPlacesDocument, parsePlacesDocument } from '../../../scripts/stats-places.js';
-import { createStatsStore, PRUNE_INTERVAL_MS } from '../../../scripts/stats-store.js';
 import { combineBodies, combineTrends, normalizeGeo, parseDateRange, parseTrendInterval } from '../../../scripts/stats-combine.js';
-import { isStatsApiPath, isStatsGeoApiPath, isStatsPagePath } from '../../../scripts/stats-path.js';
+import { canonicalPath, isStatsWorkerPath } from '../../../scripts/stats-path.js';
 import { renderStatsHtml, trendIdentityAllowIds, trendLanguageAllow } from '../../../scripts/stats-page.js';
 import { buildStatsGeoPayload } from '../../../scripts/stats-geo-api.js';
-import { HOUR_PULL_BATCH, HOUR_STORAGE_GET_BATCH, hourFromObjectKey } from '../../../scripts/stats-hour-cache.js';
 import { lookupMissingGeos } from '../../../scripts/stats-geo-lookup.js';
-
-const PLACES_REFRESH_MS = 5 * 60 * 1000;
+import { statsInputsFromTables } from '../../../scripts/stats-hours.js';
+import {
+  aggregateBoard,
+  parseBrowserId,
+  parseNickname,
+  parsePlayReport,
+  playGame,
+  rankBoard,
+  variantAllowed,
+} from '../../../scripts/play-model.js';
+import {
+  addLiveDay,
+  applyPlay,
+  boardFinishes,
+  browserNickname,
+  catalogRows,
+  changeNickname,
+  ensureBrowser,
+  ensureSchema,
+  fillLiveGeo,
+  getCutover,
+  importFrozenDays,
+  importPlaces,
+  loadPlacesDocument,
+  loadTableRows,
+  setCutoverIfEmpty,
+} from './db.js';
 
 const JSON_HEADERS = {
   'Content-Type': 'application/json; charset=utf-8',
@@ -21,6 +41,10 @@ const HTML_HEADERS = {
   'Content-Type': 'text/html; charset=utf-8',
   'Cache-Control': 'no-store',
 };
+
+const GEO_HEADER = 'X-Wordaholic-Geo';
+const IMPORT_MAX_BYTES = 1024 * 1024;
+const PLAY_MAX_BYTES = 64 * 1024;
 
 /**
  * @param {Request} request
@@ -33,12 +57,7 @@ function clientIp(request) {
   return first.replace(/^::ffff:/i, '') || '-';
 }
 
-/** Set only by this Worker; stripped if a client sends it. */
-const GEO_HEADER = 'X-Wordaholic-Geo';
-
 /**
- * Cloudflare geo on the *edge* request. Durable Object fetches do not keep
- * `request.cf`, so the Worker copies it into GEO_HEADER before forwarding.
  * @param {Request} request
  */
 function geoFromCf(request) {
@@ -48,6 +67,50 @@ function geoFromCf(request) {
     city: cf.city || '',
     region: cf.region || '',
     asOrg: cf.asOrganization || cf.asOrg || '',
+  });
+}
+
+/**
+ * Local wrangler has no Cloudflare city. A development place is used only when
+ * the Worker itself is on localhost.
+ * @param {Request} request
+ * @param {{ LOCAL_GEO?: string }} env
+ */
+function edgeGeo(request, env) {
+  const fromCf = geoFromCf(request);
+  if (fromCf) return fromCf;
+  const host = new URL(request.url).hostname;
+  if (host !== 'localhost' && host !== '127.0.0.1' && host !== '[::1]') return null;
+  if (!env.LOCAL_GEO) return null;
+  try {
+    return normalizeGeo(JSON.parse(env.LOCAL_GEO));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Durable Object fetches drop request.cf. Copy the edge place onto the URL.
+ * @param {Request} request
+ * @param {{ LOCAL_GEO?: string }} env
+ */
+function requestWithEdgeGeo(request, env) {
+  const headers = new Headers(request.headers);
+  headers.delete(GEO_HEADER);
+  const method = request.method || 'GET';
+  if (method !== 'POST') return new Request(request, { headers });
+  const geo = edgeGeo(request, env);
+  const url = new URL(request.url);
+  url.searchParams.delete('wh_geo');
+  if (geo) {
+    url.searchParams.set('wh_geo', JSON.stringify(geo));
+    headers.set(GEO_HEADER, JSON.stringify(geo));
+  }
+  return new Request(url, {
+    method,
+    headers,
+    body: request.body,
+    duplex: 'half',
   });
 }
 
@@ -71,178 +134,65 @@ function geoFromRequest(request) {
       const parsed = normalizeGeo(JSON.parse(raw));
       if (parsed) return parsed;
     } catch {
-      /* fall through to cf, if any */
+      /* fall through */
     }
   }
   return geoFromCf(request);
 }
 
 /**
- * Durable Object fetches drop request.cf. Put edge geo on the URL for POSTs.
  * @param {Request} request
+ * @param {number} maxBytes
  */
-function requestWithEdgeGeo(request) {
-  const headers = new Headers(request.headers);
-  headers.delete(GEO_HEADER);
-  const method = request.method || 'GET';
-  if (method !== 'POST') {
-    return new Request(request, { headers });
+async function readJson(request, maxBytes) {
+  const declared = Number(request.headers.get('Content-Length'));
+  if (Number.isFinite(declared) && declared > maxBytes) return { error: 413 };
+  let raw;
+  try {
+    raw = await request.text();
+  } catch {
+    return { error: 400 };
   }
-  const geo = geoFromCf(request);
-  const url = new URL(request.url);
-  url.searchParams.delete('wh_geo');
-  if (geo) {
-    url.searchParams.set('wh_geo', JSON.stringify(geo));
-    headers.set(GEO_HEADER, JSON.stringify(geo));
+  if (raw.length > maxBytes) return { error: 413 };
+  try {
+    return { body: JSON.parse(raw || '{}') };
+  } catch {
+    return { error: 400 };
   }
-  return new Request(url, {
-    method,
-    headers,
-    body: request.body,
-    duplex: 'half',
-  });
 }
 
-/**
- * @param {{ GCS_BUCKET?: string, GCS_HMAC_ACCESS_KEY?: string, GCS_HMAC_SECRET?: string }} env
- */
-function gcsCreds(env) {
+function json(body, status = 200) {
+  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+}
+
+function edgeFields(request) {
+  const geo = geoFromRequest(request) || { country: '', city: '', region: '', asOrg: '' };
   return {
-    accessKey: env.GCS_HMAC_ACCESS_KEY,
-    secret: env.GCS_HMAC_SECRET,
-    bucket: env.GCS_BUCKET,
+    ip: clientIp(request),
+    country: geo.country || '',
+    region: geo.region || '',
+    city: geo.city || '',
+    asOrg: geo.asOrg || '',
   };
 }
 
 export class StatsStore {
   /**
    * @param {DurableObjectState} ctx
-   * @param {{
-   *   GCS_BUCKET?: string,
-   *   GCS_HMAC_ACCESS_KEY?: string,
-   *   GCS_HMAC_SECRET?: string,
-   * }} env
+   * @param {{ STATS_IMPORT_TOKEN?: string, LOCAL_GEO?: string }} env
    */
   constructor(ctx, env) {
     this.ctx = ctx;
     this.env = env;
-    this.store = createStatsStore({ requireArchivedForPrune: true });
-    /** @type {Set<string>} */
-    this.hourCacheIndex = new Set();
-    /** @type {Map<string, unknown>} */
-    this.hourBodies = new Map();
-    /** @type {ReturnType<typeof emptyPlacesDocument> | null} */
-    this.placesDoc = null;
-    this.placesLoadedAt = 0;
+    this.sql = ctx.storage.sql;
     this.ready = ctx.blockConcurrencyWhile(async () => {
-      const snapshot = await ctx.storage.get('dump');
-      if (snapshot) this.store.hydrate(snapshot);
-      const index = await ctx.storage.get('hourCacheIndex');
-      if (Array.isArray(index)) {
-        for (const hour of index) {
-          if (typeof hour === 'string' && hour) this.hourCacheIndex.add(hour);
-        }
-      }
-      const places = await ctx.storage.get('places');
-      if (places) this.placesDoc = parsePlacesDocument(places);
-      const alarm = await ctx.storage.getAlarm();
-      if (alarm == null) {
-        await ctx.storage.setAlarm(Date.now() + PRUNE_INTERVAL_MS);
-      }
+      ensureSchema(this.sql);
     });
   }
 
-  async persist() {
-    await this.ctx.storage.put('dump', this.store.snapshot());
-  }
-
-  /**
-   * @param {string} hour
-   * @param {unknown} body
-   */
-  async putHourCache(hour, body) {
-    if (!hour || this.hourCacheIndex.has(hour)) return;
-    this.hourCacheIndex.add(hour);
-    this.hourBodies.set(hour, body);
-    await this.ctx.storage.put({
-      [`hour:${hour}`]: body,
-      hourCacheIndex: [...this.hourCacheIndex].sort(),
-    });
-  }
-
-  async loadHourBodies() {
-    const missing = [...this.hourCacheIndex].filter((hour) => !this.hourBodies.has(hour));
-    for (let i = 0; i < missing.length; i += HOUR_STORAGE_GET_BATCH) {
-      const chunk = missing.slice(i, i + HOUR_STORAGE_GET_BATCH);
-      const got = await this.ctx.storage.get(chunk.map((hour) => `hour:${hour}`));
-      for (const hour of chunk) {
-        const body = got.get(`hour:${hour}`);
-        if (body) this.hourBodies.set(hour, body);
-      }
-    }
-  }
-
-  /**
-   * @param {number} [limit]
-   * @returns {Promise<{ fetched: number, remaining: number }>}
-   */
-  async fillHourCacheFromGcs(limit = HOUR_PULL_BATCH) {
-    if (!gcsConfigured(this.env)) return { fetched: 0, remaining: 0 };
-    const creds = gcsCreds(this.env);
-    let keys;
-    try {
-      keys = (await listGcsKeys({ ...creds, prefix: 'hours/' })).filter((key) => key.endsWith('.json'));
-    } catch (err) {
-      console.error(err instanceof Error ? err.message : err);
-      return { fetched: 0, remaining: 0 };
-    }
-    /** @type {string[]} */
-    const missing = [];
-    for (const key of keys) {
-      const hour = hourFromObjectKey(key);
-      if (!hour || this.hourCacheIndex.has(hour)) continue;
-      missing.push(key);
-    }
-    let fetched = 0;
-    for (const key of missing.slice(0, limit)) {
-      const hour = hourFromObjectKey(key);
-      try {
-        const text = await getGcsObject({ ...creds, objectKey: key });
-        const body = JSON.parse(text);
-        await this.putHourCache(hour, body);
-        fetched += 1;
-      } catch (err) {
-        console.error(err instanceof Error ? err.message : err);
-      }
-    }
-    return { fetched, remaining: Math.max(0, missing.length - fetched) };
-  }
-
-  /**
-   * Load the maintained places.json map from GCS (cached in DO storage).
-   */
-  async loadPlacesFromGcs() {
-    const now = Date.now();
-    if (this.placesDoc && now - this.placesLoadedAt < PLACES_REFRESH_MS) {
-      return this.placesDoc;
-    }
-    if (gcsConfigured(this.env)) {
-      try {
-        const text = await getGcsObject({ ...gcsCreds(this.env), objectKey: gcsPlacesObjectKey() });
-        const doc = parsePlacesDocument(JSON.parse(text));
-        this.placesDoc = doc;
-        this.placesLoadedAt = now;
-        await this.ctx.storage.put('places', doc);
-        return doc;
-      } catch (err) {
-        console.error(err instanceof Error ? err.message : err);
-      }
-    }
-    if (!this.placesDoc) {
-      const stored = await this.ctx.storage.get('places');
-      if (stored) this.placesDoc = parsePlacesDocument(stored);
-    }
-    return this.placesDoc || emptyPlacesDocument();
+  async statsInputs() {
+    const tables = loadTableRows(this.sql);
+    return statsInputsFromTables({ ...tables, cutover: getCutover(this.sql) });
   }
 
   /**
@@ -251,134 +201,225 @@ export class StatsStore {
   async fetch(request) {
     await this.ready;
     const url = new URL(request.url);
+    const path = canonicalPath(url.pathname);
     const method = request.method || 'GET';
 
-    if (isStatsPagePath(url.pathname) && (method === 'GET' || method === 'HEAD')) {
-      const fill = await this.fillHourCacheFromGcs();
-      await this.loadHourBodies();
-      const range = parseDateRange(url.searchParams.get('from') || '', url.searchParams.get('to') || '');
-      /** @type {{ source: string, body: unknown }[]} */
-      const inputs = [{ source: 'live', body: this.store.dump() }];
-      for (const [hour, body] of this.hourBodies) {
-        inputs.push({ source: `hour:${hour}`, body });
-      }
-      const rows = combineBodies(inputs, range);
-      const found = await lookupMissingGeos(rows);
-      for (const [ip, geo] of found) this.store.rememberGeo(ip, geo);
-      if (found.size) await this.persist();
-      const trends = combineTrends(inputs, range, parseTrendInterval(url.searchParams.get('interval')), {
-        allowIds: trendIdentityAllowIds(rows, url.searchParams),
-        allowLanguages: trendLanguageAllow(url.searchParams),
-      });
-      const html = renderStatsHtml({
-        rows,
-        trends,
-        from: url.searchParams.get('from') || '',
-        to: url.searchParams.get('to') || '',
-        params: url.searchParams,
-        backfillRemaining: fill.remaining,
-      });
-      return new Response(method === 'HEAD' ? null : html, { status: 200, headers: HTML_HEADERS });
-    }
-
-    if (isStatsGeoApiPath(url.pathname) && (method === 'GET' || method === 'HEAD')) {
-      await this.fillHourCacheFromGcs();
-      await this.loadHourBodies();
-      /** @type {{ source: string, body: unknown }[]} */
-      const inputs = [{ source: 'live', body: this.store.dump() }];
-      for (const [hour, body] of this.hourBodies) {
-        inputs.push({ source: `hour:${hour}`, body });
-      }
-      const from = url.searchParams.get('from') || '';
-      const to = url.searchParams.get('to') || '';
-      const places = await this.loadPlacesFromGcs();
-      const payload = await buildStatsGeoPayload(inputs, from, to, places);
-      const body = JSON.stringify(payload);
-      return new Response(method === 'HEAD' ? null : body, { status: 200, headers: JSON_HEADERS });
-    }
-
-    if (!isStatsApiPath(url.pathname)) {
-      return new Response('Not found', { status: 404 });
-    }
-
-    if (method === 'GET') {
-      return Response.json(this.store.dump(), { headers: JSON_HEADERS });
-    }
-
-    if (method !== 'POST') {
-      return new Response('Method not allowed', {
-        status: 405,
-        headers: { Allow: 'GET, POST', 'Content-Type': 'text/plain; charset=utf-8' },
-      });
-    }
-
-    const declared = Number(request.headers.get('Content-Length'));
-    if (Number.isFinite(declared) && declared > BODY_MAX_BYTES) {
-      return new Response('Payload too large', { status: 413 });
-    }
-
-    let raw;
-    try {
-      raw = await request.text();
-    } catch {
-      return new Response('Bad request', { status: 400 });
-    }
-    if (raw.length > BODY_MAX_BYTES) {
-      return new Response('Payload too large', { status: 413 });
-    }
-
-    let body;
-    try {
-      body = JSON.parse(raw || '{}');
-    } catch {
-      return new Response('Invalid JSON', { status: 400 });
-    }
-
-    const parsed = parseStatsDelta(body);
-    if (!parsed.ok) {
-      return new Response('Invalid stats payload', { status: 400 });
-    }
-
-    this.store.merge(clientIp(request), parsed.delta, Date.now(), geoFromRequest(request));
-    await this.persist();
-    return new Response(null, { status: 204 });
+    if (path === '/api/player') return this.player(request, method);
+    if (path === '/api/plays') return this.plays(request, method);
+    if (path === '/api/scoreboard/catalog') return this.catalog(method);
+    if (path === '/api/scoreboard') return this.scoreboard(url, method);
+    if (path === '/api/stats/import') return this.importStats(request, method);
+    if (path === '/stats') return this.statsPage(url, method);
+    if (path === '/api/stats/geo') return this.geo(url, method);
+    if (path === '/api/stats') return this.statsApi(request, method);
+    return new Response('Not found', { status: 404 });
   }
 
-  async alarm() {
-    await this.ready;
-    if (gcsConfigured(this.env)) {
-      const result = await archiveClosedHours(this.store, this.env);
-      for (const file of result.files || []) {
-        await this.putHourCache(file.hour, { hours: [{ hour: file.hour, ips: file.ips }] });
-      }
-      await this.fillHourCacheFromGcs();
-      this.placesLoadedAt = 0;
-      await this.loadPlacesFromGcs();
-      this.store.prune();
-    } else {
-      this.store.prune(Date.now(), { requireArchived: false });
+  /**
+   * @param {Request} request
+   * @param {string} method
+   */
+  async player(request, method) {
+    if (method === 'GET') {
+      const url = new URL(request.url);
+      const browserId = parseBrowserId(url.searchParams.get('browserId'));
+      if (!browserId) return new Response('Invalid browser', { status: 400 });
+      const nick = browserNickname(this.sql, browserId);
+      return json({ nickname: nick ? nick.nickname : null });
     }
-    await this.persist();
-    await this.ctx.storage.setAlarm(Date.now() + PRUNE_INTERVAL_MS);
+    if (method !== 'POST') return new Response('Method not allowed', { status: 405 });
+    const read = await readJson(request, 2048);
+    if (read.error) return new Response(read.error === 413 ? 'Payload too large' : 'Bad request', { status: read.error });
+    const body = /** @type {Record<string, unknown>} */ (read.body);
+    const browserId = parseBrowserId(body.browserId);
+    const action = body.action;
+    if (!browserId || (action !== 'set' && action !== 'join' && action !== 'clear')) {
+      return new Response('Invalid player', { status: 400 });
+    }
+    if (action === 'clear') return json(changeNickname(this.sql, browserId, 'clear'));
+    const parsed = parseNickname(body.nickname);
+    if (!parsed) return new Response('Invalid nickname', { status: 400 });
+    const result = changeNickname(this.sql, browserId, action === 'join' ? 'join' : 'set', parsed.display);
+    if (!result.ok) return json({ error: 'taken', suggestions: result.suggestions }, 409);
+    return json({ nickname: result.nickname });
+  }
+
+  /**
+   * @param {Request} request
+   * @param {string} method
+   */
+  async plays(request, method) {
+    if (method !== 'POST') return new Response('Method not allowed', { status: 405 });
+    const read = await readJson(request, PLAY_MAX_BYTES);
+    if (read.error) return new Response(read.error === 413 ? 'Payload too large' : 'Bad request', { status: read.error });
+    const body = read.body;
+    const list = Array.isArray(body)
+      ? body
+      : body && typeof body === 'object' && Array.isArray(/** @type {{ reports?: unknown }} */ (body).reports)
+        ? /** @type {{ reports: unknown[] }} */ (body).reports
+        : [body];
+    if (list.length > 50) return new Response('Too many reports', { status: 400 });
+    const now = Date.now();
+    const edge = edgeFields(request);
+    /** @type {{ ok: boolean }[]} */
+    const results = [];
+    for (const item of list) {
+      const parsed = parsePlayReport(item, now);
+      if (!parsed.ok) {
+        results.push({ ok: false });
+        continue;
+      }
+      applyPlay(this.sql, parsed.report, edge);
+      results.push({ ok: true });
+    }
+    return json({ results });
+  }
+
+  /**
+   * @param {string} method
+   */
+  catalog(method) {
+    if (method !== 'GET' && method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
+    return json({ combinations: catalogRows(this.sql) });
+  }
+
+  /**
+   * @param {URL} url
+   * @param {string} method
+   */
+  scoreboard(url, method) {
+    if (method !== 'GET' && method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
+    const gameId = Number(url.searchParams.get('game'));
+    const game = playGame(gameId);
+    const language = String(url.searchParams.get('language') || '').toLowerCase();
+    const variant = String(url.searchParams.get('variant') || '');
+    const board = url.searchParams.get('board') === 'best' ? 'best' : 'average';
+    const from = String(url.searchParams.get('from') || '');
+    const to = String(url.searchParams.get('to') || '');
+    const limit = Number(url.searchParams.get('limit') || 3);
+    if (!game || !variantAllowed(gameId, variant) || !/^[a-z]{2,8}$/.test(language)) {
+      return new Response('Invalid board', { status: 400 });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) {
+      return new Response('Invalid dates', { status: 400 });
+    }
+    if (board === 'best' && !game.boards.includes('best')) return new Response('Invalid board', { status: 400 });
+    const finishes = boardFinishes(this.sql, gameId, language, variant, from, to);
+    const aggregated = aggregateBoard(finishes, gameId, board);
+    const browserId = parseBrowserId(url.searchParams.get('browserId'));
+    let selfKey = '';
+    if (browserId) {
+      ensureBrowser(this.sql, browserId);
+      const nick = browserNickname(this.sql, browserId);
+      if (nick) selfKey = nick.nameKey;
+    }
+    const ranked = rankBoard(aggregated, { lowerBetter: game.lowerBetter, limit, selfKey });
+    return json(ranked);
+  }
+
+  async alarm() {}
+
+  /**
+   * @param {Request} request
+   * @param {string} method
+   */
+  async importStats(request, method) {
+    if (method !== 'POST') return new Response('Method not allowed', { status: 405 });
+    const expected = this.env.STATS_IMPORT_TOKEN || '';
+    const header = request.headers.get('Authorization') || '';
+    if (!expected || header !== `Bearer ${expected}`) return new Response('Not found', { status: 404 });
+    const read = await readJson(request, IMPORT_MAX_BYTES);
+    if (read.error) return new Response(read.error === 413 ? 'Payload too large' : 'Bad request', { status: read.error });
+    const body = /** @type {Record<string, unknown>} */ (read.body);
+    const cutover = typeof body.cutover === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.cutover)
+      ? body.cutover
+      : new Date().toISOString().slice(0, 10);
+    const chosen = setCutoverIfEmpty(this.sql, cutover) || cutover;
+    const places = importPlaces(this.sql, /** @type {{ places?: Record<string, never> }} */ (body.places || {}));
+    const days = Array.isArray(body.days) ? body.days : [];
+    const frozen = importFrozenDays(this.sql, /** @type {never[]} */ (days), chosen);
+    return json({ cutover: chosen, places, frozen });
+  }
+
+  /**
+   * @param {URL} url
+   * @param {string} method
+   */
+  async statsPage(url, method) {
+    if (method !== 'GET' && method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
+    const inputs = await this.statsInputs();
+    const range = parseDateRange(url.searchParams.get('from') || '', url.searchParams.get('to') || '');
+    const rows = combineBodies(inputs, range);
+    const found = await lookupMissingGeos(rows);
+    for (const [ip, geo] of found) fillLiveGeo(this.sql, ip, geo);
+    const trends = combineTrends(inputs, range, parseTrendInterval(url.searchParams.get('interval')), {
+      allowIds: trendIdentityAllowIds(rows, url.searchParams),
+      allowLanguages: trendLanguageAllow(url.searchParams),
+    });
+    const html = renderStatsHtml({
+      rows,
+      trends,
+      from: url.searchParams.get('from') || '',
+      to: url.searchParams.get('to') || '',
+      params: url.searchParams,
+    });
+    return new Response(method === 'HEAD' ? null : html, { status: 200, headers: HTML_HEADERS });
+  }
+
+  /**
+   * @param {URL} url
+   * @param {string} method
+   */
+  async geo(url, method) {
+    if (method !== 'GET' && method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
+    const inputs = await this.statsInputs();
+    const places = loadPlacesDocument(this.sql);
+    const payload = await buildStatsGeoPayload(
+      inputs,
+      url.searchParams.get('from') || '',
+      url.searchParams.get('to') || '',
+      places
+    );
+    return new Response(method === 'HEAD' ? null : JSON.stringify(payload), { status: 200, headers: JSON_HEADERS });
+  }
+
+  /**
+   * @param {Request} request
+   * @param {string} method
+   */
+  async statsApi(request, method) {
+    if (method === 'GET') {
+      return json({ cutover: getCutover(this.sql) });
+    }
+    if (method !== 'POST') return new Response('Method not allowed', { status: 405 });
+    const read = await readJson(request, BODY_MAX_BYTES);
+    if (read.error) {
+      return new Response(read.error === 413 ? 'Payload too large' : 'Bad request', { status: read.error });
+    }
+    const parsed = parseStatsDelta(read.body);
+    if (!parsed.ok) return new Response('Invalid stats payload', { status: 400 });
+    const day = new Date().toISOString().slice(0, 10);
+    const edge = edgeFields(request);
+    addLiveDay(
+      this.sql,
+      edge.ip,
+      day,
+      { homeHits: parsed.delta.homeHits, languages: parsed.delta.languages },
+      edge.country || edge.city || edge.region || edge.asOrg ? edge : null
+    );
+    return new Response(null, { status: 204 });
   }
 }
 
 export default {
   /**
    * @param {Request} request
-   * @param {{ STATS: DurableObjectNamespace }} env
+   * @param {{ STATS: DurableObjectNamespace, LOCAL_GEO?: string, STATS_IMPORT_TOKEN?: string }} env
    */
   async fetch(request, env) {
     const url = new URL(request.url);
-    if (
-      !isStatsApiPath(url.pathname) &&
-      !isStatsPagePath(url.pathname) &&
-      !isStatsGeoApiPath(url.pathname)
-    ) {
-      return new Response('Not found', { status: 404 });
-    }
-
+    if (!isStatsWorkerPath(url.pathname)) return new Response('Not found', { status: 404 });
     const id = env.STATS.idFromName('site');
-    return env.STATS.get(id).fetch(requestWithEdgeGeo(request));
+    return env.STATS.get(id).fetch(requestWithEdgeGeo(request, env));
   },
 };

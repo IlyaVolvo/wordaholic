@@ -3,7 +3,7 @@ import { calendarMonthForSelection } from '../../../../app/daily/variantVisit.js
 import { mountHeaderChrome } from '../../../../app/play/header-chrome.js';
 import { openHelp } from '@wordaholic/help';
 import helpTopic from '../help/topic.js';
-import { reportStats } from '@wordaholic/stats';
+import { reportPlayEnd, reportPlayStart } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import type { Lexicon } from './lexicon.ts';
 import { fitCell, localCalendarDate, PARAMS } from './params.ts';
@@ -98,6 +98,7 @@ export const Game: React.FC<{
   const simRef = useRef<Sim | null>(null);
   const scoresRef = useRef<ScoreRecord | null>(null);
   const liveRef = useRef(false);
+  const startReported = useRef(false);
   const savedRev = useRef(-1);
   const [W, setW] = useState(initialW);
   const [H, setH] = useState(initialH);
@@ -143,6 +144,7 @@ export const Game: React.FC<{
       }
       simRef.current = sim;
       liveRef.current = sim.phase !== 'ready' && sim.phase !== 'over';
+      startReported.current = false;
       savedRev.current = sim.phase === 'ready' ? -1 : sim.revision;
       scoresRef.current = record;
       setScores(record);
@@ -208,14 +210,29 @@ export const Game: React.FC<{
           savedRev.current = sim.revision;
           void saveRun(sim);
         }
+        if (liveRef.current && sim.phase !== 'ready' && sim.phase !== 'over' && !startReported.current) {
+          startReported.current = true;
+          reportPlayStart({
+            gameId: 3,
+            language: sim.language,
+            variant: `${sim.W},${sim.H}`,
+            puzzleDate: sim.date,
+          });
+        }
         if (sim.phase === 'over' && liveRef.current) {
           liveRef.current = false;
           const finished = sim;
+          reportPlayEnd({
+            gameId: 3,
+            language: finished.language,
+            variant: `${finished.W},${finished.H}`,
+            puzzleDate: finished.date,
+            value: Math.max(0, Math.round(finished.score)),
+          });
           void loadScores(finished.language, finished.W, finished.H, finished.date).then(async (existing) => {
             const record = await saveScores(finished, existing);
             scoresRef.current = record;
             setScores(record);
-            reportStats({ games: { [GAME_ID]: { [`${finished.language},${finished.W},${finished.H}`]: 1 } } });
           });
         }
       }

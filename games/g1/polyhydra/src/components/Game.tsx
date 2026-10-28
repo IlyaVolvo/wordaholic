@@ -20,7 +20,7 @@ import {
 } from '@wordaholic/wordle-core';
 import { openHelp } from '@wordaholic/help';
 import helpTopic from '../../help/topic.js';
-import { reportStats } from '@wordaholic/stats';
+import { reportPlayEnd, reportPlayStart } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../../app/daily/variantVisit.js';
 import { mountHeaderChrome } from '../../../../../app/play/header-chrome.js';
@@ -893,6 +893,7 @@ export const Game: React.FC<GameProps> = ({
     }
 
     const isDailyStart = boardGuesses.every((g) => g.length === 0);
+    const wasComplete = hydraProgress(targets, boardGuesses, language, boardCount).historyComplete;
     const nextGuesses = boardGuesses.map((words, i) => {
       if (boardSolvedAt(words, targets[i], language)) return words;
       const committed = isWinningGuessForLanguage(guess, targets[i], language) ? targets[i] : guess;
@@ -918,7 +919,21 @@ export const Game: React.FC<GameProps> = ({
       );
     }
     if (isDailyStart) {
-      reportStats({ games: { polyhydra: { [`${language},${wordLength},${boardCount}`]: 1 } } });
+      reportPlayStart({
+        gameId: 2,
+        language,
+        variant: `${wordLength},${boardCount}`,
+        puzzleDate: selectedPlayDate,
+      });
+    }
+    if (!wasComplete && progress.historyComplete) {
+      reportPlayEnd({
+        gameId: 2,
+        language,
+        variant: `${wordLength},${boardCount}`,
+        puzzleDate: selectedPlayDate,
+        value: progress.used,
+      });
     }
   }, [
     isComplete,
@@ -935,7 +950,7 @@ export const Game: React.FC<GameProps> = ({
     exiting,
     openIndices,
     windowStart,
-    visibleCount,
+    selectedPlayDate,
   ]);
 
   useEffect(() => {

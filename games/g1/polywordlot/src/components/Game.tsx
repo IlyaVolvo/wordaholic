@@ -17,7 +17,7 @@ import { calendarMonthForSelection, openVariant, selectVariantDate } from '../..
 import { openHelp, isHelpOpen } from '@wordaholic/help';
 import { mountHeaderChrome } from '../../../../../app/play/header-chrome.js';
 import helpTopic from '../../help/topic.js';
-import { reportStats } from '@wordaholic/stats';
+import { reportPlayEnd, reportPlayStart } from '@wordaholic/stats';
 
 const MAX_GUESSES = 6;
 
@@ -852,7 +852,21 @@ export const Game: React.FC<GameProps> = ({
     updateLetterStates(updatedState);
     onRecordPlayed?.();
     if (isGameStart) {
-      reportStats({ games: { polywordlot: { [`${language},${wordLength}`]: 1 } } });
+      reportPlayStart({
+        gameId: 0,
+        language,
+        variant: String(wordLength),
+        puzzleDate: gameState.date,
+      });
+    }
+    if (isComplete) {
+      reportPlayEnd({
+        gameId: 0,
+        language,
+        variant: String(wordLength),
+        puzzleDate: gameState.date,
+        value: newGuesses.length,
+      });
     }
   }, [gameState, dictionary, wordLength, targetWord, language, keyboardRtl, saveGameToApi, updateLetterStates, onRecordPlayed]);
 

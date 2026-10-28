@@ -1375,3 +1375,64 @@ main {
   display: flex;
   justify-content: flex-end;
 }
+.home-links {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.home-links a,
+.home-links button {
+  font: inherit;
+  color: var(--ink);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.player-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+.player-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 35, 43, 0.45);
+}
+.player-dialog-card {
+  position: relative;
+  width: min(440px, 100%);
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.player-dialog-card h2 {
+  font-family: var(--font-display);
+  margin: 0 0 8px;
+}
+.player-lead { margin-top: 0; }
+.player-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 12px 0;
+}
+.player-field input:not([type="checkbox"]) {
+  font: inherit;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.player-error { color: #9d2c2c; min-height: 1.2em; }
+.player-suggestions, .player-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.player-remember { flex-direction: row; align-items: center; }

@@ -26,6 +26,7 @@ import { reloadLatestFromServer } from './updates/reload-latest.js';
 import { openHelp } from './help/dialog.js';
 import siteHelp from './help/site/topic.js';
 import { reportStats } from './stats/report.js';
+import { openPlayerDialog, settleImportedNickname } from './identity/dialog.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -170,6 +171,7 @@ async function renderGateway() {
           throw new Error('File is not valid JSON');
         }
         await importSiteBackup(payload);
+        await settleImportedNickname(payload.player && payload.player.nickname);
         await renderGateway();
         showPreparing().catch((err) => console.warn('Offline prep failed', err));
         runHomeAutoExport().catch((err) => console.warn('Auto export failed', err));
@@ -226,6 +228,7 @@ function bindChrome() {
   if (chromeBound) return;
   chromeBound = true;
 
+  $('#btn-player')?.addEventListener('click', () => openPlayerDialog());
   const aboutDialog = $('#about-dialog');
   const openAbout = async () => {
     aboutDialog.hidden = false;
