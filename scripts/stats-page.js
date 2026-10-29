@@ -36,7 +36,7 @@ const STATS_HELP =
   'Country can be several at once; none selected means all. Search matches country names and codes the same way Place and ISP do. Select all and Deselect all apply to the countries currently shown in that list.\n' +
   'Language works the same way: none selected means all; only games played in the selected languages are counted, for the games total and each game. Search matches language names and codes. Select all and Deselect all apply to the languages currently shown in that list.\n' +
   'Group on Totals defaults to country and can roll the same filtered networks up by country, city, or language. City is country plus city; a missing city stays in that country as city unknown. Unknown geo is one Unknown row.\n' +
-  'Grouped languages are the union of codes, not a sum of counts. Language grouping splits plays by the language in each puzzle key; a network that played two languages appears in both, and the languages count column is hidden. Click a country or city to filter to it and return to Network.\n' +
+  'Grouped languages are the union of codes, not a sum of counts. Language grouping splits plays by the language in each puzzle key; a network that played two languages appears in both, and the languages count column is hidden. An IP, country, or city opens Trends filtered to that value. A language name is not a link. An IP in the ISP field matches that network exactly.\n' +
   'City totals follow coarse IP geo (Starlink often Seattle, T-Mobile San Francisco).\n' +
   'Export CSV downloads the rows currently visible under those filters (not the totals row).\n' +
   'Clear filters resets Country, Language, Place, ISP, Homehits, and count filters. Group and the date range stay as they are.\n' +
@@ -336,6 +336,18 @@ export function languagesFromRows(rows) {
 }
 
 /**
+ * ISP text matches the organization name. A query that equals the row IP selects that network.
+ * @param {import('./stats-combine.js').StatsRow} row
+ * @param {string} query
+ */
+function ispQueryMatches(row, query) {
+  if (!query) return true;
+  if (row.ip && row.ip === query) return true;
+  const ispHay = row.geo?.asOrg || row.location || '';
+  return smartMatch(ispHay, query);
+}
+
+/**
  * @param {import('./stats-combine.js').StatsRow} row
  * @param {ReturnType<typeof parseStatsFilters>} filters
  */
@@ -353,10 +365,7 @@ function rowMatchesFilters(row, filters) {
     const placeHay = geo ? `${geo.city} ${geo.region}` : row.location || '';
     if (!smartMatch(placeHay, filters.place)) return false;
   }
-  if (filters.isp) {
-    const ispHay = row.geo?.asOrg || row.location || '';
-    if (!smartMatch(ispHay, filters.isp)) return false;
-  }
+  if (filters.isp && !ispQueryMatches(row, filters.isp)) return false;
   if (filters.homeHitsOnly) {
     if (!(row.homeHits > 0 && row.games === 0)) return false;
     for (const game of STATS_GAMES) {
@@ -419,6 +428,33 @@ function writeStatsFilterParams(params, filters) {
 }
 
 /**
+ * Trends URL for one Totals cell. `patch` replaces country, place, or ISP; other filters stay.
+ * @param {{ filters: ReturnType<typeof parseStatsFilters>, from: string, to: string, interval: string }} jump
+ * @param {{ country?: string, place?: string, isp?: string }} patch
+ */
+function trendJumpHref(jump, patch) {
+  const params = new URLSearchParams();
+  params.set('tab', 'trends');
+  if (jump.from) params.set('from', jump.from);
+  if (jump.to) params.set('to', jump.to);
+  params.set('interval', jump.interval || 'days');
+  writeStatsFilterParams(params, {
+    countries:
+      patch.country !== undefined
+        ? patch.country
+          ? [String(patch.country).toUpperCase()]
+          : []
+        : jump.filters.countries,
+    languages: jump.filters.languages,
+    place: patch.place !== undefined ? patch.place : jump.filters.place,
+    isp: patch.isp !== undefined ? patch.isp : jump.filters.isp,
+    homeHitsOnly: jump.filters.homeHitsOnly,
+    gt: jump.filters.gt,
+  });
+  return `/stats?${params.toString()}`;
+}
+
+/**
  * @param {string} value
  */
 function esc(value) {
@@ -459,11 +495,17 @@ function columnSortValue(col, row) {
  * @param {StatsColumn} col
  * @param {import('./stats-combine.js').StatsRow} row
  * @param {number} index
+ * @param {{ filters: ReturnType<typeof parseStatsFilters>, from: string, to: string, interval: string }} [jump]
  */
-function columnDisplay(col, row, index) {
+function columnDisplay(col, row, index, jump) {
   const langCodes = row.languageCodes || [];
   const langTip = langCodes.map((code) => LANGUAGE_MENU.get(code) || code).join('\n');
-  if (col.key === 'ip') return tipCell(row.ip, row.perms || 'No game permutations', `perm-${index}`);
+  if (col.key === 'ip') {
+    const tip = row.perms || 'No game permutations';
+    const href = jump && row.ip ? trendJumpHref(jump, { isp: row.ip }) : '';
+    const shown = href ? `<a class="trend-date" href="${esc(href)}">${esc(row.ip)}</a>` : esc(row.ip);
+    return `<span class="tip-cell">${shown}<span id="perm-${index}" class="tip" role="tooltip">${esc(tip)}</span></span>`;
+  }
   if (col.key === 'location') return esc(row.location);
   if (col.key === 'languages') return tipCell(String(row.languages), langTip, `lang-${index}`);
   if (col.key === 'addrs') return esc(row.addrs);
@@ -523,31 +565,26 @@ function groupedColumnSortValue(col, row) {
 }
 
 /**
- * @param {string} label
- * @param {'country' | 'city'} group
- * @param {string} country
- * @param {string} city
- */
-function drillCell(label, group, country, city) {
-  if (!country) return esc(label);
-  const extra = group === 'city' ? ` data-drill-city="${esc(city)}"` : '';
-  return `<button type="button" class="group-drill" data-drill="${esc(group)}" data-drill-country="${esc(
-    country
-  )}"${extra}>${esc(label)}</button>`;
-}
-
-/**
  * @param {StatsColumn} col
  * @param {import('./stats-combine.js').StatsGroupedRow} row
  * @param {number} index
  * @param {'country' | 'city' | 'language'} group
+ * @param {{ filters: ReturnType<typeof parseStatsFilters>, from: string, to: string, interval: string }} [jump]
  */
-function groupedColumnDisplay(col, row, index, group) {
+function groupedColumnDisplay(col, row, index, group, jump) {
   const langCodes = row.languageCodes || [];
   const langTip = langCodes.map((code) => LANGUAGE_MENU.get(code) || code).join('\n');
   if (col.key === 'label') {
-    if (group === 'language') return esc(row.label);
-    return drillCell(row.label, group, row.country, row.city);
+    if (group === 'language' || !jump) return esc(row.label);
+    if (group === 'country' && row.country) {
+      return `<a class="trend-date" href="${esc(trendJumpHref(jump, { country: row.country }))}">${esc(row.label)}</a>`;
+    }
+    if (group === 'city' && (row.country || row.city)) {
+      return `<a class="trend-date" href="${esc(
+        trendJumpHref(jump, { country: row.country || '', place: row.city || '' })
+      )}">${esc(row.label)}</a>`;
+    }
+    return esc(row.label);
   }
   if (col.key === 'networks') return esc(row.networks);
   if (col.key === 'languages') return tipCell(String(row.languages), langTip, `glang-${index}`);
@@ -855,6 +892,35 @@ const FILTER_SCRIPT = `(function () {
   function numTd(value, col) {
     return '<td class="n" data-sort="' + escHtml(value) + '" data-col="' + escHtml(col || '') + '">' + escHtml(value) + '</td>';
   }
+  function trendHref(patch) {
+    var params = new URLSearchParams();
+    params.set('tab', 'trends');
+    var from = fromEl ? fromEl.value : '';
+    var to = toEl ? toEl.value : '';
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    params.set('interval', new URL(location.href).searchParams.get('interval') || 'days');
+    var countries = patch.country != null ? (patch.country ? [String(patch.country).toUpperCase()] : []) : selectedCountryCodes();
+    var languages = selectedLanguageCodes();
+    var placeEl = form.querySelector('[name=place]');
+    var ispEl = form.querySelector('[name=isp]');
+    var place = patch.place != null ? patch.place : (placeEl ? placeEl.value : '');
+    var isp = patch.isp != null ? patch.isp : (ispEl ? ispEl.value : '');
+    if (countries.length) params.set('country', countries.join(','));
+    if (languages.length) params.set('language', languages.join(','));
+    if (place) params.set('place', place);
+    if (isp) params.set('isp', isp);
+    if (home && home.checked) params.set('homeHitsOnly', '1');
+    else {
+      for (var gi = 0; gi < gtKeys.length; gi++) {
+        var gtEl = form.querySelector('[name="gt_' + gtKeys[gi] + '"]');
+        if (!gtEl || gtEl.disabled) continue;
+        var raw = String(gtEl.value || '').trim();
+        if (raw) params.set('gt_' + gtKeys[gi], raw);
+      }
+    }
+    return '/stats?' + params.toString();
+  }
   function langLabel(code) {
     return langNames[code] || code || 'Unknown';
   }
@@ -1069,16 +1135,11 @@ const FILTER_SCRIPT = `(function () {
       tr.setAttribute('data-game-' + gameIds[j], String(item.byGame[gameIds[j]] || 0));
     }
     var langTip = item.langCodes.map(function (code) { return langNames[code] || code; }).join('\\n');
-    var labelInner;
-    if (group === 'language') {
-      labelInner = escHtml(item.label);
-    } else if (item.country) {
-      labelInner = '<button type="button" class="group-drill" data-drill="' + escHtml(group) +
-        '" data-drill-country="' + escHtml(item.country) + '"' +
-        (group === 'city' ? ' data-drill-city="' + escHtml(item.city) + '"' : '') +
-        '>' + escHtml(item.label) + '</button>';
-    } else {
-      labelInner = escHtml(item.label);
+    var labelInner = escHtml(item.label);
+    if (group === 'country' && item.country) {
+      labelInner = '<a class="trend-date" href="' + escHtml(trendHref({ country: item.country })) + '">' + escHtml(item.label) + '</a>';
+    } else if (group === 'city' && (item.country || item.city)) {
+      labelInner = '<a class="trend-date" href="' + escHtml(trendHref({ country: item.country || '', place: item.city || '' })) + '">' + escHtml(item.label) + '</a>';
     }
     var langInner = '<span class="tip-cell"><button type="button" class="tip-trigger" title="' +
       escHtml(langTip) + '">' + escHtml(item.languages) + '</button><span class="tip" role="tooltip">' +
@@ -1391,7 +1452,7 @@ const FILTER_SCRIPT = `(function () {
       }
       if (ok && !rowHasLanguage(row, languages)) ok = false;
       if (ok && place && !smartMatch(row.getAttribute('data-place') || '', place)) ok = false;
-      if (ok && isp && !smartMatch(row.getAttribute('data-isp') || '', isp)) ok = false;
+      if (ok && isp && (row.getAttribute('data-ip') || '') !== isp && !smartMatch(row.getAttribute('data-isp') || '', isp)) ok = false;
       var metrics = slicedPlayMetrics(row, languages);
       if (ok && homeOnly) {
         if (!(numAttr(row, 'data-homehits') > 0 && numAttr(row, 'data-games') === 0)) ok = false;
@@ -1428,6 +1489,12 @@ const FILTER_SCRIPT = `(function () {
     pinTotals();
     updateCountrySummary();
     updateLanguageSummary();
+    var ipLinks = tbody.querySelectorAll('tr[data-grain="network"] a.trend-date');
+    for (var li = 0; li < ipLinks.length; li++) {
+      var hostRow = ipLinks[li].closest('tr');
+      var ip = hostRow ? hostRow.getAttribute('data-ip') || '' : '';
+      if (ip) ipLinks[li].setAttribute('href', trendHref({ isp: ip }));
+    }
     syncUrl();
   }
   function syncUrl() {
@@ -1612,21 +1679,6 @@ const FILTER_SCRIPT = `(function () {
       setVisibleLanguages(false);
     });
   }
-  tbody.addEventListener('click', function (e) {
-    var t = e.target;
-    var btn = t && t.closest ? t.closest('[data-drill]') : null;
-    if (!btn) return;
-    e.preventDefault();
-    var placeEl = form.querySelector('[name=place]');
-    var groupEl = form.querySelector('[name=group]');
-    var country = btn.getAttribute('data-drill-country') || '';
-    var city = btn.getAttribute('data-drill-city') || '';
-    var grain = btn.getAttribute('data-drill') || '';
-    setCountrySelection(country ? [country] : []);
-    if (placeEl && grain === 'city') placeEl.value = city;
-    if (groupEl) groupEl.value = 'network';
-    apply();
-  });
   var legendRow = table.tHead && table.tHead.rows[0];
   if (legendRow && window.ResizeObserver) {
     new ResizeObserver(pinTotals).observe(legendRow);
@@ -1690,7 +1742,7 @@ const CSV_SCRIPT = `(function () {
   function firstCellText(row) {
     var cell = row.cells[0];
     if (!cell) return '';
-    var btn = cell.querySelector('.group-drill') || cell.querySelector('.tip-trigger');
+    var btn = cell.querySelector('a.trend-date') || cell.querySelector('.tip-trigger');
     return (btn ? btn.textContent : cell.textContent) || '';
   }
   function cellValue(row, key) {
@@ -1780,10 +1832,7 @@ function rowMatchesGameFilters(row, filters) {
     const placeHay = geo ? `${geo.city} ${geo.region}` : row.location || '';
     if (!smartMatch(placeHay, filters.place)) return false;
   }
-  if (filters.isp) {
-    const ispHay = row.geo?.asOrg || row.location || '';
-    if (!smartMatch(ispHay, filters.isp)) return false;
-  }
+  if (filters.isp && !ispQueryMatches(row, filters.isp)) return false;
   return true;
 }
 
@@ -2917,17 +2966,6 @@ ${languageOptions
     td.n .tip { left: auto; right: 0; }
     .tip-cell.tip-below .tip { top: calc(100% + 0.25rem); bottom: auto; }
     .tip-cell:hover .tip, .tip-cell:focus-within .tip { display: block; }
-    button.group-drill {
-      background: none;
-      border: 0;
-      padding: 0;
-      font: inherit;
-      color: inherit;
-      cursor: pointer;
-      text-decoration: underline;
-      text-underline-offset: 0.2em;
-    }
-    button.group-drill:hover { text-decoration-thickness: 2px; }
     a.trend-date {
       color: inherit;
       text-decoration: underline;
@@ -3916,6 +3954,7 @@ ${emptyRow}
 `;
   }
 
+  const jump = { filters, from, to, interval };
   const columns = totalsColumns(group);
   const groupedRaw = group === 'network' ? [] : groupStatsRows(filtered, group);
   const grouped =
@@ -3930,7 +3969,7 @@ ${emptyRow}
       const match = rowMatchesFilters(r, filters);
       const hide = group !== 'network' || !match;
       const view = sliceRowPlays(r, filters.languages);
-      const cells = COLUMNS.map((col) => dataCell(col, columnDisplay(col, view, i), columnSortValue(col, view))).join(
+      const cells = COLUMNS.map((col) => dataCell(col, columnDisplay(col, view, i, jump), columnSortValue(col, view))).join(
         '\n'
       );
       return `<tr ${rowDataAttrs(r)}${hide ? ' hidden' : ''}>\n${cells}\n</tr>`;
@@ -3939,7 +3978,7 @@ ${emptyRow}
   const groupedRows = grouped
     .map((r, i) => {
       const cells = columns
-        .map((col) => dataCell(col, groupedColumnDisplay(col, r, i, group), groupedColumnSortValue(col, r)))
+        .map((col) => dataCell(col, groupedColumnDisplay(col, r, i, group, jump), groupedColumnSortValue(col, r)))
         .join('\n');
       const attrs = [
         `data-grouped="1"`,

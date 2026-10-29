@@ -9,5 +9,7 @@ dist/
 word-data/**/master.json
 stats-hours/*.json
 stats-places.json
-**/.wrangler/tmp/
+# Local Wrangler dev state and secrets
+.wrangler/
+.dev.vars
 docs/letter-frequency-*.md
