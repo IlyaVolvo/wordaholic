@@ -2407,7 +2407,6 @@ tenon 238,NOUN
 atour 236,NOUN
 largo 236,ADVERB
 géode 233,NOUN
-fovéa 233,NOUN
 sagou 232,NOUN
 dirlo 231,NOUN
 quint 231,ADJECTIVE,HAS_EXAMPLE
