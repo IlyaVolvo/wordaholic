@@ -11,21 +11,47 @@
 <body>
   <main class="scoreboard-page">
     <header class="scoreboard-bar">
-      <a href="/">Wordaholic</a>
+      <a class="scoreboard-home" href="/" aria-label="Wordaholic">
+        <img src="/brand/wordaholic-mark.svg" width="40" height="40" alt="" />
+      </a>
       <h1>Scoreboard</h1>
-      <label>Names <input id="limit" type="number" min="1" max="100" value="3"></label>
+      <button type="button" id="settings" class="scoreboard-settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+        <span class="scoreboard-tip" role="tooltip">Settings</span>
+      </button>
     </header>
-    <p class="scoreboard-note">Today, this week (from Monday), this month, this year, and lifetime use this device’s calendar. A name is set on the home page.</p>
     <div id="boards"></div>
-    <form class="scoreboard-add" onsubmit="return false">
-      <select id="catalog"></select>
-      <select id="board-kind">
-        <option value="average">Average</option>
-        <option value="best">Letterix best</option>
-      </select>
-      <button type="button" class="btn primary" id="add">Show</button>
-    </form>
   </main>
+
+  <div id="settings-dialog" class="scoreboard-dialog" hidden>
+    <div class="scoreboard-dialog-backdrop" data-settings-close></div>
+    <div class="scoreboard-dialog-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <h2 id="settings-title">Settings</h2>
+      <label class="scoreboard-limit">Names <input id="limit" type="number" min="1" max="100" value="3"></label>
+
+      <h3>Add a scoreboard</h3>
+      <label class="scoreboard-field">Game
+        <select id="game"></select>
+      </label>
+      <fieldset class="scoreboard-field">
+        <legend>Languages</legend>
+        <div id="languages" class="scoreboard-choices"></div>
+      </fieldset>
+      <fieldset class="scoreboard-field">
+        <legend>Parameters</legend>
+        <div id="params" class="scoreboard-choices"></div>
+      </fieldset>
+      <p id="add-error" class="scoreboard-error" role="alert"></p>
+      <button type="button" class="btn primary" id="add">Add scoreboard</button>
+
+      <h3>Scoreboards</h3>
+      <ul id="saved-boards" class="scoreboard-saved"></ul>
+      <button type="button" class="btn" data-settings-close>Close</button>
+    </div>
+  </div>
   <script type="module" src="/app/scoreboard/page.js"></script>
 </body>
 </html>

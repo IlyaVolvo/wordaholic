@@ -39,7 +39,12 @@ export function openPlayerDialog(opts = {}) {
       <div class="player-actions">
         <button type="button" class="btn primary" data-save>${current ? 'Change name' : 'Start'}</button>
         <button type="button" class="btn" data-random>Suggest a name</button>
-        ${current ? '<button type="button" class="btn" data-stop>Stop</button>' : ''}
+        ${current ? `<button type="button" class="btn player-stop" data-stop aria-label="remove from Scoreboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+          <span class="player-stop-tip" role="tooltip">remove from Scoreboard</span>
+        </button>` : ''}
         ${importMemory() ? '<button type="button" class="btn" data-forget>Ask again on import</button>' : ''}
         <button type="button" class="btn" data-close>Close</button>
       </div>
@@ -95,7 +100,7 @@ export function openPlayerDialog(opts = {}) {
   host.querySelector('[data-stop]')?.addEventListener('click', async () => {
     const result = await submitNickname('clear');
     if (result.offline) {
-      showError('Stopping waits until this device is online.');
+      showError('Removing the name waits until this device is online.');
       return;
     }
     if (!result.ok) {

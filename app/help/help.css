@@ -472,18 +472,33 @@
 }
 
 .help-trigger--home {
-  width: 24px;
-  height: 24px;
-  color: #1a3a4a;
+  position: absolute;
+  left: calc(100% + 0.4rem);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(20, 35, 43, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #111;
+  box-shadow: 0 4px 12px rgba(20, 35, 43, 0.12);
 }
 
 .help-trigger--home svg {
-  width: 24px;
-  height: 24px;
+  width: 1rem;
+  height: 1rem;
 }
 
 .help-trigger--home svg path {
-  fill: #fff;
+  fill: currentColor;
+  stroke: none;
+}
+
+.help-trigger--home:hover,
+.help-trigger--home:focus-visible {
+  background: #fff;
+  outline: none;
 }
 
 .help-trigger--game {

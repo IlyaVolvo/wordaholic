@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { aggregateBoard, parseNickname, parsePlayReport, rankBoard, suffixSuggestions } from './play-model.js';
+import { aggregateBoard, inclusiveDays, minimumShare, parseNickname, parsePlayReport, qualifyBoard, rankBoard, suffixSuggestions } from './play-model.js';
 import { statsInputsFromTables } from './stats-hours.js';
 
 const ada = parseNickname('Ada');
@@ -64,6 +64,31 @@ assert.deepEqual(
 );
 assert.equal(ranked.self.place, 4);
 assert.equal(ranked.self.nickname, 'Dee');
+
+assert.equal(inclusiveDays('2026-10-19', '2026-10-25'), 7);
+assert.equal(minimumShare(7), 4);
+assert.equal(minimumShare(31), 16);
+assert.equal(minimumShare(1), 1);
+const weekRows = [
+  { nickname: 'Ada', puzzles: 4 },
+  { nickname: 'Bea', puzzles: 3 },
+];
+assert.deepEqual(
+  qualifyBoard(weekRows, '2026-10-19', '2026-10-25', 'share').map((row) => row.nickname),
+  ['Ada']
+);
+assert.deepEqual(
+  qualifyBoard(
+    [
+      { nickname: 'Ada', puzzles: 50 },
+      { nickname: 'Bea', puzzles: 49 },
+    ],
+    '2020-01-01',
+    '2026-10-28',
+    'lifetime'
+  ).map((row) => row.nickname),
+  ['Ada']
+);
 
 const inputs = statsInputsFromTables({
   cutover: '2026-10-26',

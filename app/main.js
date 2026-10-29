@@ -27,6 +27,7 @@ import { openHelp } from './help/dialog.js';
 import siteHelp from './help/site/topic.js';
 import { reportStats } from './stats/report.js';
 import { openPlayerDialog, settleImportedNickname } from './identity/dialog.js';
+import { getNickname } from './identity/player.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -63,6 +64,13 @@ function gameNamesForLanguage(lang) {
   return listGames()
     .filter((g) => (lang.games || []).includes(g.id) && (g.languages || []).includes(lang.code))
     .map((g) => g.name);
+}
+
+function paintHomeIdentity() {
+  const name = getNickname();
+  const slot = $('#home-nick');
+  if (slot) slot.textContent = name;
+  $('#btn-player')?.classList.toggle('home-nick-btn--empty', !name);
 }
 
 function renderFavoritesChrome() {
@@ -193,6 +201,7 @@ async function renderGateway() {
       window.open(TELEGRAM_GROUP_URL, '_blank', 'noopener,noreferrer');
     },
   });
+  paintHomeIdentity();
 }
 
 /**
@@ -228,7 +237,11 @@ function bindChrome() {
   if (chromeBound) return;
   chromeBound = true;
 
-  $('#btn-player')?.addEventListener('click', () => openPlayerDialog());
+  document.addEventListener('click', (event) => {
+    const button = event.target instanceof Element ? event.target.closest('#btn-player') : null;
+    if (!button) return;
+    openPlayerDialog({ onChange: paintHomeIdentity });
+  });
   const aboutDialog = $('#about-dialog');
   const openAbout = async () => {
     aboutDialog.hidden = false;

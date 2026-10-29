@@ -29,23 +29,30 @@
         </div>
 
         <div class="brand-stack">
-          <button type="button" id="btn-about" class="brand-mark" title="About Wordaholic" aria-label="About Wordaholic">
-            <img class="brand-mark-svg" src="/brand/wordaholic-mark.svg" width="68" height="68" alt="" />
-          </button>
-          <button type="button" id="btn-howto" class="help-trigger help-trigger--home" aria-label="How Wordaholic works">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path fill="#fff" d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-              <path fill="#fff" d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-            </svg>
-            <span class="help-trigger-tip">How Wordaholic works</span>
-          </button>
+          <div id="home-nick" class="home-nick"></div>
+          <div class="brand-row">
+            <a href="/scoreboard/" class="home-scoreboard" aria-label="Scoreboard" title="Scoreboard">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 20V10"></path>
+                <path d="M10 20V4"></path>
+                <path d="M16 20v-6"></path>
+                <path d="M20 20H2"></path>
+              </svg>
+            </a>
+            <button type="button" id="btn-about" class="brand-mark" title="About Wordaholic" aria-label="About Wordaholic">
+              <img class="brand-mark-svg" src="/brand/wordaholic-mark.svg" width="68" height="68" alt="" />
+            </button>
+            <button type="button" id="btn-howto" class="help-trigger help-trigger--home" aria-label="Manual" title="Manual">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+              </svg>
+              <span class="help-trigger-tip">How Wordaholic works</span>
+            </button>
+          </div>
         </div>
 
         <div class="map-toolbar-end">
-          <div class="home-links">
-            <a href="/scoreboard/">Scores</a>
-            <button type="button" id="btn-player">Name</button>
-          </div>
           <div id="game-rail" class="game-rail" aria-label="Games"></div>
         </div>
       </div>

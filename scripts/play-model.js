@@ -263,6 +263,38 @@ export function aggregateBoard(finishes, gameId, board) {
   }));
 }
 
+/** Calendar days in a from/to pair, both inclusive. */
+export function inclusiveDays(from, to) {
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return 0;
+  return Math.round((end - start) / 86400000) + 1;
+}
+
+/** Smallest puzzle count that is at least half the days in the period. */
+export function minimumShare(days) {
+  return Math.ceil(Math.max(0, days) / 2);
+}
+
+export const LIFETIME_GAMES = 50;
+
+/**
+ * Week, month, and year boards keep players who finished at least half the
+ * games in the range. Lifetime keeps players with at least 50 games.
+ * @param {{ puzzles: number }[]} rows
+ * @param {string} from
+ * @param {string} to
+ * @param {'share' | 'lifetime' | ''} gate
+ */
+export function qualifyBoard(rows, from, to, gate) {
+  if (gate === 'lifetime') return rows.filter((row) => row.puzzles >= LIFETIME_GAMES);
+  if (gate === 'share') {
+    const need = minimumShare(inclusiveDays(from, to));
+    return rows.filter((row) => row.puzzles >= need);
+  }
+  return rows;
+}
+
 /**
  * Tied values share a place. The next place skips by the size of the tie.
  * The top group is a count of nicknames. The viewer's row is extra when they fall outside it.

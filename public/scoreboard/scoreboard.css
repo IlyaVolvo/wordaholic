@@ -4,21 +4,68 @@
   padding: 24px 16px 48px;
 }
 .scoreboard-bar {
-  display: flex;
-  align-items: baseline;
-  gap: 16px;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
 }
 .scoreboard-bar h1 {
   font-family: var(--font-display);
   font-size: 2rem;
   margin: 0;
+  text-align: center;
 }
-.scoreboard-bar a {
-  color: var(--accent);
+.scoreboard-home {
+  justify-self: start;
+  display: grid;
+  width: 40px;
+  height: 40px;
+}
+.scoreboard-home img {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(20, 35, 43, 0.18);
+}
+.scoreboard-settings {
+  position: relative;
+  justify-self: end;
+  width: 2.4rem;
+  height: 2.4rem;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  color: #1a3a4a;
+  cursor: pointer;
+}
+.scoreboard-settings svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+.scoreboard-tip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 2;
+  width: max-content;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  background: white;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  color: #1a3a4a;
+  font-size: 0.75rem;
   font-weight: 600;
+  pointer-events: none;
 }
-.scoreboard-note,
+.scoreboard-settings:hover .scoreboard-tip,
+.scoreboard-settings:focus-visible .scoreboard-tip {
+  display: block;
+}
 .scoreboard-empty {
   color: var(--muted);
 }
@@ -37,15 +84,45 @@
   align-items: center;
 }
 .scoreboard-favorite h2,
-.scoreboard-favorite h3 {
+.scoreboard-favorite h3,
+.scoreboard-favorite h4 {
   margin: 0 0 8px;
   font-size: 1.1rem;
+}
+.scoreboard-favorite h3 {
+  margin-top: 12px;
+}
+.scoreboard-favorite h4 {
+  font-size: 0.95rem;
+  color: var(--muted);
 }
 .scoreboard-periods {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 12px;
+  align-items: center;
+}
+.scoreboard-period {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.scoreboard-period input[type="week"],
+.scoreboard-period input[type="month"],
+.scoreboard-period input[type="number"] {
+  font: inherit;
+  width: 9.5rem;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+}
+.scoreboard-period input[type="number"] { width: 5.5rem; }
+.scoreboard-gate {
+  margin: -4px 0 8px;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 .scoreboard-favorite table {
   width: 100%;
@@ -62,19 +139,83 @@
   font-weight: 700;
   background: rgba(196, 92, 38, 0.12);
 }
-.scoreboard-add {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
+.scoreboard-dialog[hidden] { display: none; }
+.scoreboard-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 16px;
 }
-.scoreboard-add select,
-.scoreboard-bar input {
+.scoreboard-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 35, 43, 0.45);
+}
+.scoreboard-dialog-card {
+  position: relative;
+  width: min(480px, 100%);
+  max-height: min(640px, 100%);
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+.scoreboard-dialog-card h2,
+.scoreboard-dialog-card h3 {
+  font-family: var(--font-display);
+  margin: 16px 0 8px;
+}
+.scoreboard-dialog-card h2 { margin-top: 0; }
+.scoreboard-limit,
+.scoreboard-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  border: 0;
+  padding: 0;
+}
+.scoreboard-field legend {
+  padding: 0;
+  margin-bottom: 6px;
+}
+.scoreboard-limit input,
+.scoreboard-field select {
   font: inherit;
   padding: 8px;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: white;
+}
+.scoreboard-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 9rem;
+  overflow: auto;
+}
+.scoreboard-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.scoreboard-error { color: #9d2c2c; min-height: 1.2em; }
+.scoreboard-saved {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.scoreboard-saved li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
 }
 .home-links {
   display: flex;

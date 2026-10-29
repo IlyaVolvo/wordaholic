@@ -7,6 +7,7 @@ import { lookupMissingGeos } from '../../../scripts/stats-geo-lookup.js';
 import { statsInputsFromTables } from '../../../scripts/stats-hours.js';
 import {
   aggregateBoard,
+  qualifyBoard,
   parseBrowserId,
   parseNickname,
   parsePlayReport,
@@ -305,7 +306,8 @@ export class StatsStore {
     }
     if (board === 'best' && !game.boards.includes('best')) return new Response('Invalid board', { status: 400 });
     const finishes = boardFinishes(this.sql, gameId, language, variant, from, to);
-    const aggregated = aggregateBoard(finishes, gameId, board);
+    const gate = url.searchParams.get('gate') === 'lifetime' ? 'lifetime' : url.searchParams.get('gate') === 'share' ? 'share' : '';
+    const aggregated = qualifyBoard(aggregateBoard(finishes, gameId, board), from, to, gate);
     const browserId = parseBrowserId(url.searchParams.get('browserId'));
     let selfKey = '';
     if (browserId) {
