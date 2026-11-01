@@ -1,7 +1,8 @@
 /**
- * Anonymous word reports posted into a Telegram chat.
+ * Anonymous word reports posted into a Telegram topic as a poll.
  * Missing and Questionable topics come from TELEGRAM_TOPIC_MISSING and TELEGRAM_TOPIC_QUESTIONABLE.
- * The chat line is language, game, words, then the name and the client IP in parentheses.
+ * The question is the words. The description is language, game, name, and client IP.
+ * Missing votes Add or Leave out. Questionable votes Remove or Keep.
  * Authentication is not required yet; reject here later before sendTelegram.
  */
 
@@ -36,6 +37,8 @@ const GAMES = {
 const WORD_RE = /^(?=.*\p{L})[\p{L}\p{M}'’ʼ-]+$/u;
 const MAX_WORDS = 40;
 const MAX_NAME = 80;
+const POLL_QUESTION_MAX = 300;
+const POLL_DESCRIPTION_MAX = 1024;
 
 /**
  * Blank stays anonymous. A provided name is one line, capped in length.
@@ -113,14 +116,34 @@ function reportIp(ip) {
 }
 
 /**
- * One line, then a blank line. The name is followed by the client IP in parentheses.
- * A blank name is written as anonymous.
- * @param {{ gameName: string, languageName: string, words: string[], name: string }} report
- * @param {string} ip
+ * Telegram counts characters, including ones outside the BMP.
+ * @param {string} text
+ * @param {number} max
  */
-export function reportMessage(report, ip) {
+function clip(text, max) {
+  const chars = Array.from(text);
+  if (chars.length <= max) return text;
+  if (max < 1) return '';
+  return `${chars.slice(0, max - 1).join('')}…`;
+}
+
+/**
+ * Poll the topic can vote on. The question is the words. The description keeps
+ * language, game, name, and client IP. A blank name is written as anonymous.
+ * @param {{ gameName: string, languageName: string, action: string, words: string[], name: string }} report
+ * @param {string} ip
+ * @returns {{ question: string, description: string, options: { text: string }[] }}
+ */
+export function reportPoll(report, ip) {
   const who = report.name && report.name.trim() ? report.name.trim() : 'anonymous';
-  return `${report.languageName}: ${report.gameName}: ${report.words.join(', ')} ${who} (${reportIp(ip)})\n\n`;
+  const words = report.words.join(', ');
+  const about = `${report.languageName}: ${report.gameName}: ${who} (${reportIp(ip)})`;
+  const question = clip(words, POLL_QUESTION_MAX);
+  const description = clip(question === words ? about : `${about}\n${words}`, POLL_DESCRIPTION_MAX);
+  const options = report.action === 'missing'
+    ? [{ text: 'Add' }, { text: 'Leave out' }]
+    : [{ text: 'Remove' }, { text: 'Keep' }];
+  return { question, description, options };
 }
 
 /**
@@ -143,18 +166,22 @@ export function allowReport(ip, now = Date.now()) {
  * @param {string} token
  * @param {string} chatId
  * @param {number} threadId
- * @param {string} text
+ * @param {{ question: string, description: string, options: { text: string }[] }} poll
  */
-async function sendTelegram(token, chatId, threadId, text) {
+async function sendTelegram(token, chatId, threadId, poll) {
   let res;
   try {
-    res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    res = await fetch(`https://api.telegram.org/bot${token}/sendPoll`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
         message_thread_id: threadId,
-        text,
+        question: poll.question,
+        description: poll.description,
+        options: poll.options,
+        is_anonymous: false,
+        allows_multiple_answers: false,
       }),
       signal: AbortSignal.timeout(10000),
     });
@@ -203,7 +230,7 @@ export async function submitWordReport({ method, raw, env, ip }) {
   if (!allowReport(ip)) {
     return { status: 429, body: { error: 'Too many reports. Try again later.' } };
   }
-  const sent = await sendTelegram(token, chatId, threadId, reportMessage(report.report, ip));
+  const sent = await sendTelegram(token, chatId, threadId, reportPoll(report.report, ip));
   if (!sent) return { status: 502, body: { error: 'Could not send the report' } };
   return { status: 200, body: { ok: true } };
 }
