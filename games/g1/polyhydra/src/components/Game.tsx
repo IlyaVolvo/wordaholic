@@ -19,6 +19,7 @@ import {
   typedLetter,
 } from '@wordaholic/wordle-core';
 import { openHelp } from '@wordaholic/help';
+import { openMissingWordReport, openQuestionableWordReport } from '../../../../../app/shell/word-report.js';
 import helpTopic from '../../help/topic.js';
 import { reportStats } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
@@ -888,7 +889,6 @@ export const Game: React.FC<GameProps> = ({
     }
 
     if (!isValidWord(guess, dictionary)) {
-      commitState(boardGuesses, '', false, false, false);
       return;
     }
 
@@ -1109,7 +1109,7 @@ export const Game: React.FC<GameProps> = ({
   const scrollToBoard = (index: number) => {
     const solved = Boolean(boardViews[index]?.solved);
     const gameOver = isComplete && exiting.length === 0;
-    const reviewing = phone && solved && !gameOver;
+    const reviewing = solved && !gameOver;
     if (reviewing) {
       setReviewIndex(index);
     } else if (reviewIndex != null) {
@@ -1193,18 +1193,34 @@ export const Game: React.FC<GameProps> = ({
               <span data-header-name="short">H..</span>
             </span>
             <div className="header-icon-cluster" data-header-chrome="icons">
-              <button
-                type="button"
-                className="help-trigger help-trigger--game"
-                aria-label="How to play Hydra"
-                onClick={() => openHelp(helpTopic)}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                </svg>
-                <span className="help-trigger-tip">How to play Hydra</span>
-              </button>
+              {isComplete ? (
+                <button
+                  type="button"
+                  className="help-trigger help-trigger--game header-report-button"
+                  aria-label="Report questionable words"
+                  onClick={() => openQuestionableWordReport({
+                    game: 'polyhydra',
+                    language,
+                    words: boardGuesses.flat(),
+                  })}
+                >
+                  <img src="/brand/word-report.png" alt="" />
+                  <span className="help-trigger-tip">Report questionable words</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="help-trigger help-trigger--game"
+                  aria-label="How to play Hydra"
+                  onClick={() => openHelp(helpTopic)}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                  </svg>
+                  <span className="help-trigger-tip">How to play Hydra</span>
+                </button>
+              )}
               {onViewChange && (
                 <span className="header-icon-with-tooltip">
                   <span className="header-icon-tooltip">Statistics</span>
@@ -1233,13 +1249,28 @@ export const Game: React.FC<GameProps> = ({
               </button>
               <ul className="header-more-menu hidden" role="menu" aria-label="Game menu">
                 <li role="none">
-                  <button type="button" role="menuitem" onClick={() => openHelp(helpTopic)}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                    </svg>
-                    <span>How to play</span>
-                  </button>
+                  {isComplete ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => openQuestionableWordReport({
+                        game: 'polyhydra',
+                        language,
+                        words: boardGuesses.flat(),
+                      })}
+                    >
+                      <img src="/brand/word-report.png" alt="" width={18} height={18} />
+                      <span>Report</span>
+                    </button>
+                  ) : (
+                    <button type="button" role="menuitem" onClick={() => openHelp(helpTopic)}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                      </svg>
+                      <span>How to play</span>
+                    </button>
+                  )}
                 </li>
                 {onViewChange ? (
                   <li role="none">
@@ -1447,6 +1478,15 @@ export const Game: React.FC<GameProps> = ({
                       rtl={keyboardRtl}
                       frozen={board.solved || isComplete}
                       onExpand={() => selectBoardMode('full', true)}
+                      onReportMissing={
+                        invalidRow && !board.solved && visibleIndices.find((index) => !boardViews[index]?.solved) === i
+                          ? () => openMissingWordReport({
+                              game: 'polyhydra',
+                              language,
+                              word: currentGuessWord,
+                            })
+                          : undefined
+                      }
                     />
                   ) : (
                     <GameBoard
@@ -1461,6 +1501,15 @@ export const Game: React.FC<GameProps> = ({
                       duplicateRow={duplicateRow && !board.solved}
                       rtl={keyboardRtl}
                       frozen={board.solved}
+                      onReportMissing={
+                        invalidRow && !board.solved && visibleIndices.find((index) => !boardViews[index]?.solved) === i
+                          ? () => openMissingWordReport({
+                              game: 'polyhydra',
+                              language,
+                              word: currentGuessWord,
+                            })
+                          : undefined
+                      }
                     />
                   )}
                 </div>

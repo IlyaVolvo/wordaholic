@@ -1,4 +1,5 @@
 import React from 'react';
+import { MissingReportButton } from '../../../shared/MissingReportButton';
 import { layoutSummaryKnown, summaryKnownRows } from '@wordaholic/wordle-core';
 import type { Guess, LetterEvaluation } from '../types';
 
@@ -12,6 +13,7 @@ interface SummaryBoardProps {
   rtl?: boolean;
   frozen?: boolean;
   onExpand: () => void;
+  onReportMissing?: () => void;
 }
 
 function displayGuessCells(
@@ -54,6 +56,7 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
   rtl = false,
   frozen = false,
   onExpand,
+  onReportMissing,
 }) => {
   const knownRowCount = summaryKnownRows(wordLength);
   const knownRows = layoutSummaryKnown(guesses, wordLength, language, rtl);
@@ -157,6 +160,9 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
                 </div>
               );
             })}
+            {invalidRow && onReportMissing ? (
+              <MissingReportButton onClick={onReportMissing} />
+            ) : null}
           </div>
         </div>
       ) : null}

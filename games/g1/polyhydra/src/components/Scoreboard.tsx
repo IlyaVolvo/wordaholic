@@ -149,13 +149,12 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
         {cells.map((cell, i) => {
           const detail = phone && open === i;
           const showWord = !phone && revealed && Boolean(cell.answer);
+          const showCheck = cell.solved && !showWord;
           const attempt =
-            phone || !cell.solved || cell.solvedAt == null ? null : cell.solvedAt;
-          const showCheck = phone && cell.solved;
+            phone || showCheck || !cell.solved || cell.solvedAt == null ? null : cell.solvedAt;
           const tracked = phone && selectedIndex === i;
-          const showNm = phone ? false : !showWord;
+          const showNm = !phone && !showWord && !showCheck;
           const nm = showNm ? `${cell.greens}/${cell.yellows}` : '';
-          const locked = !phone && cell.solved && !revealed;
           const style = {
             ...(cell.solved
               ? { background: phone ? '#14532d' : 'var(--correct)', color: '#fff' }
@@ -178,19 +177,9 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
                 showCheck ? ', solved' : ''
               }${showNm || tracked ? `, ${cell.greens} green, ${cell.yellows} yellow` : ''}${
                 detail && revealed && cell.answer ? `, ${cell.answer}` : ''
-              }${showWord ? `, ${cell.answer}${attempt != null ? `, guess ${attempt}` : ''}` : ''}${
-                locked ? ', solved' : ''
-              }`}
+              }${showWord ? `, ${cell.answer}${attempt != null ? `, guess ${attempt}` : ''}` : ''}`}
               aria-expanded={phone ? detail : undefined}
-              disabled={locked}
-              onClick={() => {
-                if (phone) {
-                  onSelect(i);
-                  return;
-                }
-                if (locked) return;
-                onSelect(i);
-              }}
+              onClick={() => onSelect(i)}
             >
               {showWord ? (
                 <span className="hydra-scoreboard-answer">{cell.answer!.toUpperCase()}</span>

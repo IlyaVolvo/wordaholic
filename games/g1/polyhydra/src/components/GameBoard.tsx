@@ -1,4 +1,5 @@
 import React from 'react';
+import { MissingReportButton } from '../../../shared/MissingReportButton';
 import type { Guess, LetterEvaluation } from '../types';
 
 interface GameBoardProps {
@@ -13,6 +14,7 @@ interface GameBoardProps {
   duplicateRow?: boolean;
   rtl?: boolean;
   frozen?: boolean;
+  onReportMissing?: () => void;
 }
 
 function rowWarnClass(invalid: boolean, duplicate: boolean): string {
@@ -33,6 +35,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   duplicateRow = false,
   rtl = false,
   frozen = false,
+  onReportMissing,
 }) => {
   const showCurrent = !frozen && !isComplete;
 
@@ -102,6 +105,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     rows.push(
       <div key={row} className={`row${warn}`}>
         {cells}
+        {onEntry && invalidRow && onReportMissing ? (
+          <MissingReportButton onClick={onReportMissing} />
+        ) : null}
       </div>
     );
   }

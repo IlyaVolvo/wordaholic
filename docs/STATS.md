@@ -72,6 +72,7 @@ Everything else on the host is the static site. The Worker answers only:
 | `GET /api/stats` | JSON dump of the last 24 hours, keyed by IP |
 | `GET /stats` | HTML report (live dump plus archived hours) |
 | `GET /api/stats/geo` | Locality totals for the map, no IP addresses |
+| `POST /api/word-report` | Word report. Not stored. Posted into the Missing or Questionable Telegram topic when `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_TOPIC_MISSING`, and `TELEGRAM_TOPIC_QUESTIONABLE` are set. A blank name is written as anonymous, then the client IP in parentheses |
 
 One Durable Object, `StatsStore`, id from the name `site`, holds every visitor. SQLite-backed class (`new_sqlite_classes`).
 

@@ -5,6 +5,16 @@ compatibility_date = "2026-08-27"
 #   GCS_BUCKET
 #   GCS_HMAC_ACCESS_KEY
 #   GCS_HMAC_SECRET
+# Anonymous word reports (wrangler secret put, do not commit):
+#   TELEGRAM_BOT_TOKEN
+#   TELEGRAM_CHAT_ID    the chat the bot is allowed to post in
+# Topic ids are configuration, not secrets:
+#   TELEGRAM_TOPIC_MISSING
+#   TELEGRAM_TOPIC_QUESTIONABLE
+
+[vars]
+TELEGRAM_TOPIC_MISSING = "15"
+TELEGRAM_TOPIC_QUESTIONABLE = "18"
 
 [[durable_objects.bindings]]
 name = "STATS"

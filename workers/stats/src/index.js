@@ -4,7 +4,8 @@ import { gcsConfigured, gcsPlacesObjectKey, getGcsObject, listGcsKeys } from '..
 import { emptyPlacesDocument, parsePlacesDocument } from '../../../scripts/stats-places.js';
 import { createStatsStore, PRUNE_INTERVAL_MS } from '../../../scripts/stats-store.js';
 import { combineBodies, combineTrends, normalizeGeo, parseDateRange, parseTrendInterval } from '../../../scripts/stats-combine.js';
-import { isStatsApiPath, isStatsGeoApiPath, isStatsPagePath } from '../../../scripts/stats-path.js';
+import { isStatsApiPath, isStatsGeoApiPath, isStatsPagePath, isWordReportApiPath } from '../../../scripts/stats-path.js';
+import { submitWordReport, WORD_REPORT_MAX_BYTES } from '../../../scripts/word-report.js';
 import { renderStatsHtml, trendIdentityAllowIds, trendLanguageAllow } from '../../../scripts/stats-page.js';
 import { buildStatsGeoPayload } from '../../../scripts/stats-geo-api.js';
 import { HOUR_PULL_BATCH, HOUR_STORAGE_GET_BATCH, hourFromObjectKey } from '../../../scripts/stats-hour-cache.js';
@@ -363,13 +364,39 @@ export class StatsStore {
   }
 }
 
+/**
+ * Anonymous word report. Not forwarded to the stats Durable Object.
+ * @param {Request} request
+ * @param {{ TELEGRAM_BOT_TOKEN?: string, TELEGRAM_CHAT_ID?: string, TELEGRAM_TOPIC_MISSING?: string, TELEGRAM_TOPIC_QUESTIONABLE?: string }} env
+ */
+async function handleWordReport(request, env) {
+  const method = request.method || 'GET';
+  let raw = '';
+  if (method === 'POST') {
+    const declared = Number(request.headers.get('Content-Length'));
+    if (Number.isFinite(declared) && declared > WORD_REPORT_MAX_BYTES) {
+      return Response.json({ error: 'Payload too large' }, { status: 413, headers: JSON_HEADERS });
+    }
+    try {
+      raw = await request.text();
+    } catch {
+      return Response.json({ error: 'Bad request' }, { status: 400, headers: JSON_HEADERS });
+    }
+  }
+  const result = await submitWordReport({ method, raw, env, ip: clientIp(request) });
+  return Response.json(result.body, { status: result.status, headers: JSON_HEADERS });
+}
+
 export default {
   /**
    * @param {Request} request
-   * @param {{ STATS: DurableObjectNamespace }} env
+   * @param {{ STATS: DurableObjectNamespace, TELEGRAM_BOT_TOKEN?: string, TELEGRAM_CHAT_ID?: string, TELEGRAM_TOPIC_MISSING?: string, TELEGRAM_TOPIC_QUESTIONABLE?: string }} env
    */
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (isWordReportApiPath(url.pathname)) {
+      return handleWordReport(request, env);
+    }
     if (
       !isStatsApiPath(url.pathname) &&
       !isStatsPagePath(url.pathname) &&

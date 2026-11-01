@@ -8,6 +8,7 @@ import {
 import { getDaily, upsertDaily, listDailies, computeDailyStats } from './daily-store.js';
 import { loadCorpus, loadCorpusText, loadLanguageIndex } from '../shared/wordset.js';
 import { storage } from '../../../app/storage/idb.js';
+import { bindMissingReport, openMissingWordReport, openQuestionableWordReport, placeMissingReport } from '../../../app/shell/word-report.js';
 import { setSessionActive } from '../../../app/updates/manifest.js';
 import { notifySessionEnded } from '../../../app/shell/update-ui.js';
 import {
@@ -496,6 +497,7 @@ async function switchLanguage(code, startPuzzle = true) {
 async function loadDailyForSelection() {
   readOnly = false;
   solved = false;
+  syncQuestionableReport();
   updateDateDisplay();
   const combo = currentCombo();
   let record = await getDaily(combo);
@@ -547,6 +549,7 @@ async function loadDailyForSelection() {
       showTarget();
       $('#optimal-count').textContent = String(puzzle.dist);
       renderChain();
+      syncQuestionableReport();
       return;
     }
   }
@@ -800,6 +803,8 @@ function configureWordInput(input) {
     input.addEventListener('focus', () => input.blur());
   }
   input.addEventListener('input', () => {
+    const report = document.getElementById('missing-word-report');
+    if (report) report.hidden = true;
     if (input.value) noteTyping();
     else currentDraft();
   });
@@ -838,6 +843,20 @@ function makeInputNode() {
   hint.className = 'error-hint';
   hint.id = 'error-hint';
   wrap.appendChild(input);
+  const report = document.createElement('button');
+  report.type = 'button';
+  report.id = 'missing-word-report';
+  report.className = 'missing-word-report';
+  report.hidden = true;
+  report.setAttribute('aria-label', 'Report missing word');
+  report.innerHTML = '<img src="/brand/word-report.png" alt="" />';
+  report.addEventListener('click', (event) => {
+    event.preventDefault();
+    const value = input.value.trim();
+    if (!value) return;
+    openMissingWordReport({ game: 'transword', language, word: value });
+  });
+  wrap.appendChild(report);
   if (!investigateSpec) {
     const help = document.createElement('button');
     help.type = 'button';
@@ -926,6 +945,30 @@ function flashError(input, hint, msg) {
   input.classList.add('shake');
   hint.textContent = msg;
   hint.classList.add('visible');
+  const report = document.getElementById('missing-word-report');
+  if (!report) return;
+  report.hidden = msg !== 'Not in dictionary';
+  if (!report.hidden) placeShownMissingReport(report);
+}
+
+function placeShownMissingReport(report) {
+  if (!report.dataset.placed) {
+    report.dataset.placed = '1';
+    bindMissingReport(report);
+    return;
+  }
+  placeMissingReport(report);
+}
+
+function syncQuestionableReport() {
+  const report = document.getElementById('btn-questionable');
+  const howto = document.getElementById('btn-howto');
+  const menuReport = document.querySelector('[data-header-action="report"]');
+  const menuHow = document.querySelector('[data-header-action="howto"]');
+  if (report) report.hidden = !solved;
+  if (howto) howto.hidden = solved;
+  if (menuReport) menuReport.hidden = !solved;
+  if (menuHow) menuHow.hidden = solved;
 }
 
 function renderKeyboard() {
@@ -1005,6 +1048,7 @@ function showWin(freshSolve = true) {
   if (winHelp) winHelp.textContent = formatStepShare(helpCount, steps);
 
   $('#win-overlay').classList.remove('hidden');
+  syncQuestionableReport();
   void freshSolve;
 }
 
@@ -1230,6 +1274,7 @@ function showInvestigateMessage(message) {
 async function beginInvestigate() {
   readOnly = false;
   solved = false;
+  syncQuestionableReport();
   elapsedMsStored = 0;
   timerStarted = false;
   inputDraft = '';
@@ -1298,6 +1343,13 @@ async function init() {
     toggleDisplay();
   });
   $('#btn-howto')?.addEventListener('click', () => openHelp(helpTopic));
+  $('#btn-questionable')?.addEventListener('click', () => {
+    openQuestionableWordReport({
+      game: 'transword',
+      language,
+      words: chain.slice(),
+    });
+  });
   const headerBar = $('#header');
   const phoneHeader = window.matchMedia('(max-width: 720px)');
   const syncHeaderMin = () => {
@@ -1317,6 +1369,13 @@ async function init() {
     const action = item.getAttribute('data-header-action');
     if (action === 'stats') openStats();
     else if (action === 'howto') openHelp(helpTopic);
+    else if (action === 'report') {
+      openQuestionableWordReport({
+        game: 'transword',
+        language,
+        words: chain.slice(),
+      });
+    }
   });
   $('#language-trigger')?.addEventListener('click', (e) => {
     e.stopPropagation();

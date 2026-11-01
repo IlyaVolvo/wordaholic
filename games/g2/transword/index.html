@@ -33,6 +33,10 @@
           <span data-header-name="short">TW</span>
         </span>
         <div class="header-icon-cluster" data-header-chrome="icons">
+          <button type="button" id="btn-questionable" class="help-trigger help-trigger--game header-report-button" aria-label="Report questionable words" hidden>
+            <img src="/brand/word-report.png" alt="" />
+            <span class="help-trigger-tip">Report questionable words</span>
+          </button>
           <button type="button" id="btn-howto" class="help-trigger help-trigger--game" aria-label="How to play TransWord">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
@@ -58,6 +62,10 @@
           </button>
           <ul class="header-more-menu hidden" id="header-more-menu" role="menu" aria-label="Game menu">
             <li role="none">
+              <button type="button" role="menuitem" data-header-action="report" hidden>
+                <img src="/brand/word-report.png" alt="" width="18" height="18" />
+                <span>Report</span>
+              </button>
               <button type="button" role="menuitem" data-header-action="howto">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>

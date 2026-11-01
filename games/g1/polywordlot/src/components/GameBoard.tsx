@@ -1,4 +1,5 @@
 import React from 'react';
+import { MissingReportButton } from '../../../shared/MissingReportButton';
 import type { Guess, LetterEvaluation } from '../types';
 
 interface GameBoardProps {
@@ -12,6 +13,7 @@ interface GameBoardProps {
   invalidRow?: boolean;
   /** When true, current guess is shown right-to-left (first letter in rightmost cell) */
   rtl?: boolean;
+  onReportMissing?: () => void;
 }
 
 export const GameBoard: React.FC<GameBoardProps> = ({
@@ -24,6 +26,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   isWon,
   invalidRow = false,
   rtl = false,
+  onReportMissing,
 }) => {
   const getCellState = (row: number, col: number): LetterEvaluation | null => {
     // Show completed guesses (same RTL order as typing: first letter rightmost)
@@ -90,6 +93,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     rows.push(
       <div key={row} className={`row${warn}`}>
         {cells}
+        {onEntry && invalidRow && onReportMissing ? (
+          <MissingReportButton onClick={onReportMissing} />
+        ) : null}
       </div>
     );
   }

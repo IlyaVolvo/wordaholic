@@ -13,6 +13,7 @@ import {
   setLastLanguage,
 } from './i18n-prefs/favorites.js';
 import { TELEGRAM_GROUP_URL } from './shell/author.js';
+import { openWordReport } from './shell/word-report.js';
 import { downloadSiteBackup, exportSiteBackup, importSiteBackup } from './shell/site-backup.js';
 import {
   AUTO_EXPORT_STATUS_EVENT,
@@ -189,6 +190,12 @@ async function renderGateway() {
     },
     onFeedback: () => {
       window.open(TELEGRAM_GROUP_URL, '_blank', 'noopener,noreferrer');
+    },
+    onWordReport: () => {
+      openWordReport(
+        allLanguages,
+        listGames().map((game) => ({ id: game.id, name: game.name }))
+      );
     },
   });
 }

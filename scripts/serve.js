@@ -7,7 +7,8 @@ import { createStatsStore, PRUNE_INTERVAL_MS } from './stats-store.js';
 import { createStatsHandler } from './stats-http.js';
 import { combineBodies, combineTrends, parseDateRange, parseTrendInterval } from './stats-combine.js';
 import { renderStatsHtml, trendIdentityAllowIds, trendLanguageAllow } from './stats-page.js';
-import { isStatsApiPath, isStatsGeoApiPath, isStatsPagePath } from './stats-path.js';
+import { isStatsApiPath, isStatsGeoApiPath, isStatsPagePath, isWordReportApiPath } from './stats-path.js';
+import { submitWordReport, WORD_REPORT_MAX_BYTES } from './word-report.js';
 import { lookupMissingGeos } from './stats-geo-lookup.js';
 import { buildStatsGeoPayload } from './stats-geo-api.js';
 import { emptyPlacesDocument, parsePlacesDocument } from './stats-places.js';
@@ -109,6 +110,86 @@ function loadStatsInputs() {
     }
   }
   return inputs;
+}
+
+/**
+ * Worker secrets locally: process env, then workers/stats/.dev.vars.
+ * @returns {{ TELEGRAM_BOT_TOKEN: string, TELEGRAM_CHAT_ID: string, TELEGRAM_TOPIC_MISSING: string, TELEGRAM_TOPIC_QUESTIONABLE: string }}
+ */
+function telegramEnv() {
+  const env = {
+    TELEGRAM_BOT_TOKEN: process.env.TELEGRAM_BOT_TOKEN || '',
+    TELEGRAM_CHAT_ID: process.env.TELEGRAM_CHAT_ID || '',
+    TELEGRAM_TOPIC_MISSING: process.env.TELEGRAM_TOPIC_MISSING || '',
+    TELEGRAM_TOPIC_QUESTIONABLE: process.env.TELEGRAM_TOPIC_QUESTIONABLE || '',
+  };
+  const file = path.resolve(__dirname, '../workers/stats/.dev.vars');
+  if (!fs.existsSync(file)) return env;
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    const match = /^(TELEGRAM_BOT_TOKEN|TELEGRAM_CHAT_ID|TELEGRAM_TOPIC_MISSING|TELEGRAM_TOPIC_QUESTIONABLE)=(.*)$/.exec(line.trim());
+    if (!match || env[match[1]]) continue;
+    env[match[1]] = match[2].trim().replace(/^["']|["']$/g, '');
+  }
+  return env;
+}
+
+/**
+ * @param {import('node:http').IncomingMessage} req
+ * @param {number} maxBytes
+ */
+function readBody(req, maxBytes) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        const err = new Error('payload too large');
+        err.code = 'TOO_LARGE';
+        reject(err);
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+/**
+ * @param {import('node:http').IncomingMessage} req
+ * @param {import('node:http').ServerResponse} res
+ */
+async function handleWordReport(req, res) {
+  const method = req.method || 'GET';
+  let raw = '';
+  if (method === 'POST') {
+    try {
+      raw = await readBody(req, WORD_REPORT_MAX_BYTES);
+    } catch (err) {
+      const tooLarge = err && err.code === 'TOO_LARGE';
+      const status = tooLarge ? 413 : 400;
+      const error = tooLarge ? 'Payload too large' : 'Bad request';
+      res.writeHead(status, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+      });
+      res.end(JSON.stringify({ error }));
+      return;
+    }
+  }
+  const result = await submitWordReport({
+    method,
+    raw,
+    env: telegramEnv(),
+    ip: clientIp(req),
+  });
+  res.writeHead(result.status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+  });
+  res.end(JSON.stringify(result.body));
 }
 
 function loadPlacesDocument() {
@@ -227,6 +308,16 @@ const server = http.createServer((req, res) => {
       if (!res.headersSent) {
         res.writeHead(500);
         res.end('Internal error');
+      }
+    });
+    return;
+  }
+  if (isWordReportApiPath(urlPath)) {
+    void handleWordReport(req, res).catch((err) => {
+      console.error(err);
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'Could not send the report' }));
       }
     });
     return;

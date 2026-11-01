@@ -14,6 +14,20 @@
   display: none !important;
 }
 
+.header-report-button img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+}
+
+.header-report-button[hidden],
+.help-trigger--game[hidden],
+.header-more-menu [hidden] {
+  display: none;
+}
+
 [data-header-chrome="more"] {
   display: none;
   position: relative;

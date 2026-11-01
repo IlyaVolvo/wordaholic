@@ -28,3 +28,11 @@ export function isStatsApiPath(pathname) {
 export function isStatsGeoApiPath(pathname) {
   return canonicalPath(pathname) === '/api/stats/geo';
 }
+
+/**
+ * Missing or questionable word reports. Not stored with stats.
+ * @param {string} pathname
+ */
+export function isWordReportApiPath(pathname) {
+  return canonicalPath(pathname) === '/api/word-report';
+}
