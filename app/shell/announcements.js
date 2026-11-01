@@ -7,6 +7,21 @@ const CURSOR_KEY = 'wordaholic.lastAnnouncementCommit';
 const CATALOG_URL = '/app/announcements.json';
 
 /**
+ * A string is shown as written. An array is one editor line per screen line.
+ * An empty item is a blank line between paragraphs.
+ * @param {unknown} body
+ */
+function announcementBody(body) {
+  if (typeof body === 'string') return body.trim();
+  if (!Array.isArray(body)) return '';
+  return body
+    .filter((line) => typeof line === 'string')
+    .map((line) => line.trim())
+    .join('\n')
+    .trim();
+}
+
+/**
  * @param {unknown} raw
  * @returns {{ commit: string, body: string }[]}
  */
@@ -16,7 +31,7 @@ export function parseCatalog(raw) {
   const notes = [];
   for (const entry of raw) {
     if (!entry || typeof entry !== 'object') continue;
-    const body = typeof entry.body === 'string' ? entry.body.trim() : '';
+    const body = announcementBody(entry.body);
     if (!body) continue;
     const commit = String(entry.commit || 'HEAD').trim() || 'HEAD';
     notes.push({ commit, body });
