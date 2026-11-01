@@ -2252,7 +2252,6 @@ dopés 363,ADJECTIVE
 vérin 361,NOUN
 gouge 360,NOUN
 track 360,NOUN
-terri 359,NOUN
 sisal 357,NOUN
 tchat 353,NOUN
 drues 352,ADJECTIVE
