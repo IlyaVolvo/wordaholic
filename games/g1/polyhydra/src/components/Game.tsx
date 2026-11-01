@@ -41,6 +41,7 @@ import {
   STORAGE_IMPORTED_EVENT,
   boardRows,
   collapseBoardGuesses,
+  isHydraComplete,
   type StoredHydra,
 } from '../storage/platform';
 import {
@@ -405,6 +406,7 @@ export const Game: React.FC<GameProps> = ({
       const historyComplete = progress.historyComplete;
       const historyWon = progress.won;
       const completedAt = historyComplete ? completedAtRef.current || now : null;
+      const storedTargets = historyComplete ? next.targets : [];
       if (historyComplete && !completedAtRef.current) completedAtRef.current = completedAt;
       if (!historyComplete) completedAtRef.current = null;
       await putStoredGame({
@@ -412,7 +414,7 @@ export const Game: React.FC<GameProps> = ({
         word_length: wordLength,
         board_count: boardCount,
         game_date: next.date,
-        target_words: next.targets,
+        target_words: storedTargets,
         guesses: collapseBoardGuesses(next.boardGuesses, next.targets),
         current_guess: next.currentGuess,
         invalid_pending: next.invalidPending ? 1 : 0,
@@ -427,7 +429,7 @@ export const Game: React.FC<GameProps> = ({
           word_length: wordLength,
           board_count: boardCount,
           game_date: next.date,
-          target_words: next.targets,
+          target_words: storedTargets,
           guesses: collapseBoardGuesses(next.boardGuesses, next.targets),
           current_guess: next.currentGuess,
           invalid_pending: next.invalidPending ? 1 : 0,
@@ -525,10 +527,19 @@ export const Game: React.FC<GameProps> = ({
           game_date: date,
         });
         if (cancelled) return;
-        if (stored && stored.target_words?.length === boardCount) {
-          applyStored(stored, dict);
-          const rows = boardRows(stored);
-          const progress = hydraProgress(stored.target_words, rows, language, boardCount);
+        if (stored) {
+          const ended = isHydraComplete(stored);
+          const targets =
+            ended && stored.target_words.length === boardCount
+              ? stored.target_words
+              : getHydraDailyWords(dict, date, boardCount);
+          const resolved = { ...stored, target_words: targets };
+          applyStored(resolved, dict);
+          if (!ended && stored.target_words.length) {
+            await putStoredGame({ ...stored, target_words: [] });
+          }
+          const rows = boardRows(resolved);
+          const progress = hydraProgress(targets, rows, language, boardCount);
           if (progress.playFrozen) {
             if (progress.won) {
               setWinMessage(formatWinAnnounce(win, progress.used, boardCount));
@@ -536,7 +547,7 @@ export const Game: React.FC<GameProps> = ({
               setLoseMessage(
                 await loadLoseMessage(
                   language,
-                  remainingTargets(stored.target_words, rows, language).join(', ')
+                  remainingTargets(targets, rows, language).join(', ')
                 )
               );
             }
