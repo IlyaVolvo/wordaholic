@@ -651,10 +651,31 @@ h1 .logout-wrapper:hover .logout-tooltip {
   color: #333;
 }
 
+.cell.duplicate,
+.cell.typing.duplicate,
+.cell.empty.duplicate,
+.row.duplicate .cell {
+  background: #f8d0dc;
+  border-color: #e7a8bc;
+  color: #000;
+}
+
+.row.duplicate .cell.cell-active,
+.cell.duplicate.cell-active {
+  border-color: #e7a8bc;
+  box-shadow: inset 0 0 0 1px #e7a8bc;
+}
+
 .row.invalid .cell-cursor,
 .cell.invalid .cell-cursor {
   color: #fff;
   background: #fff;
+}
+
+.row.duplicate .cell-cursor,
+.cell.duplicate .cell-cursor {
+  color: #000;
+  background: #000;
 }
 
 .cell.absent .cell-cursor {

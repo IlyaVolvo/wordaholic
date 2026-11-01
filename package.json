@@ -17,6 +17,7 @@
     "dev:polyhydra": "vite --config games/g1/polyhydra/vite.config.ts",
     "dev:letterix": "vite --config games/g3/letterix/vite.config.ts",
     "serve": "node scripts/serve.js",
+    "serve:restart": "node scripts/restart-serve.js",
     "deploy:stats": "npx wrangler deploy --config workers/stats/wrangler.toml"
   },
   "engines": {

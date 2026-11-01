@@ -777,11 +777,19 @@ export const Game: React.FC<GameProps> = ({
   const currentGuessWord = keyboardRtl
     ? [...(gameState?.currentGuess ?? '')].reverse().join('')
     : (gameState?.currentGuess ?? '');
+  const duplicateRow = useMemo(() => {
+    if (!gameState || gameState.isComplete || currentGuessWord.length !== wordLength) return false;
+    const key = normalizeForLanguage(currentGuessWord.toLowerCase().trim(), language);
+    if (!key) return false;
+    return gameState.guesses.some(
+      (guess) => normalizeForLanguage(guess.word.toLowerCase().trim(), language) === key
+    );
+  }, [gameState, currentGuessWord, wordLength, language]);
   const invalidRow = useMemo(() => {
-    if (!dictionary || !gameState || gameState.isComplete) return false;
+    if (!dictionary || !gameState || gameState.isComplete || duplicateRow) return false;
     if (currentGuessWord.length !== wordLength) return false;
     return !isValidWord(currentGuessWord, dictionary);
-  }, [dictionary, gameState, currentGuessWord, wordLength]);
+  }, [dictionary, gameState, currentGuessWord, wordLength, duplicateRow]);
 
   // Auto-start game when first letter is typed (instead of Play button)
   const handleKeyPress = useCallback(async (key: string) => {
@@ -822,11 +830,15 @@ export const Game: React.FC<GameProps> = ({
     const guess = rawGuess.toLowerCase().trim();
     
     if (guess.length !== wordLength) {
-      // Show error - word not long enough
       return;
     }
 
-    if (!isValidWord(guess, dictionary)) {
+    const guessKey = normalizeForLanguage(guess, language);
+    const alreadyGuessed = gameState.guesses.some(
+      (prior) => normalizeForLanguage(prior.word.toLowerCase().trim(), language) === guessKey
+    );
+    if (alreadyGuessed || !isValidWord(guess, dictionary)) {
+      setGameState({ ...gameState, currentGuess: '' });
       return;
     }
 
@@ -1271,6 +1283,7 @@ export const Game: React.FC<GameProps> = ({
                 isComplete={gameState.isComplete}
                 isWon={gameState.isWon}
                 invalidRow={invalidRow}
+                duplicateRow={duplicateRow}
                 rtl={keyboardRtl}
                 onReportMissing={invalidRow ? () => openMissingWordReport({
                   game: 'polywordlot',

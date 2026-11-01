@@ -889,6 +889,7 @@ export const Game: React.FC<GameProps> = ({
     }
 
     if (!isValidWord(guess, dictionary)) {
+      commitState(boardGuesses, '', false, false, false);
       return;
     }
 

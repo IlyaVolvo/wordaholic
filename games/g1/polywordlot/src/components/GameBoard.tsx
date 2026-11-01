@@ -11,6 +11,7 @@ interface GameBoardProps {
   isComplete?: boolean;
   isWon?: boolean;
   invalidRow?: boolean;
+  duplicateRow?: boolean;
   /** When true, current guess is shown right-to-left (first letter in rightmost cell) */
   rtl?: boolean;
   onReportMissing?: () => void;
@@ -25,6 +26,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   isComplete,
   isWon,
   invalidRow = false,
+  duplicateRow = false,
   rtl = false,
   onReportMissing,
 }) => {
@@ -79,7 +81,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     const cells: React.ReactNode[] = [];
     const activeCol = !isComplete && row === guesses.length ? getActiveCol() : -1;
     const onEntry = Boolean(!isComplete && row === guesses.length && currentGuess.length > 0);
-    const warn = onEntry && invalidRow ? ' invalid' : '';
+    const warn = onEntry ? (duplicateRow ? ' duplicate' : invalidRow ? ' invalid' : '') : '';
     for (let col = 0; col < wordLength; col++) {
       const cellState = getCellState(row, col);
       const isActive = col === activeCol;
