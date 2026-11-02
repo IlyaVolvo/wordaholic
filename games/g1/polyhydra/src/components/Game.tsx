@@ -144,6 +144,14 @@ function newlySolvedIndices(
   return born;
 }
 
+/** Next board still open after `from`, wrapping to an earlier one. Null when none remain. */
+function nextOpenBoard(open: number[], from: number): number | null {
+  const later = open.find((i) => i > from);
+  if (later != null) return later;
+  const earlier = open.find((i) => i !== from);
+  return earlier ?? null;
+}
+
 function windowStartForBoards(
   display: number[],
   visibleCount: number,
@@ -329,6 +337,8 @@ export const Game: React.FC<GameProps> = ({
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
   const [wordScroll, setWordScroll] = useState(0);
   const [exiting, setExiting] = useState<number[]>([]);
+  /** Where the carousel goes once a solved board finishes leaving. */
+  const [departTo, setDepartTo] = useState<number | 'end' | null>(null);
   const [boardScale, setBoardScale] = useState(1);
   const [boardMode, setBoardMode] = useState<'summary' | 'full'>(() => storedBoardMode(boardCount) || 'summary');
   const [viewportTooSmall, setViewportTooSmall] = useState(false);
@@ -652,10 +662,14 @@ export const Game: React.FC<GameProps> = ({
 
   const maxWindowStart = Math.max(0, displayIndices.length - visibleCount);
   const viewStart = Math.min(windowStart, maxWindowStart);
-  const visibleIndices = useMemo(
-    () => displayIndices.slice(viewStart, viewStart + visibleCount),
-    [displayIndices, viewStart, visibleCount]
-  );
+  const visibleIndices = useMemo(() => {
+    const slice = displayIndices.slice(viewStart, viewStart + visibleCount);
+    if (typeof departTo !== 'number' || !slice.some((i) => exiting.includes(i)) || slice.includes(departTo)) {
+      return slice;
+    }
+    return [...slice, departTo];
+  }, [displayIndices, viewStart, visibleCount, exiting, departTo]);
+  const departing = visibleIndices.some((i) => exiting.includes(i));
 
   useEffect(() => {
     setExiting([]);
@@ -673,6 +687,7 @@ export const Game: React.FC<GameProps> = ({
     finaleAppliedRef.current = false;
     finaleFocusRef.current = false;
     setReviewIndex(null);
+    setDepartTo(null);
   }, [language, wordLength, boardCount, selectedPlayDate, importTick]);
 
   // Desktop opens the full board when the game ends. Phone keeps the current mode,
@@ -723,6 +738,17 @@ export const Game: React.FC<GameProps> = ({
     }, 1800);
     return () => window.clearTimeout(t);
   }, [exiting]);
+
+  // After the solved board leaves, open the next board still in play.
+  // A finished game lands on the end state instead (finale focus below).
+  useEffect(() => {
+    if (loading || exiting.length > 0 || departTo == null) return;
+    const dest = departTo;
+    setDepartTo(null);
+    if (dest === 'end') return;
+    const pos = displayIndices.indexOf(dest);
+    if (pos >= 0) setWindowStart(pos);
+  }, [loading, exiting.length, departTo, displayIndices]);
 
   const letterStates = useMemo(() => usedLetterMap(boardGuesses, language), [boardGuesses, language]);
 
@@ -911,15 +937,22 @@ export const Game: React.FC<GameProps> = ({
       return [...words, committed];
     });
     const born = newlySolvedIndices(boardGuesses, nextGuesses, targets, language);
+    const viewed = displayIndices[viewStart];
+    const openAfter = openIndices.filter((i) => !born.includes(i));
     if (born.length) {
       const nextEx = [...new Set([...exiting, ...born])];
       setExiting(nextEx);
-      const nextOpen = openIndices.filter((i) => !born.includes(i));
+      const nextOpen = openAfter;
       const nextDisplay = [...new Set([...nextOpen, ...nextEx])].sort((a, b) => a - b);
       const nextStart = windowStartForBoards(nextDisplay, visibleCount, windowStart, born);
       if (nextStart !== windowStart) setWindowStart(nextStart);
     }
     const progress = hydraProgress(targets, nextGuesses, language, boardCount);
+    if (progress.playFrozen) {
+      setDepartTo('end');
+    } else if (viewed != null && born.includes(viewed)) {
+      setDepartTo(nextOpenBoard(openAfter, viewed));
+    }
     commitState(nextGuesses, '', false, progress.playFrozen, progress.won);
     if (progress.playFrozen && progress.won) {
       setWinMessage(formatWinAnnounce(winMessageBase, progress.used, boardCount));
@@ -948,6 +981,8 @@ export const Game: React.FC<GameProps> = ({
     openIndices,
     windowStart,
     visibleCount,
+    displayIndices,
+    viewStart,
   ]);
 
   useEffect(() => {
@@ -1432,7 +1467,9 @@ export const Game: React.FC<GameProps> = ({
           }}
         >
           <div
-            className={`hydra-board-entries${boardMode === 'full' ? ' is-full-mode' : ''}`}
+            className={`hydra-board-entries${boardMode === 'full' ? ' is-full-mode' : ''}${
+              departing ? ' is-departing' : ''
+            }`}
           >
             {visibleIndices.map((i) => {
               const board = boardViews[i];
@@ -1488,7 +1525,8 @@ export const Game: React.FC<GameProps> = ({
                       invalidRow={invalidRow && !board.solved}
                       duplicateRow={duplicateRow && !board.solved}
                       rtl={keyboardRtl}
-                      frozen={board.solved || isComplete}
+                      frozen={(board.solved || isComplete) && !leaving}
+                      holdGuess={leaving && board.solved}
                       onExpand={() => selectBoardMode('full', true)}
                       onReportMissing={
                         invalidRow && !board.solved && visibleIndices.find((index) => !boardViews[index]?.solved) === i

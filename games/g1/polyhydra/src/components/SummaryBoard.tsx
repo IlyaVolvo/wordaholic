@@ -12,6 +12,8 @@ interface SummaryBoardProps {
   duplicateRow?: boolean;
   rtl?: boolean;
   frozen?: boolean;
+  /** Solved board is still on screen: keep the winning word in the entry row. */
+  holdGuess?: boolean;
   onExpand: () => void;
   onReportMissing?: () => void;
 }
@@ -55,13 +57,15 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
   duplicateRow = false,
   rtl = false,
   frozen = false,
+  holdGuess = false,
   onExpand,
   onReportMissing,
 }) => {
   const knownRowCount = summaryKnownRows(wordLength);
-  const knownRows = layoutSummaryKnown(guesses, wordLength, language, rtl);
-  const showEntry = !frozen;
-  const activeCol = showEntry
+  const settledGuesses = holdGuess ? guesses.slice(0, -1) : guesses;
+  const knownRows = layoutSummaryKnown(settledGuesses, wordLength, language, rtl);
+  const showEntry = holdGuess || !frozen;
+  const activeCol = showEntry && !holdGuess
     ? rtl
       ? wordLength - 1 - currentGuess.length
       : currentGuess.length
@@ -71,11 +75,15 @@ export const SummaryBoard: React.FC<SummaryBoardProps> = ({
 
   const logical = (col: number) => (rtl ? wordLength - 1 - col : col);
 
-  const lastGuess = guesses[guesses.length - 1];
+  const heldGuess = holdGuess ? guesses[guesses.length - 1] : undefined;
+  const lastGuess = holdGuess ? guesses[guesses.length - 2] : guesses[guesses.length - 1];
   const previousCells = displayGuessCells(lastGuess, wordLength, rtl);
+  const heldCells = displayGuessCells(heldGuess, wordLength, rtl);
 
   const entryCells: Array<LetterEvaluation | null> = Array(wordLength).fill(null);
-  if (showEntry && currentGuess.length > 0) {
+  if (holdGuess) {
+    for (let col = 0; col < wordLength; col++) entryCells[col] = heldCells[col];
+  } else if (showEntry && currentGuess.length > 0) {
     if (rtl) {
       const startCol = wordLength - currentGuess.length;
       for (let col = startCol; col < wordLength; col++) {
