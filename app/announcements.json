@@ -32,9 +32,9 @@
     ]
   },
   {
-    "commit": "HEAD",
+    "commit": "6c8e916",
     "body": [
-      "• New game: Letterix. Letters fall into a bucket under your control and you make words out of them See more in the manual, or just play in the language of your choice.",
+      "• New game: **Letterix**\n\n Letters fall into a bucket under your control and you make words out of them See more in the manual, or just play in the language of your choice.",
       "• New landing page. Switch to www.wordaholic-games.com",
       "• Crowdsourcing to curate words right in the game",
       "• Better screen design; you could play on a phone now",

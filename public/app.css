@@ -1247,6 +1247,18 @@ main {
 .update-announcement-body {
   white-space: pre-wrap;
 }
+.update-announcement-body strong {
+  font-weight: 700;
+}
+.update-announcement-body a {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+.update-announcement-body a:hover {
+  color: var(--ink);
+}
 .update-list {
   margin: 0;
   padding-left: 1.15rem;

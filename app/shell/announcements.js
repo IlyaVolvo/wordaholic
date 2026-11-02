@@ -97,6 +97,56 @@ export function planAnnouncements(notes, cursor, currentCommit) {
   return { queue: notes.slice(index + 1), stamp: null };
 }
 
+const INLINE_PATTERN = /(\*\*[^*]+\*\*|(?:https?:\/\/|www\.)[^\s<]+)/gi;
+
+/** Drop sentence punctuation that was captured after a URL. */
+function trimUrl(raw) {
+  let end = raw.length;
+  while (end > 0 && /[.,;:!?)]/.test(raw[end - 1])) {
+    if (raw[end - 1] === ')') {
+      const head = raw.slice(0, end);
+      const open = (head.match(/\(/g) || []).length;
+      const close = (head.match(/\)/g) || []).length;
+      if (close <= open) break;
+    }
+    end -= 1;
+  }
+  return { url: raw.slice(0, end), trail: raw.slice(end) };
+}
+
+/**
+ * `**words**` become bold. URLs become links. Everything else stays text.
+ * @param {string} text
+ */
+function appendLinkedText(parent, text) {
+  const pattern = new RegExp(INLINE_PATTERN.source, 'gi');
+  let last = 0;
+  for (const match of text.matchAll(pattern)) {
+    const index = match.index ?? 0;
+    const raw = match[0];
+    if (index > last) parent.append(document.createTextNode(text.slice(last, index)));
+    if (raw.startsWith('**') && raw.endsWith('**')) {
+      const strong = document.createElement('strong');
+      appendLinkedText(strong, raw.slice(2, -2));
+      parent.append(strong);
+    } else {
+      const { url, trail } = trimUrl(raw);
+      if (url) {
+        const link = document.createElement('a');
+        link.href = /^www\./i.test(url) ? `https://${url}` : url;
+        link.textContent = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.addEventListener('click', (event) => event.stopPropagation());
+        parent.append(link);
+      }
+      if (trail) parent.append(document.createTextNode(trail));
+    }
+    last = index + raw.length;
+  }
+  if (last < text.length) parent.append(document.createTextNode(text.slice(last)));
+}
+
 function getCursor() {
   try {
     return localStorage.getItem(CURSOR_KEY) || '';
@@ -134,7 +184,10 @@ function showOne(note, onSeen) {
     </div>
   `;
   const bodyEl = host.querySelector('.update-announcement-body');
-  if (bodyEl) bodyEl.textContent = note.body;
+  if (bodyEl) {
+    bodyEl.replaceChildren();
+    appendLinkedText(bodyEl, note.body);
+  }
   const seen = () => {
     host.remove();
     onSeen();
