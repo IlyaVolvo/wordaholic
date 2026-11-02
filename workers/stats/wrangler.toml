@@ -32,3 +32,11 @@ zone_name = "volvovski.com"
 [[routes]]
 pattern = "wordaholic.volvovski.com/stats*"
 zone_name = "volvovski.com"
+
+[[routes]]
+pattern = "www.wordaholic-games.com/api/*"
+zone_name = "wordaholic-games.com"
+
+[[routes]]
+pattern = "www.wordaholic-games.com/stats*"
+zone_name = "wordaholic-games.com"
