@@ -828,7 +828,6 @@ obliger 21330,VERB,HAS_EXAMPLE,INF
 sorcier 21295,NOUN
 presser 21250,VERB
 caverne 21277,NOUN
-connard 21212,NOUN
 graisse 21170,NOUN
 invitée 21195,ADJECTIVE
 brigade 21156,NOUN
@@ -1267,7 +1266,6 @@ flatter 10322,VERB
 baleine 10292,NOUN
 netteté 10265,NOUN
 anxieux 10268,ADJECTIVE
-enfoiré 10254,NOUN
 repaire 10244,NOUN
 griller 10244,VERB
 prodige 10225,NOUN
@@ -2243,7 +2241,6 @@ greffer 3465,VERB
 écouler 3465,VERB,HAS_EXAMPLE
 anchois 3460,NOUN
 cochère 3454,ADJECTIVE
-branler 3444,VERB,HAS_EXAMPLE
 missile 3444,NOUN
 malaisé 3443,ADJECTIVE
 économe 3442,ADJECTIVE
@@ -2271,7 +2268,6 @@ adhésif 3352,ADJECTIVE
 vintage 3347,ADJECTIVE
 méthane 3349,NOUN
 brandir 3338,VERB
-merdier 3341,NOUN
 gazelle 3335,NOUN
 colorer 3334,VERB
 rejouer 3333,VERB
@@ -2727,7 +2723,6 @@ clément 2150,ADJECTIVE
 pivoine 2147,NOUN,HAS_EXAMPLE
 estival 2144,ADJECTIVE
 inanité 2142,NOUN
-pétasse 2141,NOUN
 dégaine 2140,NOUN
 convier 2138,VERB
 beignet 2135,NOUN
@@ -3028,7 +3023,6 @@ onguent 1660,NOUN
 diurnes 1660,ADJECTIVE
 noircie 1659,ADJECTIVE
 drainer 1658,VERB
-chiante 1658,ADJECTIVE
 écumant 1658,ADJECTIVE
 récurer 1656,VERB,HAS_EXAMPLE
 peloter 1656,VERB
@@ -3081,7 +3075,6 @@ aiderai 1598,VERB
 toundra 1598,NOUN
 rescrit 1598,NOUN
 saturer 1598,VERB,HAS_EXAMPLE
-mongole 1597,ADJECTIVE
 aryenne 1596,ADJECTIVE
 paierez 1596,VERB
 sourate 1590,NOUN
@@ -3195,7 +3188,6 @@ percher 1441,VERB
 ceviche 1435,NOUN
 moulées 1435,ADJECTIVE
 costumé 1432,NOUN
-merdeux 1430,ADJECTIVE
 guindée 1429,ADJECTIVE
 trainer 1429,VERB
 lévrier 1429,NOUN
@@ -3245,7 +3237,6 @@ muscler 1381,VERB,HAS_EXAMPLE
 émoussé 1380,ADJECTIVE
 peigner 1380,VERB
 maraude 1380,NOUN
-tapette 1379,NOUN,HAS_EXAMPLE
 éhontée 1378,ADJECTIVE
 calleux 1377,ADJECTIVE
 dentier 1375,NOUN
@@ -3306,7 +3297,6 @@ slovène 1298,ADJECTIVE
 inhaler 1299,VERB
 foutues 1296,ADJECTIVE
 mésange 1295,NOUN
-enculer 1294,VERB
 burnous 1295,NOUN
 tombeur 1293,NOUN
 lesbien 1292,ADJECTIVE
@@ -3367,7 +3357,6 @@ décousu 1234,ADJECTIVE
 susvisé 1234,ADJECTIVE
 fuchsia 1233,ADJECTIVE
 masseur 1232,NOUN
-couille 1231,NOUN
 câblage 1232,NOUN
 hamster 1231,NOUN
 exhaler 1231,VERB
@@ -3804,7 +3793,6 @@ suraigu 831,ADJECTIVE
 spirite 830,NOUN
 lazaret 829,NOUN
 mildiou 829,NOUN
-mongols 828,ADJECTIVE
 phaéton 828,NOUN
 pinéale 827,ADJECTIVE
 accoler 827,VERB
@@ -4278,7 +4266,6 @@ binocle 539,NOUN
 saccade 538,NOUN
 plastic 537,NOUN
 cendrée 536,ADJECTIVE
-chiotte 536,NOUN,HAS_EXAMPLE
 mitaine 536,NOUN
 acétone 536,NOUN
 madrier 535,NOUN
@@ -4386,7 +4373,6 @@ logette 495,NOUN
 gorgone 494,NOUN
 cailler 494,VERB,HAS_EXAMPLE
 préture 494,NOUN
-chiants 494,ADJECTIVE
 ébréché 494,ADJECTIVE
 crampon 493,NOUN
 susdits 493,ADJECTIVE
@@ -4583,7 +4569,6 @@ sagaces 421,ADJECTIVE
 frelaté 421,ADJECTIVE
 marinas 421,VERB
 campeur 420,NOUN
-branlée 420,NOUN
 clivant 420,ADJECTIVE
 altiers 420,ADJECTIVE
 écuyère 419,NOUN
@@ -4808,7 +4793,6 @@ vineuse 346,ADJECTIVE
 choline 346,NOUN
 innommé 346,ADJECTIVE
 gradués 345,ADJECTIVE
-baiseur 344,NOUN
 cupidon 344,NOUN
 cafetan 344,NOUN
 birmans 343,ADJECTIVE
@@ -5360,7 +5344,6 @@ snooker 204,NOUN
 wallaby 204,NOUN
 chambré 203,ADJECTIVE
 alumine 203,NOUN
-saloper 203,VERB
 rifaine 203,ADJECTIVE
 hotline 203,NOUN
 mixtion 203,NOUN,COMPOUND
@@ -6145,7 +6128,6 @@ crépues 97,ADJECTIVE
 félonne 97,ADJECTIVE
 pétreux 97,ADJECTIVE
 méharée 97,NOUN
-pisseur 97,NOUN
 citerez 97,VERB
 guibole 97,NOUN
 cétoine 97,NOUN
@@ -6302,7 +6284,6 @@ vipérin 81,ADJECTIVE
 pesteux 81,ADJECTIVE
 aphones 81,ADJECTIVE
 priorat 81,NOUN
-couillu 81,ADJECTIVE
 remixer 81,VERB
 séneçon 81,NOUN
 jussion 81,NOUN,HAS_EXAMPLE
@@ -6325,7 +6306,6 @@ mandore 80,NOUN
 semeuse 79,NOUN
 exogame 79,ADJECTIVE
 smicard 79,NOUN
-chierie 79,NOUN,HAS_EXAMPLE
 pantoum 79,NOUN
 kenyans 79,ADJECTIVE
 hessois 79,ADJECTIVE
@@ -6862,7 +6842,6 @@ cajeput 43,NOUN
 pâturin 43,NOUN
 raëlien 43,ADJECTIVE
 carminé 43,ADJECTIVE
-péteuse 43,ADJECTIVE
 ursidés 43,ADJECTIVE
 hassium 43,NOUN
 mineuse 43,NOUN
@@ -7054,7 +7033,6 @@ nominer 34,VERB
 floppée 34,NOUN
 traille 34,NOUN
 noierez 34,VERB
-niqueur 34,NOUN
 bruccio 34,NOUN
 parûtes 34,VERB
 icarien 34,ADJECTIVE
@@ -7077,7 +7055,6 @@ lobélie 33,NOUN
 hiémale 33,ADJECTIVE
 shopper 33,VERB
 dédirai 33,VERB
-youpine 33,NOUN
 puniras 33,VERB
 surfaix 33,NOUN
 cardère 33,NOUN
