@@ -33,17 +33,21 @@ const $ = (sel) => document.querySelector(sel);
 /** @type {import('./shell/languages.js').LanguageInfo[]} */
 let allLanguages = [];
 
+const PREP_FLASH_MS = 2000;
+
 async function showPreparing() {
   const overlay = $('#prep-overlay');
-  const bar = $('#prep-bar');
   const label = $('#prep-label');
+  if (!overlay || !label) return;
+  label.textContent = 'Caching…';
   overlay.hidden = false;
+  const flash = setTimeout(() => {
+    overlay.hidden = true;
+  }, PREP_FLASH_MS);
   try {
-    await prepareOffline((pct, text) => {
-      bar.style.width = `${pct}%`;
-      label.textContent = text;
-    });
+    await prepareOffline(() => {});
   } finally {
+    clearTimeout(flash);
     overlay.hidden = true;
   }
 }

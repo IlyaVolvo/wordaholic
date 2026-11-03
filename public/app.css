@@ -1115,13 +1115,6 @@ main {
   .map-geo-date input {
     font-size: 0.62rem;
   }
-  .prep-overlay-corner {
-    inset: auto 0.65rem 0.65rem 0.65rem;
-  }
-  .prep-card {
-    width: 100%;
-    max-width: none;
-  }
 }
 
 @media (max-width: 420px) {
@@ -1172,39 +1165,24 @@ main {
 
 .prep-overlay {
   position: fixed;
+  inset: 0;
   z-index: 50;
-}
-.prep-overlay-corner {
-  inset: auto 1rem 1rem auto;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
   background: transparent;
-  display: block;
 }
 .prep-overlay[hidden] { display: none !important; }
-.prep-card {
-  width: min(280px, 92vw);
-  background: rgba(255, 255, 255, 0.96);
-  border-radius: 14px;
-  padding: 0.85rem 1rem;
-  box-shadow: var(--shadow);
-  border: 1px solid var(--line);
-}
-.prep-card #prep-label {
+.prep-flash {
   margin: 0;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-.prep-track {
-  height: 10px;
-  background: #e6eef2;
+  padding: 0.45rem 0.95rem;
   border-radius: 999px;
-  overflow: hidden;
-  margin-top: 1rem;
-}
-.prep-bar {
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, #3d7ea6, var(--accent));
-  transition: width 0.2s ease;
+  background: rgba(20, 35, 43, 0.9);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: 0 6px 18px rgba(20, 35, 43, 0.25);
 }
 
 .update-dialog {
