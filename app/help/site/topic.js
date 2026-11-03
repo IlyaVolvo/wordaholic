@@ -70,6 +70,18 @@ export default {
       callouts: [{ x: 92.1, y: 90, text: 'Import merges that file. Same daily keeps the worse result.', place: 'top' }],
     },
     {
+      image: '/help/site/polywordlot-report.png',
+      click: { x: 13.2, y: 3, r: 1.8 },
+      callouts: [
+        {
+          x: 13.2,
+          y: 9,
+          text: 'When any game ends, the manual icon is replaced by Report.',
+          place: 'bottom',
+        },
+      ],
+    },
+    {
       image: '/help/site/tower-of-babel.jpg',
       callouts: [
         { x: 50, y: 12, text: 'Even without a game, the map is a world atlas of who speaks what.', place: 'bottom' },
