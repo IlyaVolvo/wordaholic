@@ -3602,12 +3602,21 @@ a.header-brand-home:focus-visible {
   opacity: 1;
 }
 
+.hydra-scoreboard.is-split {
+  display: grid;
+  grid-template-columns: repeat(var(--hydra-cols, 8), minmax(0, 1fr));
+}
+
 .hydra-scoreboard-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 2px;
   min-width: 0;
+  width: 100%;
+  font-size: var(--hydra-top-size, 12px);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 .hydra-scoreboard-id {
@@ -3625,8 +3634,7 @@ a.header-brand-home:focus-visible {
 
 .hydra-scoreboard-nm,
 .hydra-scoreboard-attempt {
-  min-width: 0;
-  overflow: hidden;
+  flex: 0 0 auto;
   white-space: nowrap;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -3724,8 +3732,8 @@ a.header-brand-home:focus-visible {
   }
 
   .hydra-container .hydra-scoreboard-top {
-    justify-content: center;
-    gap: 4px;
+    justify-content: space-between;
+    gap: 2px;
   }
 
   .hydra-container .hydra-scoreboard-id {
