@@ -185,14 +185,161 @@ function normalizeForLanguage(word) {
   return normalizeWithMappings(word, languageConfig?.normalization);
 }
 
-/** Dictionary key. Hebrew final letters (ם) match their regular form (מ). */
+/** Dictionary key. Case and language normalizations are folded; positional forms are not reapplied. */
 function canonicalWord(word) {
   return normalizeForLanguage(String(word || '').toLowerCase());
 }
 
-/** Word as written. Hebrew uses a final letter at the end. */
+/**
+ * Corpus spellings that share a normalized key.
+ * A typed word that is not itself one of them is rewritten only when exactly
+ * one spelling exists, which is the reverse of comparison (е → ё, and the same
+ * for every other normalization). Several legit spellings are left as typed.
+ * @type {Map<string, string[]>}
+ */
+let spellingsByKey = new Map();
+
+/**
+ * Dictionary spelling reached by reversing normalization, or the typed word
+ * when it is already legit or the reverse step is ambiguous.
+ * @param {string} word
+ */
+function dictionarySpelling(word) {
+  const typed = String(word ?? '').toLowerCase();
+  const options = spellingsByKey.get(canonicalWord(typed));
+  if (!options || options.includes(typed)) return typed;
+  if (options.length === 1) return options[0];
+  return typed;
+}
+
+/** Positional letter forms (like a Hebrew final letter) applied to the dictionary spelling. */
 function displayWord(word) {
-  return spellInPlace(canonicalWord(word), languageHooks(language));
+  return spellInPlace(dictionarySpelling(word), languageHooks(language));
+}
+
+/** Idle time before the in-progress word is shown in its written form. */
+const WORD_FORM_DELAY_MS = 500;
+
+/** Letters the player actually typed. After a pause the field may show the dictionary spelling. */
+let typedWord = '';
+/** What the word field is showing right now. */
+let shownWord = '';
+let correctTimer = 0;
+let writingField = false;
+let composingField = false;
+
+function clearCorrectTimer() {
+  if (!correctTimer) return;
+  clearTimeout(correctTimer);
+  correctTimer = 0;
+}
+
+function wordInput() {
+  return /** @type {HTMLInputElement | null} */ ($('#word-input'));
+}
+
+/**
+ * @param {string} text
+ * @param {number | null} [caret] UTF-16 offset into `text`; omit to keep an end caret at the end
+ */
+function setShown(text, caret = null) {
+  shownWord = text;
+  const input = wordInput();
+  if (!input) return;
+  const focused = document.activeElement === input;
+  const atEnd = focused && input.selectionStart === input.value.length && input.selectionEnd === input.value.length;
+  if (input.value !== text) {
+    writingField = true;
+    input.value = text;
+    writingField = false;
+  }
+  const nextCaret = caret != null ? caret : atEnd ? text.length : null;
+  if (nextCaret != null && focused && !input.readOnly) {
+    try { input.setSelectionRange(nextCaret, nextCaret); } catch { /* readOnly */ }
+  }
+}
+
+function scheduleCorrect() {
+  clearCorrectTimer();
+  const word = typedWord;
+  if (!word) return;
+  correctTimer = window.setTimeout(() => {
+    correctTimer = 0;
+    if (typedWord !== word || solved || readOnly) return;
+    setShown(displayWord(word));
+  }, WORD_FORM_DELAY_MS);
+}
+
+/**
+ * Replace the typed buffer and show it immediately, so a paused correction
+ * returns to the letters that were typed.
+ * @param {string} next
+ * @param {number | null} [caret]
+ */
+function rememberTyped(next, caret = null) {
+  typedWord = String(next ?? '');
+  inputDraft = typedWord;
+  clearCorrectTimer();
+  setShown(typedWord, caret);
+  const report = document.getElementById('missing-word-report');
+  if (report) report.hidden = true;
+  if (typedWord) {
+    noteTyping();
+    scheduleCorrect();
+  } else {
+    currentDraft();
+  }
+}
+
+/** Map a selection in the shown field onto the typed buffer. */
+function typedRange(input) {
+  const shown = input.value;
+  const start = input.selectionStart ?? shown.length;
+  const end = input.selectionEnd ?? shown.length;
+  if (shown === typedWord || shown.length === typedWord.length) return { start, end };
+  if (start === shown.length && end === shown.length) return { start: typedWord.length, end: typedWord.length };
+  if (start === 0 && end === shown.length) return { start: 0, end: typedWord.length };
+  return null;
+}
+
+/**
+ * Apply an edit of the shown string onto the typed buffer.
+ * A pure append keeps every typed letter and adds the new ones, which puts a
+ * positional form (ך) back to the letter that was typed (כ).
+ */
+function editTyped(shown, next) {
+  if (shown.length === typedWord.length) {
+    let prefix = 0;
+    const maxPrefix = Math.min(shown.length, next.length);
+    while (prefix < maxPrefix && shown[prefix] === next[prefix]) prefix += 1;
+    let suffix = 0;
+    while (
+      suffix < shown.length - prefix &&
+      suffix < next.length - prefix &&
+      shown[shown.length - 1 - suffix] === next[next.length - 1 - suffix]
+    ) suffix += 1;
+    const inserted = next.slice(prefix, next.length - suffix);
+    return typedWord.slice(0, prefix) + inserted + typedWord.slice(typedWord.length - suffix);
+  }
+  if (next.startsWith(shown)) return typedWord + next.slice(shown.length);
+  if (shown.startsWith(next)) {
+    const typedChars = Array.from(typedWord);
+    for (let n = 1; n <= typedChars.length; n += 1) {
+      const candidate = typedChars.slice(0, -n).join('');
+      if (displayWord(candidate) === next) return candidate;
+    }
+    const removed = Array.from(shown.slice(next.length)).length;
+    return typedChars.slice(0, Math.max(0, typedChars.length - removed)).join('');
+  }
+  return next;
+}
+
+function adoptBrowserEdit() {
+  const input = wordInput();
+  if (!input || writingField || input.value === shownWord) return;
+  const next = editTyped(shownWord, input.value);
+  const caret = input.selectionStart;
+  rememberTyped(next, caret);
 }
 
 function wordDir() {
@@ -340,12 +487,20 @@ function dailyFields(extra = {}) {
 function buildGraphs(entries) {
   const lvl = selectedLevel();
   const levels = new Map();
+  const spellings = new Map();
   for (const { word, level } of entries) {
     const key = canonicalWord(word);
     if (!key) continue;
     const prev = levels.get(key);
     if (prev == null || level < prev) levels.set(key, level);
+    const known = spellings.get(key);
+    if (known) {
+      if (!known.includes(word)) known.push(word);
+    } else {
+      spellings.set(key, [word]);
+    }
   }
+  spellingsByKey = spellings;
   const allWords = [...levels.keys()];
   const puzzleWords = allWords.filter((word) => levels.get(word) <= lvl);
   fullGraph = new WordGraph(allWords);
@@ -573,8 +728,7 @@ function currentElapsedMs() {
 }
 
 function currentDraft() {
-  const input = $('#word-input');
-  if (input) inputDraft = input.value;
+  if (wordInput()) inputDraft = typedWord;
   return inputDraft;
 }
 
@@ -681,6 +835,7 @@ function diffLetters(prev, cur, op) {
 }
 
 function renderChain() {
+  clearCorrectTimer();
   const container = $('#chain');
   container.innerHTML = '';
   for (let i = 0; i < chain.length; i++) {
@@ -770,22 +925,26 @@ function isCoarsePointer() {
   return window.matchMedia('(pointer: coarse)').matches;
 }
 
+function submitTypedWord() {
+  clearCorrectTimer();
+  const word = typedWord.trim().toLowerCase();
+  if (typedWord) setShown(displayWord(typedWord));
+  void submitWord(word);
+}
+
 function typeIntoWordInput(key) {
-  const input = $('#word-input');
+  const input = wordInput();
   if (!input || solved || readOnly) return;
   if (key === 'Enter') {
-    void submitWord(input.value.trim().toLowerCase());
+    submitTypedWord();
     return;
   }
   if (key === 'Backspace') {
-    input.value = input.value.slice(0, -1);
-    if (input.value) noteTyping();
-    else currentDraft();
+    rememberTyped(Array.from(typedWord).slice(0, -1).join(''));
     return;
   }
   if (key.length === 1) {
-    input.value = `${input.value}${key}`.toLowerCase();
-    noteTyping();
+    rememberTyped(`${typedWord}${key}`.toLowerCase());
   }
 }
 
@@ -802,16 +961,48 @@ function configureWordInput(input) {
     input.setAttribute('aria-readonly', 'true');
     input.addEventListener('focus', () => input.blur());
   }
+  input.addEventListener('compositionstart', () => {
+    composingField = true;
+  });
+  input.addEventListener('compositionend', () => {
+    composingField = false;
+    adoptBrowserEdit();
+  });
+  input.addEventListener('beforeinput', (e) => {
+    if (input.readOnly || solved || readOnly || e.isComposing || composingField) return;
+    const type = e.inputType;
+    const inserting = type === 'insertText' || type === 'insertFromPaste' || type === 'insertReplacementText';
+    const deleting = type === 'deleteContentBackward' || type === 'deleteContentForward' || type === 'deleteByCut';
+    if (inserting) {
+      if (e.data == null) return;
+      e.preventDefault();
+      const range = typedRange(input) || { start: typedWord.length, end: typedWord.length };
+      const next = typedWord.slice(0, range.start) + e.data + typedWord.slice(range.end);
+      rememberTyped(next, range.start + e.data.length);
+      return;
+    }
+    if (!deleting) return;
+    e.preventDefault();
+    const range = typedRange(input);
+    if (!range) {
+      rememberTyped(Array.from(typedWord).slice(0, -1).join(''));
+      return;
+    }
+    let { start, end } = range;
+    if (start === end) {
+      if (type === 'deleteContentForward') end = Math.min(typedWord.length, end + 1);
+      else if (start > 0) start -= 1;
+    }
+    rememberTyped(typedWord.slice(0, start) + typedWord.slice(end), start);
+  });
   input.addEventListener('input', () => {
-    const report = document.getElementById('missing-word-report');
-    if (report) report.hidden = true;
-    if (input.value) noteTyping();
-    else currentDraft();
+    if (composingField) return;
+    adoptBrowserEdit();
   });
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      void submitWord(input.value.trim().toLowerCase());
+      submitTypedWord();
       return;
     }
     if (!input.readOnly) return;
@@ -837,7 +1028,10 @@ function makeInputNode() {
   input.className = 'input-slot';
   input.placeholder = 'type a word…';
   input.id = 'word-input';
-  input.value = inputDraft;
+  clearCorrectTimer();
+  typedWord = inputDraft;
+  input.value = typedWord ? displayWord(typedWord) : '';
+  shownWord = input.value;
   configureWordInput(input);
   const hint = document.createElement('div');
   hint.className = 'error-hint';
