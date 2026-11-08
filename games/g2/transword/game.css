@@ -1267,13 +1267,28 @@ select:focus { outline: none; border-color: var(--accent); }
   color: var(--text-dim);
 }
 
+.win-solution {
+  margin-bottom: 1.5rem;
+}
+
+.win-solution .win-label {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
 .win-path {
   font-family: var(--font-mono);
   font-size: 0.8rem;
   color: var(--text-dim);
   line-height: 2;
-  margin-bottom: 1.5rem;
+  max-height: min(38vh, 14rem);
+  overflow: auto;
   word-break: break-word;
+}
+
+.win-path-word {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .win-path .op-inline {

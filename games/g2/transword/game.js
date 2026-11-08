@@ -1240,10 +1240,40 @@ function showWin(freshSolve = true) {
   const winHelp = $('#win-helps');
   if (winDeadend) winDeadend.textContent = formatStepShare(deadendCount, steps);
   if (winHelp) winHelp.textContent = formatStepShare(helpCount, steps);
+  renderMinimalSolution();
 
   $('#win-overlay').classList.remove('hidden');
   syncQuestionableReport();
   void freshSolve;
+}
+
+/** Show the shortest chain when the player's chain uses more words. */
+function renderMinimalSolution() {
+  const box = $('#win-solution');
+  const pathEl = $('#win-path');
+  if (!box || !pathEl) return;
+  pathEl.replaceChildren();
+  const best = puzzle && fullGraph ? shortestPath(fullGraph, puzzle.start, puzzle.end) : null;
+  const longer = !!(best && chain.length > best.path.length);
+  box.classList.toggle('hidden', !longer);
+  if (!longer || !best) return;
+  applyWordDir(pathEl);
+  for (let i = 0; i < best.path.length; i++) {
+    const word = best.path[i];
+    if (i > 0) {
+      const op = fullGraph.classifyOp(best.path[i - 1], word);
+      if (op) {
+        const badge = document.createElement('span');
+        badge.className = `op-inline ${op}`;
+        badge.textContent = OP_LABELS[op] || op;
+        pathEl.appendChild(badge);
+      }
+    }
+    const shown = document.createElement('span');
+    shown.className = 'win-path-word';
+    shown.textContent = displayWord(word);
+    pathEl.appendChild(shown);
+  }
 }
 
 function setLoading(msg) {
