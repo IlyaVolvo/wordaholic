@@ -3732,8 +3732,8 @@ a.header-brand-home:focus-visible {
   }
 
   .hydra-container .hydra-scoreboard-top {
-    justify-content: space-between;
-    gap: 2px;
+    justify-content: center;
+    gap: 0;
   }
 
   .hydra-container .hydra-scoreboard-id {

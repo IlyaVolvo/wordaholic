@@ -194,7 +194,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
           const attempt =
             phone || showCheck || !cell.solved || cell.solvedAt == null ? null : cell.solvedAt;
           const tracked = phone && selectedIndex === i;
-          const showNm = !showWord && !showCheck;
+          const showNm = !phone && !showWord && !showCheck;
           const nm = showNm ? `${cell.greens}/${cell.yellows}` : '';
           const style = {
             ...(cell.solved
