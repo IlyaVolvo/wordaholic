@@ -111,6 +111,7 @@ export const Game: React.FC<{
   const [openMenu, setOpenMenu] = useState<'language' | 'width' | 'height' | null>(null);
   const [speedTipOff, setSpeedTipOff] = useState(false);
   const speedPrefRef = useRef(0);
+  const dragRef = useRef<{ yFromFloor: number; dropped: boolean } | null>(null);
   const [speedPref, setSpeedPref] = useState(0);
   const [history, setHistory] = useState<ScoreRecord[]>([]);
   const [statsLanguage, setStatsLanguage] = useState(language);
@@ -385,10 +386,23 @@ export const Game: React.FC<{
     const hit = pointerToCell(sim, canvas, event.clientX, event.clientY);
     const piece = pieceAt(sim, hit.col, hit.yFromFloor);
     const grabbed = piece ? (selectPiece(sim, piece.id), true) : selectTop(sim, hit.row, hit.col);
-    if (grabbed) {
-      canvas.setPointerCapture(event.pointerId);
-      canvas.dataset.drag = '1';
+    if (!grabbed) {
+      dragRef.current = null;
+      return;
     }
+    canvas.setPointerCapture(event.pointerId);
+    canvas.dataset.drag = '1';
+    dragRef.current = { yFromFloor: hit.yFromFloor, dropped: false };
+  }
+
+  /** A downward drag of two cells or more drops the grabbed letter. */
+  function dropIfSwipedDown(sim: Sim, yFromFloor: number) {
+    const drag = dragRef.current;
+    if (!drag || drag.dropped || !sim.A) return;
+    const cellsDown = (drag.yFromFloor - yFromFloor) / sim.A;
+    if (cellsDown < 2 || sim.phase !== 'fall' || dropBlocked(sim)) return;
+    drag.dropped = true;
+    hardDrop(sim);
   }
 
   function onDoubleClick(event: React.MouseEvent<HTMLCanvasElement>) {
@@ -407,14 +421,22 @@ export const Game: React.FC<{
     const canvas = canvasRef.current;
     if (!sim || !canvas || canvas.dataset.drag !== '1') return;
     const hit = pointerToCell(sim, canvas, event.clientX, event.clientY);
+    if (dragRef.current?.dropped) return;
     moveToColumn(sim, hit.col);
+    dropIfSwipedDown(sim, hit.yFromFloor);
   }
 
   function onPointerUp(event: React.PointerEvent<HTMLCanvasElement>) {
     const sim = simRef.current;
     const canvas = canvasRef.current;
     if (!sim || !canvas || canvas.dataset.drag !== '1') return;
+    const hit = pointerToCell(sim, canvas, event.clientX, event.clientY);
+    if (!dragRef.current?.dropped) {
+      moveToColumn(sim, hit.col);
+      dropIfSwipedDown(sim, hit.yFromFloor);
+    }
     canvas.dataset.drag = '';
+    dragRef.current = null;
   }
 
   const widths = sizeOptions(PARAMS.Wmin, PARAMS.Wmax, W);
