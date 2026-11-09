@@ -22,6 +22,8 @@
  *   [data-def-min]                — least overflow level to keep (other|language|date)
  */
 
+import { showUpgradeAnnouncements } from '../shell/announcements.js';
+
 const DEF_STEPS = ['other', 'language', 'date'];
 const DEF_RANK = { other: 1, language: 2, date: 3 };
 
@@ -220,7 +222,10 @@ export function mountHeaderChrome(bar) {
   const toolbar = bar.ownerDocument.getElementById('toolbar');
   if (toolbar) ro.observe(toolbar);
   apply();
-  requestAnimationFrame(apply);
+  requestAnimationFrame(() => {
+    apply();
+    void showUpgradeAnnouncements();
+  });
 
   return () => {
     bar.removeEventListener('click', onBarClick);

@@ -42,5 +42,30 @@
       "• Bug fixes",
       "• Join us on Telegram: https://t.me/wordaholicgames"
     ]
+  },
+  {
+    "commit": "HEAD",
+    "permanent": true,
+    "points": [
+      {
+        "target": "[data-transfer='feedback']",
+        "text": "Join the Wordaholic group on Telegram.",
+        "place": "top"
+      },
+      {
+        "target": "[data-transfer='word-report']",
+        "text": "You could submit word suggestions here. Each game offers a report for a missing or questionable word in context of the game. The Manual turns into report at the end of the game.",
+        "place": "top"
+      },
+      {
+        "targets": [
+          "[data-transfer='auto-export']",
+          "[data-transfer='export']",
+          "[data-transfer='import']"
+        ],
+        "text": "Auto export, export, and import allow you to preserve, transfer and aggregate your completed games results and fill gaps between your finished games results across devices and browsers",
+        "place": "top"
+      }
+    ]
   }
 ]
