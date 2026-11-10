@@ -19,6 +19,7 @@ import {
   typedLetter,
 } from '@wordaholic/wordle-core';
 import { openHelp } from '@wordaholic/help';
+import { openMissingWordReport, openQuestionableWordReport } from '../../../../../app/shell/word-report.js';
 import helpTopic from '../../help/topic.js';
 import { reportPlayEnd, reportPlayStart, reportStats } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
@@ -40,6 +41,7 @@ import {
   STORAGE_IMPORTED_EVENT,
   boardRows,
   collapseBoardGuesses,
+  isHydraComplete,
   type StoredHydra,
 } from '../storage/platform';
 import {
@@ -140,6 +142,14 @@ function newlySolvedIndices(
     }
   }
   return born;
+}
+
+/** Next board still open after `from`, wrapping to an earlier one. Null when none remain. */
+function nextOpenBoard(open: number[], from: number): number | null {
+  const later = open.find((i) => i > from);
+  if (later != null) return later;
+  const earlier = open.find((i) => i !== from);
+  return earlier ?? null;
 }
 
 function windowStartForBoards(
@@ -327,6 +337,8 @@ export const Game: React.FC<GameProps> = ({
   const [reviewIndex, setReviewIndex] = useState<number | null>(null);
   const [wordScroll, setWordScroll] = useState(0);
   const [exiting, setExiting] = useState<number[]>([]);
+  /** Where the carousel goes once a solved board finishes leaving. */
+  const [departTo, setDepartTo] = useState<number | 'end' | null>(null);
   const [boardScale, setBoardScale] = useState(1);
   const [boardMode, setBoardMode] = useState<'summary' | 'full'>(() => storedBoardMode(boardCount) || 'summary');
   const [viewportTooSmall, setViewportTooSmall] = useState(false);
@@ -404,6 +416,7 @@ export const Game: React.FC<GameProps> = ({
       const historyComplete = progress.historyComplete;
       const historyWon = progress.won;
       const completedAt = historyComplete ? completedAtRef.current || now : null;
+      const storedTargets = historyComplete ? next.targets : [];
       if (historyComplete && !completedAtRef.current) completedAtRef.current = completedAt;
       if (!historyComplete) completedAtRef.current = null;
       await putStoredGame({
@@ -411,7 +424,7 @@ export const Game: React.FC<GameProps> = ({
         word_length: wordLength,
         board_count: boardCount,
         game_date: next.date,
-        target_words: next.targets,
+        target_words: storedTargets,
         guesses: collapseBoardGuesses(next.boardGuesses, next.targets),
         current_guess: next.currentGuess,
         invalid_pending: next.invalidPending ? 1 : 0,
@@ -426,7 +439,7 @@ export const Game: React.FC<GameProps> = ({
           word_length: wordLength,
           board_count: boardCount,
           game_date: next.date,
-          target_words: next.targets,
+          target_words: storedTargets,
           guesses: collapseBoardGuesses(next.boardGuesses, next.targets),
           current_guess: next.currentGuess,
           invalid_pending: next.invalidPending ? 1 : 0,
@@ -524,10 +537,19 @@ export const Game: React.FC<GameProps> = ({
           game_date: date,
         });
         if (cancelled) return;
-        if (stored && stored.target_words?.length === boardCount) {
-          applyStored(stored, dict);
-          const rows = boardRows(stored);
-          const progress = hydraProgress(stored.target_words, rows, language, boardCount);
+        if (stored) {
+          const ended = isHydraComplete(stored);
+          const targets =
+            ended && stored.target_words.length === boardCount
+              ? stored.target_words
+              : getHydraDailyWords(dict, date, boardCount);
+          const resolved = { ...stored, target_words: targets };
+          applyStored(resolved, dict);
+          if (!ended && stored.target_words.length) {
+            await putStoredGame({ ...stored, target_words: [] });
+          }
+          const rows = boardRows(resolved);
+          const progress = hydraProgress(targets, rows, language, boardCount);
           if (progress.playFrozen) {
             if (progress.won) {
               setWinMessage(formatWinAnnounce(win, progress.used, boardCount));
@@ -535,7 +557,7 @@ export const Game: React.FC<GameProps> = ({
               setLoseMessage(
                 await loadLoseMessage(
                   language,
-                  remainingTargets(stored.target_words, rows, language).join(', ')
+                  remainingTargets(targets, rows, language).join(', ')
                 )
               );
             }
@@ -640,10 +662,14 @@ export const Game: React.FC<GameProps> = ({
 
   const maxWindowStart = Math.max(0, displayIndices.length - visibleCount);
   const viewStart = Math.min(windowStart, maxWindowStart);
-  const visibleIndices = useMemo(
-    () => displayIndices.slice(viewStart, viewStart + visibleCount),
-    [displayIndices, viewStart, visibleCount]
-  );
+  const visibleIndices = useMemo(() => {
+    const slice = displayIndices.slice(viewStart, viewStart + visibleCount);
+    if (typeof departTo !== 'number' || !slice.some((i) => exiting.includes(i)) || slice.includes(departTo)) {
+      return slice;
+    }
+    return [...slice, departTo];
+  }, [displayIndices, viewStart, visibleCount, exiting, departTo]);
+  const departing = visibleIndices.some((i) => exiting.includes(i));
 
   useEffect(() => {
     setExiting([]);
@@ -661,6 +687,7 @@ export const Game: React.FC<GameProps> = ({
     finaleAppliedRef.current = false;
     finaleFocusRef.current = false;
     setReviewIndex(null);
+    setDepartTo(null);
   }, [language, wordLength, boardCount, selectedPlayDate, importTick]);
 
   // Desktop opens the full board when the game ends. Phone keeps the current mode,
@@ -711,6 +738,17 @@ export const Game: React.FC<GameProps> = ({
     }, 1800);
     return () => window.clearTimeout(t);
   }, [exiting]);
+
+  // After the solved board leaves, open the next board still in play.
+  // A finished game lands on the end state instead (finale focus below).
+  useEffect(() => {
+    if (loading || exiting.length > 0 || departTo == null) return;
+    const dest = departTo;
+    setDepartTo(null);
+    if (dest === 'end') return;
+    const pos = displayIndices.indexOf(dest);
+    if (pos >= 0) setWindowStart(pos);
+  }, [loading, exiting.length, departTo, displayIndices]);
 
   const letterStates = useMemo(() => usedLetterMap(boardGuesses, language), [boardGuesses, language]);
 
@@ -900,15 +938,22 @@ export const Game: React.FC<GameProps> = ({
       return [...words, committed];
     });
     const born = newlySolvedIndices(boardGuesses, nextGuesses, targets, language);
+    const viewed = displayIndices[viewStart];
+    const openAfter = openIndices.filter((i) => !born.includes(i));
     if (born.length) {
       const nextEx = [...new Set([...exiting, ...born])];
       setExiting(nextEx);
-      const nextOpen = openIndices.filter((i) => !born.includes(i));
+      const nextOpen = openAfter;
       const nextDisplay = [...new Set([...nextOpen, ...nextEx])].sort((a, b) => a - b);
       const nextStart = windowStartForBoards(nextDisplay, visibleCount, windowStart, born);
       if (nextStart !== windowStart) setWindowStart(nextStart);
     }
     const progress = hydraProgress(targets, nextGuesses, language, boardCount);
+    if (progress.playFrozen) {
+      setDepartTo('end');
+    } else if (viewed != null && born.includes(viewed)) {
+      setDepartTo(nextOpenBoard(openAfter, viewed));
+    }
     commitState(nextGuesses, '', false, progress.playFrozen, progress.won);
     if (progress.playFrozen && progress.won) {
       setWinMessage(formatWinAnnounce(winMessageBase, progress.used, boardCount));
@@ -952,6 +997,9 @@ export const Game: React.FC<GameProps> = ({
     openIndices,
     windowStart,
     selectedPlayDate,
+    visibleCount,
+    displayIndices,
+    viewStart,
   ]);
 
   useEffect(() => {
@@ -1125,7 +1173,7 @@ export const Game: React.FC<GameProps> = ({
   const scrollToBoard = (index: number) => {
     const solved = Boolean(boardViews[index]?.solved);
     const gameOver = isComplete && exiting.length === 0;
-    const reviewing = phone && solved && !gameOver;
+    const reviewing = solved && !gameOver;
     if (reviewing) {
       setReviewIndex(index);
     } else if (reviewIndex != null) {
@@ -1209,18 +1257,34 @@ export const Game: React.FC<GameProps> = ({
               <span data-header-name="short">H..</span>
             </span>
             <div className="header-icon-cluster" data-header-chrome="icons">
-              <button
-                type="button"
-                className="help-trigger help-trigger--game"
-                aria-label="How to play Hydra"
-                onClick={() => openHelp(helpTopic)}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                </svg>
-                <span className="help-trigger-tip">How to play Hydra</span>
-              </button>
+              {isComplete ? (
+                <button
+                  type="button"
+                  className="help-trigger help-trigger--game header-report-button"
+                  aria-label="Report questionable words"
+                  onClick={() => openQuestionableWordReport({
+                    game: 'polyhydra',
+                    language,
+                    words: boardGuesses.flat(),
+                  })}
+                >
+                  <img src="/brand/word-report.png" alt="" />
+                  <span className="help-trigger-tip">Report questionable words</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="help-trigger help-trigger--game"
+                  aria-label="How to play Hydra"
+                  onClick={() => openHelp(helpTopic)}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                  </svg>
+                  <span className="help-trigger-tip">How to play Hydra</span>
+                </button>
+              )}
               {onViewChange && (
                 <span className="header-icon-with-tooltip">
                   <span className="header-icon-tooltip">Statistics</span>
@@ -1249,13 +1313,28 @@ export const Game: React.FC<GameProps> = ({
               </button>
               <ul className="header-more-menu hidden" role="menu" aria-label="Game menu">
                 <li role="none">
-                  <button type="button" role="menuitem" onClick={() => openHelp(helpTopic)}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                    </svg>
-                    <span>How to play</span>
-                  </button>
+                  {isComplete ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => openQuestionableWordReport({
+                        game: 'polyhydra',
+                        language,
+                        words: boardGuesses.flat(),
+                      })}
+                    >
+                      <img src="/brand/word-report.png" alt="" width={18} height={18} />
+                      <span>Report</span>
+                    </button>
+                  ) : (
+                    <button type="button" role="menuitem" onClick={() => openHelp(helpTopic)}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                      </svg>
+                      <span>How to play</span>
+                    </button>
+                  )}
                 </li>
                 {onViewChange ? (
                   <li role="none">
@@ -1405,7 +1484,9 @@ export const Game: React.FC<GameProps> = ({
           }}
         >
           <div
-            className={`hydra-board-entries${boardMode === 'full' ? ' is-full-mode' : ''}`}
+            className={`hydra-board-entries${boardMode === 'full' ? ' is-full-mode' : ''}${
+              departing ? ' is-departing' : ''
+            }`}
           >
             {visibleIndices.map((i) => {
               const board = boardViews[i];
@@ -1461,8 +1542,18 @@ export const Game: React.FC<GameProps> = ({
                       invalidRow={invalidRow && !board.solved}
                       duplicateRow={duplicateRow && !board.solved}
                       rtl={keyboardRtl}
-                      frozen={board.solved || isComplete}
+                      frozen={(board.solved || isComplete) && !leaving}
+                      holdGuess={leaving && board.solved}
                       onExpand={() => selectBoardMode('full', true)}
+                      onReportMissing={
+                        invalidRow && !board.solved && visibleIndices.find((index) => !boardViews[index]?.solved) === i
+                          ? () => openMissingWordReport({
+                              game: 'polyhydra',
+                              language,
+                              word: currentGuessWord,
+                            })
+                          : undefined
+                      }
                     />
                   ) : (
                     <GameBoard
@@ -1477,6 +1568,15 @@ export const Game: React.FC<GameProps> = ({
                       duplicateRow={duplicateRow && !board.solved}
                       rtl={keyboardRtl}
                       frozen={board.solved}
+                      onReportMissing={
+                        invalidRow && !board.solved && visibleIndices.find((index) => !boardViews[index]?.solved) === i
+                          ? () => openMissingWordReport({
+                              game: 'polyhydra',
+                              language,
+                              word: currentGuessWord,
+                            })
+                          : undefined
+                      }
                     />
                   )}
                 </div>

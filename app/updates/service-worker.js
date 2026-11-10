@@ -1,5 +1,5 @@
 /* Wordaholic service worker — cache shell + requested wordsets */
-const CACHE_SHELL = 'wordaholic-shell-v71';
+const CACHE_SHELL = 'wordaholic-shell-v72';
 const CACHE_DATA = 'wordaholic-data-v4';
 
 const PRECACHE = [
@@ -23,6 +23,7 @@ const PRECACHE = [
   '/app/shell/author.js',
   '/app/shell/site-backup.js',
   '/app/shell/auto-export.js',
+  '/app/shell/word-report.js',
   '/app/help/dialog.js',
   '/app/help/help.css',
   '/app/help/site/topic.js',
@@ -33,6 +34,7 @@ const PRECACHE = [
   '/app/updates/reload-latest.js',
   '/app/stats/report.js',
   '/brand/wordaholic-mark.svg',
+  '/brand/word-report.png',
   '/site.webmanifest',
   '/deployment-manifest.json',
   '/data/languages.json',

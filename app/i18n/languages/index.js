@@ -2,6 +2,7 @@
  * Language-specific letter processing shared by the games.
  * Every hook has a default that changes nothing; a language overrides only what it
  * needs in its own module here (he.js). A language without a module uses the defaults.
+ * Plugins are language-specific, not game-specific.
  */
 import hebrew from './he.js';
 

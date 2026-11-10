@@ -680,6 +680,40 @@ h1 {
   display: inline-block;
 }
 
+.missing-word-report {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: calc(100% + 8px);
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.missing-word-report.is-above {
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: calc(100% + 6px);
+  transform: translateX(-50%);
+}
+
+.missing-word-report img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
+}
+
+.missing-word-report[hidden] {
+  display: none;
+}
+
 .undo-x {
   position: absolute;
   top: -8px;
@@ -1233,13 +1267,28 @@ select:focus { outline: none; border-color: var(--accent); }
   color: var(--text-dim);
 }
 
+.win-solution {
+  margin-bottom: 1.5rem;
+}
+
+.win-solution .win-label {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
 .win-path {
   font-family: var(--font-mono);
   font-size: 0.8rem;
   color: var(--text-dim);
   line-height: 2;
-  margin-bottom: 1.5rem;
+  max-height: min(38vh, 14rem);
+  overflow: auto;
   word-break: break-word;
+}
+
+.win-path-word {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .win-path .op-inline {

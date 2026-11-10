@@ -94,6 +94,7 @@ async function loadMapSvg() {
  *   onExportData?: () => void | Promise<void>,
  *   onImportData?: (file: File) => void | Promise<void>,
  *   onFeedback?: () => void,
+ *   onWordReport?: () => void,
  *   onReloadLatest?: () => void | Promise<void>,
  *   onAutoExport?: () => void | Promise<void>,
  *   autoExportEnabled?: boolean,
@@ -158,6 +159,10 @@ export async function renderWorldMap(container, opts = {}) {
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
           </svg>
           <span class="map-corner-tip" role="tooltip">Join the Wordaholic group on Telegram: ideas, questions, bug reports</span>
+        </button>
+        <button type="button" class="map-zoom-btn" data-transfer="word-report" aria-label="Report a word">
+          <img src="/brand/word-report.png" alt="" />
+          <span class="map-corner-tip" role="tooltip">Report a missing or questionable word</span>
         </button>
         <button type="button" class="map-zoom-btn" data-transfer="reload" aria-label="Reload the latest version">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -342,6 +347,8 @@ export async function renderWorldMap(container, opts = {}) {
         void opts.onAutoExport();
       } else if (action === 'feedback' && typeof opts.onFeedback === 'function') {
         opts.onFeedback();
+      } else if (action === 'word-report' && typeof opts.onWordReport === 'function') {
+        opts.onWordReport();
       }
     });
   });

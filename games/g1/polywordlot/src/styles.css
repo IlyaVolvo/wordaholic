@@ -528,8 +528,39 @@ h1 .logout-wrapper:hover .logout-tooltip {
 }
 
 .row {
+  position: relative;
   display: flex;
   gap: var(--cell-gap);
+}
+
+.entry-report {
+  position: absolute;
+  z-index: 3;
+  left: calc(100% + 4px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: calc(var(--cell-size, 36px) * 0.7);
+  height: calc(var(--cell-size, 36px) * 0.7);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.entry-report.is-above {
+  left: auto;
+  right: 0;
+  top: auto;
+  bottom: calc(100% + 2px);
+  transform: none;
+}
+
+.entry-report img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  pointer-events: none;
 }
 
 .cell {
@@ -620,10 +651,31 @@ h1 .logout-wrapper:hover .logout-tooltip {
   color: #333;
 }
 
+.cell.duplicate,
+.cell.typing.duplicate,
+.cell.empty.duplicate,
+.row.duplicate .cell {
+  background: #f8d0dc;
+  border-color: #e7a8bc;
+  color: #000;
+}
+
+.row.duplicate .cell.cell-active,
+.cell.duplicate.cell-active {
+  border-color: #e7a8bc;
+  box-shadow: inset 0 0 0 1px #e7a8bc;
+}
+
 .row.invalid .cell-cursor,
 .cell.invalid .cell-cursor {
   color: #fff;
   background: #fff;
+}
+
+.row.duplicate .cell-cursor,
+.cell.duplicate .cell-cursor {
+  color: #000;
+  background: #000;
 }
 
 .cell.absent .cell-cursor {

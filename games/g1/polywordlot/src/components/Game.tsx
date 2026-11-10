@@ -15,6 +15,7 @@ import { gameCacheUtils } from '../utils/gameCache';
 import { GAME_ID, refreshGamesFromIndexedDb, STORAGE_IMPORTED_EVENT } from '../storage/platform';
 import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../../app/daily/variantVisit.js';
 import { openHelp, isHelpOpen } from '@wordaholic/help';
+import { openMissingWordReport, openQuestionableWordReport } from '../../../../../app/shell/word-report.js';
 import { mountHeaderChrome } from '../../../../../app/play/header-chrome.js';
 import helpTopic from '../../help/topic.js';
 import { reportPlayEnd, reportPlayStart, reportStats } from '@wordaholic/stats';
@@ -776,11 +777,19 @@ export const Game: React.FC<GameProps> = ({
   const currentGuessWord = keyboardRtl
     ? [...(gameState?.currentGuess ?? '')].reverse().join('')
     : (gameState?.currentGuess ?? '');
+  const duplicateRow = useMemo(() => {
+    if (!gameState || gameState.isComplete || currentGuessWord.length !== wordLength) return false;
+    const key = normalizeForLanguage(currentGuessWord.toLowerCase().trim(), language);
+    if (!key) return false;
+    return gameState.guesses.some(
+      (guess) => normalizeForLanguage(guess.word.toLowerCase().trim(), language) === key
+    );
+  }, [gameState, currentGuessWord, wordLength, language]);
   const invalidRow = useMemo(() => {
-    if (!dictionary || !gameState || gameState.isComplete) return false;
+    if (!dictionary || !gameState || gameState.isComplete || duplicateRow) return false;
     if (currentGuessWord.length !== wordLength) return false;
     return !isValidWord(currentGuessWord, dictionary);
-  }, [dictionary, gameState, currentGuessWord, wordLength]);
+  }, [dictionary, gameState, currentGuessWord, wordLength, duplicateRow]);
 
   // Auto-start game when first letter is typed (instead of Play button)
   const handleKeyPress = useCallback(async (key: string) => {
@@ -821,11 +830,14 @@ export const Game: React.FC<GameProps> = ({
     const guess = rawGuess.toLowerCase().trim();
     
     if (guess.length !== wordLength) {
-      // Show error - word not long enough
       return;
     }
 
-    if (!isValidWord(guess, dictionary)) {
+    const guessKey = normalizeForLanguage(guess, language);
+    const alreadyGuessed = gameState.guesses.some(
+      (prior) => normalizeForLanguage(prior.word.toLowerCase().trim(), language) === guessKey
+    );
+    if (alreadyGuessed || !isValidWord(guess, dictionary)) {
       setGameState({ ...gameState, currentGuess: '' });
       return;
     }
@@ -1105,18 +1117,34 @@ export const Game: React.FC<GameProps> = ({
               <span data-header-name="short">PW</span>
             </a>
             <div className="header-icon-cluster" data-header-chrome="icons">
-              <button
-                type="button"
-                className="help-trigger help-trigger--game"
-                aria-label="How to play PolyWordlot"
-                onClick={() => openHelp(helpTopic)}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                </svg>
-                <span className="help-trigger-tip">How to play PolyWordlot</span>
-              </button>
+              {gameState?.isComplete ? (
+                <button
+                  type="button"
+                  className="help-trigger help-trigger--game header-report-button"
+                  aria-label="Report questionable words"
+                  onClick={() => openQuestionableWordReport({
+                    game: 'polywordlot',
+                    language,
+                    words: gameState.guesses.map((guess) => guess.word),
+                  })}
+                >
+                  <img src="/brand/word-report.png" alt="" />
+                  <span className="help-trigger-tip">Report questionable words</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="help-trigger help-trigger--game"
+                  aria-label="How to play PolyWordlot"
+                  onClick={() => openHelp(helpTopic)}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                  </svg>
+                  <span className="help-trigger-tip">How to play PolyWordlot</span>
+                </button>
+              )}
               {onViewChange && (
                 <div className="header-stats-pair">
                   <span className="header-icon-with-tooltip">
@@ -1169,13 +1197,28 @@ export const Game: React.FC<GameProps> = ({
               </button>
               <ul className="header-more-menu hidden" role="menu" aria-label="Game menu">
                 <li role="none">
-                  <button type="button" role="menuitem" onClick={() => openHelp(helpTopic)}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
-                      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
-                    </svg>
-                    <span>Manual</span>
-                  </button>
+                  {gameState?.isComplete ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => openQuestionableWordReport({
+                        game: 'polywordlot',
+                        language,
+                        words: gameState.guesses.map((guess) => guess.word),
+                      })}
+                    >
+                      <img src="/brand/word-report.png" alt="" width={18} height={18} />
+                      <span>Report</span>
+                    </button>
+                  ) : (
+                    <button type="button" role="menuitem" onClick={() => openHelp(helpTopic)}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                        <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                      </svg>
+                      <span>Manual</span>
+                    </button>
+                  )}
                 </li>
                 {onViewChange ? (
                   <>
@@ -1255,7 +1298,13 @@ export const Game: React.FC<GameProps> = ({
                 isComplete={gameState.isComplete}
                 isWon={gameState.isWon}
                 invalidRow={invalidRow}
+                duplicateRow={duplicateRow}
                 rtl={keyboardRtl}
+                onReportMissing={invalidRow ? () => openMissingWordReport({
+                  game: 'polywordlot',
+                  language,
+                  word: currentGuessWord,
+                }) : undefined}
               />
               {gameState.isComplete && (
                 <div className="game-result">

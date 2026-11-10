@@ -1,6 +1,7 @@
 import { BODY_MAX_BYTES, parseStatsDelta } from '../../../scripts/stats-delta.js';
 import { combineBodies, combineTrends, normalizeGeo, parseDateRange, parseTrendInterval } from '../../../scripts/stats-combine.js';
-import { canonicalPath, isStatsWorkerPath } from '../../../scripts/stats-path.js';
+import { canonicalPath, isStatsWorkerPath, isWordReportApiPath } from '../../../scripts/stats-path.js';
+import { submitWordReport, WORD_REPORT_MAX_BYTES } from '../../../scripts/word-report.js';
 import { renderStatsHtml, trendIdentityAllowIds, trendLanguageAllow } from '../../../scripts/stats-page.js';
 import { buildStatsGeoPayload } from '../../../scripts/stats-geo-api.js';
 import { lookupMissingGeos } from '../../../scripts/stats-geo-lookup.js';
@@ -413,13 +414,39 @@ export class StatsStore {
   }
 }
 
+/**
+ * Anonymous word report. Not forwarded to the stats Durable Object.
+ * @param {Request} request
+ * @param {{ TELEGRAM_BOT_TOKEN?: string, TELEGRAM_CHAT_ID?: string, TELEGRAM_TOPIC_MISSING?: string, TELEGRAM_TOPIC_QUESTIONABLE?: string }} env
+ */
+async function handleWordReport(request, env) {
+  const method = request.method || 'GET';
+  let raw = '';
+  if (method === 'POST') {
+    const declared = Number(request.headers.get('Content-Length'));
+    if (Number.isFinite(declared) && declared > WORD_REPORT_MAX_BYTES) {
+      return Response.json({ error: 'Payload too large' }, { status: 413, headers: JSON_HEADERS });
+    }
+    try {
+      raw = await request.text();
+    } catch {
+      return Response.json({ error: 'Bad request' }, { status: 400, headers: JSON_HEADERS });
+    }
+  }
+  const result = await submitWordReport({ method, raw, env, ip: clientIp(request) });
+  return Response.json(result.body, { status: result.status, headers: JSON_HEADERS });
+}
+
 export default {
   /**
    * @param {Request} request
-   * @param {{ STATS: DurableObjectNamespace, LOCAL_GEO?: string, STATS_IMPORT_TOKEN?: string }} env
+   * @param {{ STATS: DurableObjectNamespace, LOCAL_GEO?: string, STATS_IMPORT_TOKEN?: string, TELEGRAM_BOT_TOKEN?: string, TELEGRAM_CHAT_ID?: string, TELEGRAM_TOPIC_MISSING?: string, TELEGRAM_TOPIC_QUESTIONABLE?: string }} env
    */
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (isWordReportApiPath(url.pathname)) {
+      return handleWordReport(request, env);
+    }
     if (!isStatsWorkerPath(url.pathname)) return new Response('Not found', { status: 404 });
     const id = env.STATS.idFromName('site');
     return env.STATS.get(id).fetch(requestWithEdgeGeo(request, env));

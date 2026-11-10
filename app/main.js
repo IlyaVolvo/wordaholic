@@ -13,6 +13,7 @@ import {
   setLastLanguage,
 } from './i18n-prefs/favorites.js';
 import { TELEGRAM_GROUP_URL } from './shell/author.js';
+import { openWordReport } from './shell/word-report.js';
 import { downloadSiteBackup, exportSiteBackup, importSiteBackup } from './shell/site-backup.js';
 import {
   AUTO_EXPORT_STATUS_EVENT,
@@ -34,17 +35,21 @@ const $ = (sel) => document.querySelector(sel);
 /** @type {import('./shell/languages.js').LanguageInfo[]} */
 let allLanguages = [];
 
+const PREP_FLASH_MS = 2000;
+
 async function showPreparing() {
   const overlay = $('#prep-overlay');
-  const bar = $('#prep-bar');
   const label = $('#prep-label');
+  if (!overlay || !label) return;
+  label.textContent = 'Caching…';
   overlay.hidden = false;
+  const flash = setTimeout(() => {
+    overlay.hidden = true;
+  }, PREP_FLASH_MS);
   try {
-    await prepareOffline((pct, text) => {
-      bar.style.width = `${pct}%`;
-      label.textContent = text;
-    });
+    await prepareOffline(() => {});
   } finally {
+    clearTimeout(flash);
     overlay.hidden = true;
   }
 }
@@ -199,6 +204,12 @@ async function renderGateway() {
     },
     onFeedback: () => {
       window.open(TELEGRAM_GROUP_URL, '_blank', 'noopener,noreferrer');
+    },
+    onWordReport: () => {
+      openWordReport(
+        allLanguages,
+        listGames().map((game) => ({ id: game.id, name: game.name }))
+      );
     },
   });
   paintHomeIdentity();

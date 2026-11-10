@@ -44,6 +44,7 @@ const STATS_HELP =
   'Use the arrow on the view row to hide or show Country, Language, Place, ISP, and, on Totals and Trends, the count filters. From/To dates and Group (or Interval on Trends) stay visible.\n' +
   'Trends uses the same filters: only events from matching networks are counted. Language limits those counts to games in the selected languages.\n' +
   'Trends shows activity by UTC clock hour (always 24 rows, each hour summed across days in the range), or by day, week, or month for the From/To window (empty = all available).\n' +
+  'Played only removes intervals with no games played, including clock hours that summed to zero. Clear filters leaves it on.\n' +
   'Under Trends, Table is newest-first with a sticky total row; click a date, week, or month to open Totals for that interval grouped by city. Graph plots games total and each game as separate colored lines (hover for values).\n' +
   'Games lists each played configuration with the language removed (wordlot,5, hydra,5,16). Columns are languages; a blank cell means that configuration was not played in that language. Hover or tap a count for the places. The Tooltip menu chooses countries, cities, or networks; City is the default. Dates, Country, Language, Place, and ISP apply. Count filters and Homehits only do not.\n' +
   'GET /api/stats is the raw 24h JSON dump.';
@@ -303,6 +304,7 @@ export function parseStatsFilters(params) {
     place: String(params?.get?.('place') || '').trim(),
     isp: String(params?.get?.('isp') || '').trim(),
     homeHitsOnly: Boolean(params?.get?.('homeHitsOnly')),
+    playedOnly: Boolean(params?.get?.('playedOnly')),
     gt,
   };
 }
@@ -422,6 +424,7 @@ function writeStatsFilterParams(params, filters) {
   if (filters.place) params.set('place', filters.place);
   if (filters.isp) params.set('isp', filters.isp);
   if (filters.homeHitsOnly) params.set('homeHitsOnly', '1');
+  if (filters.playedOnly) params.set('playedOnly', '1');
   for (const key of GT_KEYS) {
     const n = filters.gt[key];
     if (n == null) continue;
@@ -451,6 +454,7 @@ function trendJumpHref(jump, patch) {
     place: patch.place !== undefined ? patch.place : jump.filters.place,
     isp: patch.isp !== undefined ? patch.isp : jump.filters.isp,
     homeHitsOnly: jump.filters.homeHitsOnly,
+    playedOnly: jump.filters.playedOnly,
     gt: jump.filters.gt,
   });
   return `/stats?${params.toString()}`;
@@ -921,6 +925,8 @@ const FILTER_SCRIPT = `(function () {
         if (raw) params.set('gt_' + gtKeys[gi], raw);
       }
     }
+    var playedNow = new URL(location.href).searchParams.get('playedOnly');
+    if (playedNow) params.set('playedOnly', playedNow);
     return '/stats?' + params.toString();
   }
   function langLabel(code) {
@@ -1525,6 +1531,8 @@ const FILTER_SCRIPT = `(function () {
       if (raw) params.set('gt_' + gtKeys[i], raw);
     }
     if (home && home.checked) params.set('homeHitsOnly', '1');
+    var playedNow = new URL(location.href).searchParams.get('playedOnly');
+    if (playedNow) params.set('playedOnly', playedNow);
     var qs = params.toString();
     var next = '/stats' + (qs ? '?' + qs : '');
     if (next !== location.pathname + location.search) history.replaceState(null, '', next);
@@ -2284,7 +2292,7 @@ function gamesClientScript(networks) {
     current.forEach(function (value, key) {
       var countKey = key.indexOf('gt_') === 0 || key === 'homeHitsOnly';
       if (dropCounts && countKey) return;
-      if (countKey || key === 'group' || key === 'interval' || key === 'view') {
+      if (countKey || key === 'group' || key === 'interval' || key === 'view' || key === 'playedOnly') {
         if (!params.has(key)) params.append(key, value);
       }
     });
@@ -2653,7 +2661,7 @@ ${languageOptions
       if (v) p.set(k, String(v));
     }
     const s = p.toString();
-    return s ? `?${s}` : '';
+    return s ? `?${s.replace(/&/g, '&amp;')}` : '';
   };
 
   const tabs = `<nav class="stats-tabs" aria-label="Stats views">
@@ -3056,6 +3064,7 @@ ${TREND_INTERVALS.map(
   (id) => `        <option value="${esc(id)}"${id === interval ? ' selected' : ''}>${esc(id)}</option>`
 ).join('\n')}
       </select></label>
+      <label class="check"><input type="checkbox" name="playedOnly" value="1"${filters.playedOnly ? ' checked' : ''}/> Played only</label>
       <input type="hidden" name="view" value="${esc(trendsView)}"/>`;
 
     const subtabs = `<nav class="stats-subtabs" aria-label="Trends display">
@@ -3067,13 +3076,17 @@ ${TREND_INTERVALS.map(
       }>Graph</a>
     </nav>`;
 
+    const shownTrends = filters.playedOnly
+      ? trendRows.filter((r) => (Number(r.games) || 0) > 0)
+      : trendRows;
+
     const headerRow = TREND_COLUMNS.map((col, i) => {
       const cls = col.type === 'num' ? ' class="n"' : '';
       const aria = i === 0 ? ' aria-sort="descending"' : '';
       return `        <th${cls} data-type="${col.type}"${aria}><button type="button" class="sort">${columnHeaderMarkup(col)}</button></th>`;
     }).join('\n');
 
-    const tableRows = [...trendRows].reverse();
+    const tableRows = [...shownTrends].reverse();
     const bodyRows = tableRows
       .map((r) => {
         const cells = [
@@ -3091,13 +3104,13 @@ ${TREND_INTERVALS.map(
       games: 0,
       byGame: Object.fromEntries(STATS_GAME_IDS.map((id) => [id, 0])),
     };
-    for (const r of trendRows) {
+    for (const r of shownTrends) {
       trendSum.games += Number(r.games) || 0;
       for (const id of STATS_GAME_IDS) {
         trendSum.byGame[id] += Number(r.byGame?.[id]) || 0;
       }
     }
-    const nBuckets = trendRows.length;
+    const nBuckets = shownTrends.length;
     const trendTotalRow = nBuckets
       ? `<tr class="total">
 ${dataCell(TREND_COLUMNS[0], esc(`(${nBuckets} interval${nBuckets === 1 ? '' : 's'})`), '')}
@@ -3114,9 +3127,10 @@ ${STATS_GAME_IDS.map(
 </tr>`
       : '';
 
-    const emptyRow = trendRows.length
+    const emptyNote = filters.playedOnly ? 'No games in this range.' : 'No hours in this range.';
+    const emptyRow = shownTrends.length
       ? ''
-      : `<tr data-empty="1"><td colspan="${TREND_COLUMNS.length}">No hours in this range.</td></tr>`;
+      : `<tr data-empty="1"><td colspan="${TREND_COLUMNS.length}">${esc(emptyNote)}</td></tr>`;
 
     const chartSeries = [
       { id: 'games', label: 'games', color: TREND_SERIES_COLORS.games },
@@ -3127,10 +3141,10 @@ ${STATS_GAME_IDS.map(
       })),
     ];
     const chartPayload = {
-      labels: trendRows.map((r) => r.label),
+      labels: shownTrends.map((r) => r.label),
       series: chartSeries.map((s) => ({
         ...s,
-        values: trendRows.map((r) =>
+        values: shownTrends.map((r) =>
           s.id === 'games' ? Number(r.games) || 0 : Number(r.byGame?.[s.id]) || 0
         ),
       })),
@@ -3145,13 +3159,13 @@ ${STATS_GAME_IDS.map(
       )
       .join('');
 
-    const chartBlock = trendRows.length
+    const chartBlock = shownTrends.length
       ? `<div class="stats-chart-wrap" id="stats-chart-wrap">
       <div class="stats-chart-legend">${legend}</div>
       <svg class="stats-chart-svg" id="stats-chart" role="img" aria-label="Trends chart"></svg>
       <div class="stats-chart-tip" id="stats-chart-tip" role="tooltip"></div>
     </div>`
-      : `<p class="stats-chart-empty">No hours in this range.</p>`;
+      : `<p class="stats-chart-empty">${esc(emptyNote)}</p>`;
 
     const TRENDS_CSV = `(function () {
   var btn = document.querySelector('[data-export-csv]');
@@ -3418,6 +3432,8 @@ ${STATS_GAME_IDS.map(
       if (raw) params.set('gt_' + gtKeys[i], raw);
     }
     if (home && home.checked) params.set('homeHitsOnly', '1');
+    var played = form.querySelector('[name=playedOnly]');
+    if (played && played.checked) params.set('playedOnly', '1');
     return params;
   }
   function go() {

@@ -198,8 +198,10 @@ export async function refreshGamesFromIndexedDb(): Promise<StoredHydra[]> {
     if (!game) continue;
     const complete = isHydraComplete(game);
     const won = isHydraWon(game);
+    const target_words = complete ? game.target_words : [];
     const next: StoredHydra = {
       ...game,
+      target_words,
       is_complete: complete ? 1 : 0,
       is_won: won ? 1 : 0,
       completed_at: complete ? game.completed_at || game.updated_at : game.completed_at,
@@ -209,7 +211,14 @@ export async function refreshGamesFromIndexedDb(): Promise<StoredHydra[]> {
     const sameGuesses =
       Array.isArray((row as { guesses?: unknown }).guesses) &&
       JSON.stringify((row as { guesses?: unknown }).guesses) === JSON.stringify(next.guesses);
-    if (legacy || !sameGuesses || next.is_complete !== Number(row.is_complete) || next.is_won !== Number(row.is_won)) {
+    const sameTargets = JSON.stringify(game.target_words) === JSON.stringify(target_words);
+    if (
+      legacy ||
+      !sameGuesses ||
+      !sameTargets ||
+      next.is_complete !== Number(row.is_complete) ||
+      next.is_won !== Number(row.is_won)
+    ) {
       await putStoredGame(next);
     }
   }

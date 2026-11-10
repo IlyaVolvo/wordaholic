@@ -1,4 +1,5 @@
 import React from 'react';
+import { MissingReportButton } from '../../../shared/MissingReportButton';
 import type { Guess, LetterEvaluation } from '../types';
 
 interface GameBoardProps {
@@ -10,8 +11,10 @@ interface GameBoardProps {
   isComplete?: boolean;
   isWon?: boolean;
   invalidRow?: boolean;
+  duplicateRow?: boolean;
   /** When true, current guess is shown right-to-left (first letter in rightmost cell) */
   rtl?: boolean;
+  onReportMissing?: () => void;
 }
 
 export const GameBoard: React.FC<GameBoardProps> = ({
@@ -23,7 +26,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
   isComplete,
   isWon,
   invalidRow = false,
+  duplicateRow = false,
   rtl = false,
+  onReportMissing,
 }) => {
   const getCellState = (row: number, col: number): LetterEvaluation | null => {
     // Show completed guesses (same RTL order as typing: first letter rightmost)
@@ -76,7 +81,7 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     const cells: React.ReactNode[] = [];
     const activeCol = !isComplete && row === guesses.length ? getActiveCol() : -1;
     const onEntry = Boolean(!isComplete && row === guesses.length && currentGuess.length > 0);
-    const warn = onEntry && invalidRow ? ' invalid' : '';
+    const warn = onEntry ? (duplicateRow ? ' duplicate' : invalidRow ? ' invalid' : '') : '';
     for (let col = 0; col < wordLength; col++) {
       const cellState = getCellState(row, col);
       const isActive = col === activeCol;
@@ -90,6 +95,9 @@ export const GameBoard: React.FC<GameBoardProps> = ({
     rows.push(
       <div key={row} className={`row${warn}`}>
         {cells}
+        {onEntry && invalidRow && onReportMissing ? (
+          <MissingReportButton onClick={onReportMissing} />
+        ) : null}
       </div>
     );
   }

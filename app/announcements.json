@@ -1,22 +1,71 @@
 [
   {
     "commit": "45ebf22",
-    "body": "This type of message will appear when you upgrade to a new version and it has something that you could be interested to know"
+    "body": [
+      "This type of message will appear when you upgrade to a new version and it has something that you could be interested to know"
+    ]
   },
   {
     "commit": "8d1958e",
-    "body": "New game: Hydra.\n\nPlay several PolyWordlot boards at once with one shared guess. Each board has its own secret. One typed word is scored on every board that is not solved yet. Win by solving all of them before the shared guesses run out."
+    "body": [
+      "New game: Hydra.",
+      "",
+      "Play several PolyWordlot boards at once with one shared guess. Each board has its own secret. One typed word is scored on every board that is not solved yet. Win by solving all of them before the shared guesses run out."
+    ]
   },
   {
     "commit": "6014537",
-    "body": "Home map: activity dots show where people have played (when you are online). Use From/To on the left to narrow the dates.\n\nLocations are approximate. If a city is missing or unknown, the dot is placed on that country’s capital. VPN and mobile roaming can shift a player far from where they really are, so the map is a rough picture, not a precise census."
+    "body": [
+      "Home map: activity dots show where people have played (when you are online). Use From/To on the left to narrow the dates.",
+      "",
+      "Locations are approximate. If a city is missing or unknown, the dot is placed on that country’s capital. VPN and mobile roaming can shift a player far from where they really are, so the map is a rough picture, not a precise census."
+    ]
   },
   {
     "commit": "5d7d620",
-    "body": "PolyHydra is now Hydra. Its Summary mode has significantly changed.\n\n The reason: the old algorithm revealed more information that intended. \n\n Please, carefully read the explanation for this mode in the game manual. Standard mode is still available."
+    "body": [
+      "PolyHydra is now Hydra. Its Summary mode has significantly changed.",
+      "",
+      "The reason: the old algorithm revealed more information that intended.",
+      "",
+      "Please, carefully read the explanation for this mode in the game manual. Standard mode is still available."
+    ]
   },
   {
-    "commit": "70b97fc",
-    "body": "New game: Letterix. Falling letters score as words until one sticks above the bucket."
+    "commit": "6c8e916",
+    "body": [
+      "• New game: **Letterix**\n\n Letters fall into a bucket under your control and you make words out of them See more in the manual, or just play in the language of your choice.",
+      "• New landing page. Switch to www.wordaholic-games.com",
+      "• Crowdsourcing to curate words right in the game",
+      "• Better screen design; you could play on a phone now",
+      "• Improved dictionaries",
+      "• Bug fixes",
+      "• Join us on Telegram: https://t.me/wordaholicgames"
+    ]
+  },
+  {
+    "commit": "HEAD",
+    "permanent": true,
+    "points": [
+      {
+        "target": "[data-transfer='feedback']",
+        "text": "Join the Wordaholic group on Telegram.",
+        "place": "top"
+      },
+      {
+        "target": "[data-transfer='word-report']",
+        "text": "You could submit word suggestions here. Each game offers a report for a missing or questionable word in context of the game. The Manual turns into report at the end of the game.",
+        "place": "top"
+      },
+      {
+        "targets": [
+          "[data-transfer='auto-export']",
+          "[data-transfer='export']",
+          "[data-transfer='import']"
+        ],
+        "text": "Auto export, export, and import allow you to preserve, transfer and aggregate your completed games results and fill gaps between your finished games results across devices and browsers",
+        "place": "top"
+      }
+    ]
   }
 ]

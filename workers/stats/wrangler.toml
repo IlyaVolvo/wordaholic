@@ -4,6 +4,16 @@ compatibility_date = "2026-08-27"
 # One-shot history import (wrangler secret put, do not commit):
 #   STATS_IMPORT_TOKEN
 # Local wrangler dev reads workers/stats/.dev.vars (STATS_IMPORT_TOKEN, LOCAL_GEO).
+# Anonymous word reports (wrangler secret put, do not commit):
+#   TELEGRAM_BOT_TOKEN
+#   TELEGRAM_CHAT_ID    the chat the bot is allowed to post in
+# Topic ids are configuration, not secrets:
+#   TELEGRAM_TOPIC_MISSING
+#   TELEGRAM_TOPIC_QUESTIONABLE
+
+[vars]
+TELEGRAM_TOPIC_MISSING = "15"
+TELEGRAM_TOPIC_QUESTIONABLE = "18"
 
 [[durable_objects.bindings]]
 name = "STATS"
@@ -21,3 +31,11 @@ zone_name = "volvovski.com"
 [[routes]]
 pattern = "wordaholic.volvovski.com/stats*"
 zone_name = "volvovski.com"
+
+[[routes]]
+pattern = "www.wordaholic-games.com/api/*"
+zone_name = "wordaholic-games.com"
+
+[[routes]]
+pattern = "www.wordaholic-games.com/stats*"
+zone_name = "wordaholic-games.com"

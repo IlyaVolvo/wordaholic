@@ -733,6 +733,13 @@ main {
   height: 1rem;
   display: block;
 }
+.map-zoom-btn img {
+  width: 1.35rem;
+  height: 1.35rem;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+}
 .map-transfer-controls .map-zoom-btn,
 .map-corner-left .map-zoom-btn {
   color: #111;
@@ -1177,13 +1184,6 @@ main {
   .map-geo-date input {
     font-size: 0.62rem;
   }
-  .prep-overlay-corner {
-    inset: auto 0.65rem 0.65rem 0.65rem;
-  }
-  .prep-card {
-    width: 100%;
-    max-width: none;
-  }
 }
 
 @media (max-width: 420px) {
@@ -1234,39 +1234,24 @@ main {
 
 .prep-overlay {
   position: fixed;
+  inset: 0;
   z-index: 50;
-}
-.prep-overlay-corner {
-  inset: auto 1rem 1rem auto;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
   background: transparent;
-  display: block;
 }
 .prep-overlay[hidden] { display: none !important; }
-.prep-card {
-  width: min(280px, 92vw);
-  background: rgba(255, 255, 255, 0.96);
-  border-radius: 14px;
-  padding: 0.85rem 1rem;
-  box-shadow: var(--shadow);
-  border: 1px solid var(--line);
-}
-.prep-card #prep-label {
+.prep-flash {
   margin: 0;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-.prep-track {
-  height: 10px;
-  background: #e6eef2;
+  padding: 0.45rem 0.95rem;
   border-radius: 999px;
-  overflow: hidden;
-  margin-top: 1rem;
-}
-.prep-bar {
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, #3d7ea6, var(--accent));
-  transition: width 0.2s ease;
+  background: rgba(20, 35, 43, 0.9);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: 0 6px 18px rgba(20, 35, 43, 0.25);
 }
 
 .update-dialog {
@@ -1309,6 +1294,18 @@ main {
 .update-announcement-body {
   white-space: pre-wrap;
 }
+.update-announcement-body strong {
+  font-weight: 700;
+}
+.update-announcement-body a {
+  color: var(--accent);
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-underline-offset: 0.12em;
+}
+.update-announcement-body a:hover {
+  color: var(--ink);
+}
 .update-list {
   margin: 0;
   padding-left: 1.15rem;
@@ -1336,6 +1333,47 @@ main {
 }
 .auto-export-error {
   margin: 0.5rem 0 0;
+  color: #b42318;
+  font-size: 0.9rem;
+}
+.word-report-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+.word-report-field legend {
+  padding: 0;
+  font-weight: 600;
+}
+.word-report-field select,
+.word-report-field input[type="text"] {
+  font: inherit;
+  font-weight: 400;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.5rem 0.65rem;
+  background: #fff;
+  color: var(--ink);
+}
+.word-report-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 400;
+}
+.word-report-choices label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.word-report-error {
+  margin: 0 0 0.35rem;
   color: #b42318;
   font-size: 0.9rem;
 }

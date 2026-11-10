@@ -30,6 +30,14 @@ export function isStatsGeoApiPath(pathname) {
 }
 
 /**
+ * Missing or questionable word reports. Not stored with stats.
+ * @param {string} pathname
+ */
+export function isWordReportApiPath(pathname) {
+  return canonicalPath(pathname) === '/api/word-report';
+}
+
+/**
  * Routes the stats Worker owns. The local site proxies these and does not
  * implement them itself.
  * @param {string} pathname
@@ -44,6 +52,7 @@ export function isStatsWorkerPath(pathname) {
     p === '/api/plays' ||
     p === '/api/player' ||
     p === '/api/scoreboard' ||
-    p === '/api/scoreboard/catalog'
+    p === '/api/scoreboard/catalog' ||
+    isWordReportApiPath(pathname)
   );
 }

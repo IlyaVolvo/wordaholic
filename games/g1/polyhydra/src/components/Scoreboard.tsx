@@ -34,8 +34,8 @@ function mixKnowledgeStyle(greens: number, yellows: number): React.CSSProperties
 }
 
 const TOP_FONT_MAX = 12;
-const TOP_FONT_MIN = 3.5;
-const CELL_PAD_X = 2;
+const TOP_FONT_MIN = 7;
+const READABLE_MIN = 9;
 const PHONE_QUERY = '(max-width: 720px)';
 
 function usePhoneLayout() {
@@ -52,6 +52,35 @@ function usePhoneLayout() {
   return phone;
 }
 
+function contentRatio(root: HTMLElement): number {
+  let worst = 1;
+  root.querySelectorAll<HTMLElement>('.hydra-scoreboard-cell').forEach((cell) => {
+    const top = cell.querySelector<HTMLElement>('.hydra-scoreboard-top');
+    if (!top) return;
+    const id = top.querySelector<HTMLElement>('.hydra-scoreboard-id');
+    const right = top.querySelector<HTMLElement>('.hydra-scoreboard-nm, .hydra-scoreboard-attempt');
+    const gap = right ? parseFloat(getComputedStyle(top).columnGap) || 0 : 0;
+    const need = (id?.getBoundingClientRect().width || 0) + (right?.scrollWidth || 0) + gap;
+    const avail = top.clientWidth;
+    if (avail > 1 && need > 0) worst = Math.min(worst, (avail - 1) / need);
+  });
+  return worst;
+}
+
+function fittedTopSize(root: HTMLElement): number {
+  let px = TOP_FONT_MAX;
+  root.style.setProperty('--hydra-top-size', `${px}px`);
+  for (let step = 0; step < 6; step++) {
+    const worst = contentRatio(root);
+    if (worst >= 0.99) return px;
+    const next = Math.max(TOP_FONT_MIN, Math.round(px * worst * 10) / 10);
+    if (next >= px - 0.05) return next;
+    px = next;
+    root.style.setProperty('--hydra-top-size', `${px}px`);
+  }
+  return px;
+}
+
 export const Scoreboard: React.FC<ScoreboardProps> = ({
   cells,
   onSelect,
@@ -62,6 +91,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
 }) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const phone = usePhoneLayout();
+  const [split, setSplit] = useState(false);
   const [open, setOpen] = useState<number | null>(null);
   const visible = new Set(inView);
   const labeled = !phone && revealed && cells.some((cell) => cell.answer);
@@ -77,37 +107,47 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
   useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+    if (phone) {
+      let fitting = false;
+      const fitPhone = () => {
+        if (fitting) return;
+        fitting = true;
+        try {
+          root.style.setProperty('--hydra-top-size', `${fittedTopSize(root)}px`);
+        } finally {
+          fitting = false;
+        }
+      };
+      fitPhone();
+      const ro = new ResizeObserver(fitPhone);
+      ro.observe(root);
+      return () => ro.disconnect();
+    }
     let fitting = false;
     const fit = () => {
       if (fitting) return;
       fitting = true;
       try {
-        const buttons = root.querySelectorAll<HTMLElement>('.hydra-scoreboard-cell');
-        let px = TOP_FONT_MAX;
-        for (let step = 0; step < 8; step++) {
-          root.style.setProperty('--hydra-top-size', `${px}px`);
-          let worst = 1;
-          buttons.forEach((cell) => {
-            const top = cell.querySelector<HTMLElement>('.hydra-scoreboard-top');
-            if (!top) return;
-            const id = top.querySelector<HTMLElement>('.hydra-scoreboard-id');
-            const right = top.querySelector<HTMLElement>(
-              '.hydra-scoreboard-nm, .hydra-scoreboard-attempt'
-            );
-            const gap = right ? 1 : 0;
-            const need =
-              (id?.getBoundingClientRect().width || 0) +
-              (right?.getBoundingClientRect().width || 0) +
-              gap;
-            const avail = cell.clientWidth - CELL_PAD_X;
-            if (avail > 0 && need > 0) worst = Math.min(worst, (avail - 0.5) / need);
-          });
-          if (worst >= 0.995) break;
-          const next = Math.max(TOP_FONT_MIN, Math.round(px * worst * 10) / 10);
-          if (next >= px) break;
-          px = next;
+        const cols = Math.max(1, Math.ceil(cells.length / 2));
+        root.style.setProperty('--hydra-cols', String(cols));
+        if (split && cells.length > 2) {
+          root.classList.remove('is-split');
+          const oneRow = fittedTopSize(root);
+          if (oneRow >= READABLE_MIN) {
+            root.style.setProperty('--hydra-top-size', `${oneRow}px`);
+            setSplit(false);
+            return;
+          }
+          root.classList.add('is-split');
+          root.style.setProperty('--hydra-top-size', `${fittedTopSize(root)}px`);
+          return;
         }
-        root.style.setProperty('--hydra-top-size', `${px}px`);
+        const oneRow = fittedTopSize(root);
+        if (oneRow < READABLE_MIN && cells.length > 2) {
+          setSplit(true);
+          return;
+        }
+        root.style.setProperty('--hydra-top-size', `${oneRow}px`);
       } finally {
         fitting = false;
       }
@@ -116,7 +156,7 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
     const ro = new ResizeObserver(fit);
     ro.observe(root);
     return () => ro.disconnect();
-  }, [cells, revealed, phone]);
+  }, [cells, revealed, phone, split]);
 
   return (
     <div className={`hydra-scoreboard-block${phone ? ' is-phone' : ''}`}>
@@ -137,11 +177,12 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
       ) : null}
       <div
         ref={rootRef}
-        className={`hydra-scoreboard${phone ? ' is-phone' : ''}${revealed ? ' revealed' : ''}${labeled ? ' is-labeled' : ''}`}
+        className={`hydra-scoreboard${phone ? ' is-phone' : ''}${!phone && split ? ' is-split' : ''}${revealed ? ' revealed' : ''}${labeled ? ' is-labeled' : ''}`}
         style={
           {
             ['--hydra-n' as string]: cells.length,
             ['--hydra-phone-cols' as string]: phoneCols,
+            ['--hydra-cols' as string]: Math.max(1, Math.ceil(cells.length / 2)),
           } as React.CSSProperties
         }
         aria-label="Board progress"
@@ -149,13 +190,12 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
         {cells.map((cell, i) => {
           const detail = phone && open === i;
           const showWord = !phone && revealed && Boolean(cell.answer);
+          const showCheck = cell.solved && !showWord;
           const attempt =
-            phone || !cell.solved || cell.solvedAt == null ? null : cell.solvedAt;
-          const showCheck = phone && cell.solved;
+            phone || showCheck || !cell.solved || cell.solvedAt == null ? null : cell.solvedAt;
           const tracked = phone && selectedIndex === i;
-          const showNm = phone ? false : !showWord;
+          const showNm = !phone && !showWord && !showCheck;
           const nm = showNm ? `${cell.greens}/${cell.yellows}` : '';
-          const locked = !phone && cell.solved && !revealed;
           const style = {
             ...(cell.solved
               ? { background: phone ? '#14532d' : 'var(--correct)', color: '#fff' }
@@ -178,19 +218,9 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({
                 showCheck ? ', solved' : ''
               }${showNm || tracked ? `, ${cell.greens} green, ${cell.yellows} yellow` : ''}${
                 detail && revealed && cell.answer ? `, ${cell.answer}` : ''
-              }${showWord ? `, ${cell.answer}${attempt != null ? `, guess ${attempt}` : ''}` : ''}${
-                locked ? ', solved' : ''
-              }`}
+              }${showWord ? `, ${cell.answer}${attempt != null ? `, guess ${attempt}` : ''}` : ''}`}
               aria-expanded={phone ? detail : undefined}
-              disabled={locked}
-              onClick={() => {
-                if (phone) {
-                  onSelect(i);
-                  return;
-                }
-                if (locked) return;
-                onSelect(i);
-              }}
+              onClick={() => onSelect(i)}
             >
               {showWord ? (
                 <span className="hydra-scoreboard-answer">{cell.answer!.toUpperCase()}</span>
