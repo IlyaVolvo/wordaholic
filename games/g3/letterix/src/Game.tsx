@@ -111,7 +111,13 @@ export const Game: React.FC<{
   const [openMenu, setOpenMenu] = useState<'language' | 'width' | 'height' | null>(null);
   const [speedTipOff, setSpeedTipOff] = useState(false);
   const speedPrefRef = useRef(0);
-  const dragRef = useRef<{ yFromFloor: number; dropped: boolean } | null>(null);
+  const dragRef = useRef<{
+    yFromFloor: number;
+    pieceId: number | null;
+    pieceY: number | null;
+    fallenPx: number;
+    dropped: boolean;
+  } | null>(null);
   const [speedPref, setSpeedPref] = useState(0);
   const [history, setHistory] = useState<ScoreRecord[]>([]);
   const [statsLanguage, setStatsLanguage] = useState(language);
@@ -392,15 +398,28 @@ export const Game: React.FC<{
     }
     canvas.setPointerCapture(event.pointerId);
     canvas.dataset.drag = '1';
-    dragRef.current = { yFromFloor: hit.yFromFloor, dropped: false };
+    dragRef.current = {
+      yFromFloor: hit.yFromFloor,
+      pieceId: piece?.id ?? null,
+      pieceY: piece?.yPx ?? null,
+      fallenPx: 0,
+      dropped: false,
+    };
   }
 
-  /** A downward drag of two cells or more drops the grabbed letter. */
+  /**
+   * A downward drag of five cells or more, beyond the grabbed letter's own fall, drops it.
+   * Finger travel that only follows the letter while it is held does not count.
+   */
   function dropIfSwipedDown(sim: Sim, yFromFloor: number) {
     const drag = dragRef.current;
     if (!drag || drag.dropped || !sim.A) return;
-    const cellsDown = (drag.yFromFloor - yFromFloor) / sim.A;
-    if (cellsDown < 2 || sim.phase !== 'fall' || dropBlocked(sim)) return;
+    if (drag.pieceId != null && drag.pieceY != null) {
+      const grabbed = sim.falling.find((item) => item.id === drag.pieceId);
+      if (grabbed) drag.fallenPx = Math.max(drag.fallenPx, drag.pieceY - grabbed.yPx);
+    }
+    const cellsDown = (drag.yFromFloor - yFromFloor - drag.fallenPx) / sim.A;
+    if (cellsDown < 5 || sim.phase !== 'fall' || dropBlocked(sim)) return;
     drag.dropped = true;
     hardDrop(sim);
   }
