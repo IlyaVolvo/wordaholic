@@ -1,10 +1,15 @@
 /**
- * Site-wide handwritten upgrade notes. One per commit; last-seen commit in localStorage.
+ * Site-wide handwritten notes, one per commit.
+ * Each note plays at most once. Non-permanent notes play when the running
+ * revision is at or past theirs and newer than the revision already
+ * acknowledged. Permanent notes do that too, and also play on the first
+ * visit in this browser.
  */
 import { getLocalManifest } from '../updates/manifest.js';
 
 const CURSOR_KEY = 'wordaholic.lastAnnouncementCommit';
-const GAMES_KEY = 'wordaholic.announcementGames';
+const SEEN_KEY = 'wordaholic.announcementSeen';
+const ACK_KEY = 'wordaholic.announcementAck';
 const CATALOG_URL = '/app/announcements.json';
 const PLACES = new Set(['top', 'bottom', 'left', 'right']);
 
@@ -105,37 +110,104 @@ function noteMatchesCursor(note, cursor, currentCommit, notes) {
 }
 
 /**
- * @param {{ commit: string, body: string }[]} notes
+ * @param {{ commit: string }} note
+ * @param {string} currentCommit
+ * @param {{ commit: string }[]} notes
+ */
+function announcementId(note, currentCommit, notes) {
+  return freezeCommit(note.commit, currentCommit, notes);
+}
+
+/**
+ * Last catalog entry this running revision includes.
+ * A listed commit equal to the running revision counts, and so does every
+ * entry before it. A revision with no note of its own still includes the
+ * whole catalog shipped with it.
+ * @param {{ commit: string }[]} notes
+ * @param {string} currentCommit
+ */
+function reachedIndex(notes, currentCommit) {
+  if (!notes.length) return -1;
+  let matched = -1;
+  for (let i = 0; i < notes.length; i += 1) {
+    if (notes[i].commit === currentCommit || notes[i].commit === 'HEAD') matched = i;
+  }
+  return matched === -1 ? notes.length - 1 : matched;
+}
+
+/**
+ * @param {{ commit: string }[]} notes
  * @param {string} cursor
  * @param {string} currentCommit
- * @returns {{ queue: { commit: string, body: string }[], stamp: string | null }}
  */
-export function planAnnouncements(notes, cursor, currentCommit) {
-  if (!notes.length) return { queue: [], stamp: null };
-  const isThisDeploy = (note) =>
-    note.commit === currentCommit || note.commit === 'HEAD';
-  if (!cursor) {
-    const queue = notes.filter(isThisDeploy);
-    if (!queue.length) {
-      return {
-        queue: [],
-        stamp: freezeCommit(notes[notes.length - 1].commit, currentCommit, notes),
-      };
-    }
-    return { queue, stamp: null };
-  }
+function watermarkIndex(notes, cursor, currentCommit) {
+  if (!cursor) return -1;
   const index = notes.findIndex((note) => noteMatchesCursor(note, cursor, currentCommit, notes));
-  if (index === -1) {
-    const queue = notes.filter(isThisDeploy);
-    if (!queue.length) {
-      return {
-        queue: [],
-        stamp: freezeCommit(notes[notes.length - 1].commit, currentCommit, notes),
-      };
-    }
-    return { queue, stamp: null };
+  return index === -1 ? notes.length - 1 : index;
+}
+
+/**
+ * @param {{ commit: string }[]} notes
+ * @param {string} cursor
+ * @param {string} currentCommit
+ * @param {number} reached
+ */
+function acknowledgedThroughCursor(notes, cursor, currentCommit, reached) {
+  const ids = new Set();
+  if (!cursor) return ids;
+  const end = Math.min(watermarkIndex(notes, cursor, currentCommit), reached);
+  for (let i = 0; i <= end; i += 1) {
+    ids.add(notes[i].commit);
+    ids.add(announcementId(notes[i], currentCommit, notes));
   }
-  return { queue: notes.slice(index + 1), stamp: null };
+  return ids;
+}
+
+/**
+ * Non-permanent notes are queued only when this revision newly reaches them.
+ * Permanent notes are queued for that upgrade and for the first visit.
+ * An id already in `seen` is left out, whichever path would have played it.
+ * On the first visit, `acknowledge` records every reached note so those
+ * non-permanent notes are not treated as a later upgrade.
+ * @param {{ commit: string, permanent?: boolean }[]} notes
+ * @param {string} cursor
+ * @param {string} currentCommit
+ * @param {Set<string>} [seen]
+ * @param {Set<string>} [ack]
+ * @returns {{ queue: { commit: string, permanent?: boolean }[], stamp: string | null, acknowledge: string[] }}
+ */
+export function planAnnouncements(notes, cursor, currentCommit, seen = new Set(), ack = new Set()) {
+  const reached = reachedIndex(notes, currentCommit);
+  if (reached < 0) return { queue: [], stamp: null, acknowledge: [] };
+  const known = new Set(ack);
+  const firstVisit = !cursor && known.size === 0;
+  let seeded = [];
+  if (!firstVisit && known.size === 0 && cursor) {
+    const baseline = acknowledgedThroughCursor(notes, cursor, currentCommit, reached);
+    for (const id of baseline) known.add(id);
+    seeded = [...baseline];
+  }
+  /** @type {{ commit: string, permanent?: boolean }[]} */
+  const queue = [];
+  const queued = new Set();
+  for (let i = 0; i <= reached; i += 1) {
+    const note = notes[i];
+    const id = announcementId(note, currentCommit, notes);
+    if (seen.has(id) || seen.has(note.commit) || queued.has(id)) continue;
+    const isNew = !known.has(id) && !known.has(note.commit);
+    if (!note.permanent && (firstVisit || !isNew)) continue;
+    queued.add(id);
+    queue.push(note);
+  }
+  /** @type {string[]} */
+  const acknowledge = seeded;
+  if (firstVisit) {
+    for (let i = 0; i <= reached; i += 1) {
+      acknowledge.push(notes[i].commit, announcementId(notes[i], currentCommit, notes));
+    }
+  }
+  const stamp = firstVisit ? announcementId(notes[reached], currentCommit, notes) : null;
+  return { queue, stamp, acknowledge };
 }
 
 const INLINE_PATTERN = /(\*\*[^*]+\*\*|(?:https?:\/\/|www\.)[^\s<]+)/gi;
@@ -205,47 +277,47 @@ function setCursor(commit) {
   }
 }
 
-function seenGames() {
+/**
+ * @param {string} key
+ */
+function loadIdSet(key) {
   try {
-    const raw = JSON.parse(localStorage.getItem(GAMES_KEY) || '[]');
+    const raw = JSON.parse(localStorage.getItem(key) || '[]');
     return new Set(Array.isArray(raw) ? raw.filter((id) => typeof id === 'string' && id) : []);
   } catch {
     return new Set();
   }
 }
 
-function markGameSeen(gameId) {
-  if (!gameId) return;
-  const ids = seenGames();
-  ids.add(gameId);
+/**
+ * @param {string} key
+ * @param {Iterable<string>} ids
+ */
+function storeIdSet(key, ids) {
+  const next = new Set();
+  for (const id of ids) if (id) next.add(id);
+  if (next.size === 0) return;
   try {
-    localStorage.setItem(GAMES_KEY, JSON.stringify([...ids]));
+    localStorage.setItem(key, JSON.stringify([...next]));
   } catch {
     /* ignore quota */
   }
 }
 
-/** @returns {string} game id when this page is a game, otherwise '' */
-export function currentGameId() {
-  const match = location.pathname.match(/\/games\/[^/]+\/([^/]+)/);
-  return match ? match[1] : '';
+function seenAnnouncements() {
+  return loadIdSet(SEEN_KEY);
 }
 
-/**
- * Release notes still unread, plus permanent notes on the first opening of this game.
- * @param {{ commit: string, permanent?: boolean }[]} notes
- * @param {string} cursor
- * @param {string} currentCommit
- * @param {string} gameId
- * @param {Set<string>} seen
- */
-export function queueAnnouncements(notes, cursor, currentCommit, gameId, seen) {
-  const { queue, stamp } = planAnnouncements(notes, cursor, currentCommit);
-  const firstGame = Boolean(gameId) && !seen.has(gameId);
-  if (!firstGame) return { queue, stamp, gameId };
-  const included = new Set(queue.map((note) => note.commit));
-  const extra = notes.filter((note) => note.permanent && !included.has(note.commit));
-  return { queue: queue.concat(extra), stamp, gameId };
+function ackAnnouncements() {
+  return loadIdSet(ACK_KEY);
+}
+
+function markAnnouncementSeen(ids) {
+  storeIdSet(SEEN_KEY, new Set([...seenAnnouncements(), ...ids]));
+}
+
+function markAcknowledged(ids) {
+  storeIdSet(ACK_KEY, new Set([...ackAnnouncements(), ...ids]));
 }
 
 /**
@@ -477,8 +549,8 @@ async function showNote(note) {
 let running = null;
 
 /**
- * Unread release notes, anywhere. Permanent notes also play the first time
- * each game is opened on this device. Call after the header has been laid out.
+ * Notes the running revision has reached and this browser has not played yet.
+ * Call after the page chrome has been laid out.
  */
 export async function showUpgradeAnnouncements() {
   if (running) return running;
@@ -497,23 +569,22 @@ async function runAnnouncements() {
     return;
   }
   const currentCommit = getLocalManifest()?.commit || '';
-  const gameId = currentGameId();
-  const seen = seenGames();
   const cursor = getCursor();
-  const { queue, stamp } = queueAnnouncements(notes, cursor, currentCommit, gameId, seen);
+  const seen = seenAnnouncements();
+  const { queue, stamp, acknowledge } = planAnnouncements(
+    notes,
+    cursor,
+    currentCommit,
+    seen,
+    ackAnnouncements(),
+  );
   if (stamp) setCursor(stamp);
-  if (!queue.length) return;
-
-  const release = new Set(planAnnouncements(notes, cursor, currentCommit).queue.map((note) => note.commit));
-  let permanentShown = false;
-  let permanentMissed = false;
+  if (acknowledge.length) markAcknowledged(acknowledge);
   for (const note of queue) {
     const outcome = await showNote(note);
-    if (outcome === 'absent') continue;
-    if (release.has(note.commit)) setCursor(freezeCommit(note.commit, currentCommit, notes));
-    if (!note.permanent) continue;
-    if (outcome === 'shown') permanentShown = true;
-    else permanentMissed = true;
+    if (outcome !== 'shown') continue;
+    const ids = [note.commit, announcementId(note, currentCommit, notes)];
+    markAnnouncementSeen(ids);
+    markAcknowledged(ids);
   }
-  if (gameId && permanentShown && !permanentMissed) markGameSeen(gameId);
 }
