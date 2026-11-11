@@ -1,4 +1,21 @@
-name = "wordaholic-stats"
+# Stats Worker for this branch. Testing is https://wordaholic-staging.volvovski.com only.
+#
+# The script name is permanent: wordaholic-games-stats. It is the Worker that will
+# later serve the live site. It is not the live script. The live script remains
+# wordaholic-stats, and it keeps serving:
+#   www.wordaholic-games.com
+#   wordaholic.volvovski.com
+# Those hosts are absent from the routes below, so deploying this file leaves them
+# where they are, on their current database.
+#
+# This Worker has its own empty SQLite database. Nicknames, plays, and scoreboards
+# written from the staging host are stored here and nowhere else.
+#
+# Before merging to main, replace the two staging routes below with the live hosts
+# (www.wordaholic-games.com and wordaholic.volvovski.com, each with /api/* and /stats*).
+# Until that edit, a deploy from this branch can reach the new database only through
+# wordaholic-staging.volvovski.com.
+name = "wordaholic-games-stats"
 main = "src/index.js"
 compatibility_date = "2026-08-27"
 # One-shot history import (wrangler secret put, do not commit):
@@ -15,27 +32,51 @@ compatibility_date = "2026-08-27"
 TELEGRAM_TOPIC_MISSING = "15"
 TELEGRAM_TOPIC_QUESTIONABLE = "18"
 
+# Same class and binding as the live Worker. A different script gets its own
+# Durable Object namespace, so the object named "site" here is a new empty database.
+# The live database stays on wordaholic-stats.
 [[durable_objects.bindings]]
 name = "STATS"
 class_name = "StatsStore"
 
+# Migrations are per script. The live Worker already applied its own v1.
+# This v1 runs only for wordaholic-games-stats and creates its SQLite class.
+# The first request to the staging host then creates browsers, nicknames, and plays.
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["StatsStore"]
 
+# Path routes, not a Worker custom domain. A custom domain would send the whole
+# host to this Worker and the site would stop loading. Only /api/* and /stats*
+# come here. The rest of wordaholic-staging.volvovski.com stays on the origin.
+# /stats* is required: a pattern of /stats does not match /stats/, and browsers add the slash.
+#
+# The staging hostname must be a proxied DNS record in the volvovski.com zone.
+# An unproxied record never reaches this Worker.
+
 [[routes]]
-pattern = "wordaholic.volvovski.com/api/*"
+pattern = "wordaholic-staging.volvovski.com/api/*"
 zone_name = "volvovski.com"
 
-# Prefix: exact /stats does not match /stats/ (browsers and links often add the slash).
 [[routes]]
-pattern = "wordaholic.volvovski.com/stats*"
+pattern = "wordaholic-staging.volvovski.com/stats*"
 zone_name = "volvovski.com"
 
-[[routes]]
-pattern = "www.wordaholic-games.com/api/*"
-zone_name = "wordaholic-games.com"
-
-[[routes]]
-pattern = "www.wordaholic-games.com/stats*"
-zone_name = "wordaholic-games.com"
+# Before merging to main: delete the two staging routes above and uncomment the four blocks below.
+# That deploy moves www.wordaholic-games.com and wordaholic.volvovski.com onto this Worker.
+#
+# [[routes]]
+# pattern = "www.wordaholic-games.com/api/*"
+# zone_name = "wordaholic-games.com"
+#
+# [[routes]]
+# pattern = "www.wordaholic-games.com/stats*"
+# zone_name = "wordaholic-games.com"
+#
+# [[routes]]
+# pattern = "wordaholic.volvovski.com/api/*"
+# zone_name = "volvovski.com"
+#
+# [[routes]]
+# pattern = "wordaholic.volvovski.com/stats*"
+# zone_name = "volvovski.com"
