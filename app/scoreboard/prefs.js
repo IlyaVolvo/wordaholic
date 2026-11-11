@@ -1,80 +1,105 @@
-const KEY = 'wordaholic-scoreboard';
-const PERIODS = ['today', 'week', 'month', 'year', 'lifetime'];
+import { gameIdForKey, parseConfiguration, resolveDefinition } from '/scripts/scoreboard-defs.js';
+
+const KEY = 'wordaholic-scoreboard-v2';
+const MODES = ['language', 'configuration', 'custom'];
 
 /**
  * @param {unknown} value
  */
-function languageList(value) {
-  const raw = Array.isArray(value) ? value : [];
-  const codes = raw.map((code) => String(code || '').toLowerCase()).filter((code) => /^[a-z]{2,8}$/.test(code));
-  return [...new Set(codes)];
+function gameKey(value) {
+  const key = String(value || '');
+  return gameIdForKey(key) == null ? '' : key;
 }
 
 /**
- * One scoreboard is a single game, the languages to include, and either every
- * parameter combination or one combination. Older rows stored one language and
- * one variant; those become a one-language board with that combination.
  * @param {unknown} raw
  */
-function asFavorite(raw) {
+function asTable(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const rec = /** @type {Record<string, unknown>} */ (raw);
-  const game = Number(rec.game);
-  const periods = Array.isArray(rec.periods)
-    ? rec.periods.filter((period) => PERIODS.includes(String(period)))
-    : ['today'];
-  if (!Number.isInteger(game) || game < 0 || game > 3) return null;
-  const languages = languageList(rec.languages);
-  const legacyLanguage = String(rec.language || '').toLowerCase();
-  if (!languages.length && /^[a-z]{2,8}$/.test(legacyLanguage)) languages.push(legacyLanguage);
-  if (!languages.length) return null;
-  let params = 'all';
-  if (rec.params === 'all') params = 'all';
-  else if (typeof rec.params === 'string' && rec.params) params = rec.params;
-  else if (typeof rec.variant === 'string' && rec.variant) {
-    params = rec.variant;
-    if (game === 3 && rec.board === 'best' && !params.includes('|')) params = `${params}|best`;
+  const game = gameKey(rec.game);
+  const gameId = gameIdForKey(game);
+  if (!game || gameId == null) return null;
+  const language = String(rec.language || '').toLowerCase();
+  const configuration = String(rec.configuration || '');
+  const definition = String(rec.definition || '');
+  if (!/^[a-z]{2,8}$/.test(language)) return null;
+  if (!parseConfiguration(gameId, configuration) || !resolveDefinition(gameId, definition)) return null;
+  const id = typeof rec.id === 'string' && rec.id.length <= 80 ? rec.id : crypto.randomUUID();
+  return { id, game, language, configuration, definition, hidden: rec.hidden === true };
+}
+
+/**
+ * @param {unknown} raw
+ * @param {Set<string>} tableIds
+ */
+function asGroups(raw, tableIds) {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set();
+  /** @type {{ id: string, name: string, tableIds: string[] }[]} */
+  const groups = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const rec = /** @type {Record<string, unknown>} */ (item);
+    const id = typeof rec.id === 'string' && rec.id.length <= 80 ? rec.id : '';
+    const name = typeof rec.name === 'string' ? rec.name.trim().slice(0, 40) : '';
+    if (!id || !name) continue;
+    const ids = Array.isArray(rec.tableIds)
+      ? rec.tableIds.map((tableId) => String(tableId || '')).filter((tableId) => tableIds.has(tableId) && !seen.has(tableId))
+      : [];
+    for (const tableId of ids) seen.add(tableId);
+    groups.push({ id, name, tableIds: ids });
   }
-  if (params !== 'all' && params.length > 24) return null;
-  const weekOf = typeof rec.weekOf === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rec.weekOf) ? rec.weekOf : '';
-  const monthOf = typeof rec.monthOf === 'string' && /^\d{4}-\d{2}$/.test(rec.monthOf) ? rec.monthOf : '';
-  const yearNum = Number(rec.yearOf);
-  const yearOf = Number.isInteger(yearNum) && yearNum >= 2020 && yearNum <= 2100 ? yearNum : 0;
-  return {
-    id: typeof rec.id === 'string' && rec.id ? rec.id : crypto.randomUUID(),
-    game,
-    languages,
-    params,
-    periods: periods.length ? periods : ['today'],
-    weekOf,
-    monthOf,
-    yearOf,
-  };
+  return groups;
+}
+
+/**
+ * @param {unknown} raw
+ */
+export function normalizeScoreboardPrefs(raw) {
+  const rec = raw && typeof raw === 'object' && !Array.isArray(raw) ? /** @type {Record<string, unknown>} */ (raw) : {};
+  const limitRaw = Number(rec.limit);
+  const limit = Number.isInteger(limitRaw) && limitRaw >= 1 && limitRaw <= 100 ? limitRaw : 3;
+  const legacyOnly = !Array.isArray(rec.tables) && Array.isArray(rec.favorites);
+  if (legacyOnly) return { limit, selected: '', tables: [], layouts: {} };
+  const tables = Array.isArray(rec.tables) ? rec.tables.map(asTable).filter(Boolean) : [];
+  const ids = new Set();
+  const unique = [];
+  for (const table of tables) {
+    if (ids.has(table.id)) continue;
+    ids.add(table.id);
+    unique.push(table);
+  }
+  /** @type {Record<string, { mode: string, groups?: { id: string, name: string, tableIds: string[] }[] }>} */
+  const layouts = {};
+  const layoutRaw = rec.layouts && typeof rec.layouts === 'object' ? /** @type {Record<string, unknown>} */ (rec.layouts) : {};
+  for (const [key, value] of Object.entries(layoutRaw)) {
+    if (!gameKey(key) || !value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const layout = /** @type {Record<string, unknown>} */ (value);
+    const mode = MODES.includes(String(layout.mode)) ? String(layout.mode) : 'language';
+    const gameTables = new Set(unique.filter((table) => table.game === key).map((table) => table.id));
+    if (!gameTables.size) continue;
+    if (mode === 'custom') layouts[key] = { mode, groups: asGroups(layout.groups, gameTables) };
+    else layouts[key] = { mode };
+  }
+  const selected = gameKey(rec.selected);
+  const selectedOk = unique.some((table) => table.game === selected) ? selected : '';
+  return { limit, selected: selectedOk, tables: unique, layouts };
 }
 
 export function loadScoreboardPrefs() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(KEY) || '{}');
-    const limit = Number(parsed.limit);
-    const favorites = Array.isArray(parsed.favorites) ? parsed.favorites.map(asFavorite).filter(Boolean) : [];
-    return {
-      limit: Number.isInteger(limit) && limit >= 1 && limit <= 100 ? limit : 3,
-      favorites,
-    };
+    return normalizeScoreboardPrefs(JSON.parse(localStorage.getItem(KEY) || '{}'));
   } catch {
-    return { limit: 3, favorites: [] };
+    return normalizeScoreboardPrefs({});
   }
 }
 
 /**
- * @param {{ limit?: number, favorites?: unknown[] }} prefs
+ * @param {unknown} prefs
  */
 export function saveScoreboardPrefs(prefs) {
-  const current = loadScoreboardPrefs();
-  const next = {
-    limit: prefs.limit == null ? current.limit : prefs.limit,
-    favorites: prefs.favorites == null ? current.favorites : prefs.favorites.map(asFavorite).filter(Boolean),
-  };
+  const next = normalizeScoreboardPrefs(prefs);
   localStorage.setItem(KEY, JSON.stringify(next));
   return next;
 }
@@ -88,9 +113,5 @@ export function scoreboardPrefsForBackup() {
  */
 export function applyScoreboardPrefs(raw) {
   if (!raw || typeof raw !== 'object') return;
-  const rec = /** @type {Record<string, unknown>} */ (raw);
-  saveScoreboardPrefs({
-    limit: Number(rec.limit),
-    favorites: Array.isArray(rec.favorites) ? rec.favorites : [],
-  });
+  saveScoreboardPrefs(raw);
 }

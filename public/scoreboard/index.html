@@ -23,6 +23,8 @@
         <span class="scoreboard-tip" role="tooltip">Settings</span>
       </button>
     </header>
+    <div class="scoreboard-tabs" id="tabs" role="tablist" aria-label="Games"></div>
+    <div id="toolbar" class="scoreboard-toolbar"></div>
     <div id="boards"></div>
   </main>
 
@@ -31,25 +33,43 @@
     <div class="scoreboard-dialog-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
       <h2 id="settings-title">Settings</h2>
       <label class="scoreboard-limit">Names <input id="limit" type="number" min="1" max="100" value="3"></label>
-
-      <h3>Add a scoreboard</h3>
-      <label class="scoreboard-field">Game
-        <select id="game"></select>
-      </label>
-      <fieldset class="scoreboard-field">
-        <legend>Languages</legend>
-        <div id="languages" class="scoreboard-choices"></div>
-      </fieldset>
-      <fieldset class="scoreboard-field">
-        <legend>Parameters</legend>
-        <div id="params" class="scoreboard-choices"></div>
-      </fieldset>
-      <p id="add-error" class="scoreboard-error" role="alert"></p>
-      <button type="button" class="btn primary" id="add">Add scoreboard</button>
-
-      <h3>Scoreboards</h3>
-      <ul id="saved-boards" class="scoreboard-saved"></ul>
       <button type="button" class="btn" data-settings-close>Close</button>
+    </div>
+  </div>
+
+  <div id="add-dialog" class="scoreboard-dialog" hidden>
+    <div class="scoreboard-dialog-backdrop" data-add-close></div>
+    <div class="scoreboard-dialog-card" role="dialog" aria-modal="true" aria-labelledby="add-title">
+      <h2 id="add-title">Add a scoreboard</h2>
+      <label class="scoreboard-field">Language
+        <select id="add-language"></select>
+      </label>
+      <label class="scoreboard-field">Configuration
+        <select id="add-configuration"></select>
+      </label>
+      <label class="scoreboard-field">Scoreboard
+        <select id="add-definition"></select>
+      </label>
+      <p id="add-error" class="scoreboard-error" role="alert"></p>
+      <div class="scoreboard-dialog-actions">
+        <button type="button" class="btn primary" id="add-save">Add scoreboard</button>
+        <button type="button" class="btn" data-add-close>Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="group-dialog" class="scoreboard-dialog" hidden>
+    <div class="scoreboard-dialog-backdrop" data-group-close></div>
+    <div class="scoreboard-dialog-card" role="dialog" aria-modal="true" aria-labelledby="group-title">
+      <h2 id="group-title">New group</h2>
+      <label class="scoreboard-field">Name
+        <input id="group-name" type="text" maxlength="40" autocomplete="off">
+      </label>
+      <p id="group-error" class="scoreboard-error" role="alert"></p>
+      <div class="scoreboard-dialog-actions">
+        <button type="button" class="btn primary" id="group-save">Create group</button>
+        <button type="button" class="btn" data-group-close>Cancel</button>
+      </div>
     </div>
   </div>
   <script type="module" src="/app/scoreboard/page.js"></script>

@@ -7,15 +7,20 @@ import { buildStatsGeoPayload } from '../../../scripts/stats-geo-api.js';
 import { lookupMissingGeos } from '../../../scripts/stats-geo-lookup.js';
 import { statsInputsFromTables } from '../../../scripts/stats-hours.js';
 import {
-  aggregateBoard,
-  qualifyBoard,
   parseBrowserId,
   parseNickname,
   parsePlayReport,
   playGame,
+  puzzleDateAllowed,
   rankBoard,
-  variantAllowed,
 } from '../../../scripts/play-model.js';
+import {
+  parseConfiguration,
+  resolveDefinition,
+  scoreDefined,
+  tallyFinishes,
+  windowFor,
+} from '../../../scripts/scoreboard-defs.js';
 import {
   addLiveDay,
   applyPlay,
@@ -294,21 +299,19 @@ export class StatsStore {
     const gameId = Number(url.searchParams.get('game'));
     const game = playGame(gameId);
     const language = String(url.searchParams.get('language') || '').toLowerCase();
-    const variant = String(url.searchParams.get('variant') || '');
-    const board = url.searchParams.get('board') === 'best' ? 'best' : 'average';
-    const from = String(url.searchParams.get('from') || '');
-    const to = String(url.searchParams.get('to') || '');
+    const parsed = parseConfiguration(gameId, String(url.searchParams.get('configuration') || ''));
+    const definition = resolveDefinition(gameId, String(url.searchParams.get('definition') || ''));
     const limit = Number(url.searchParams.get('limit') || 3);
-    if (!game || !variantAllowed(gameId, variant) || !/^[a-z]{2,8}$/.test(language)) {
+    if (!game || !parsed || !definition || !/^[a-z]{2,8}$/.test(language)) {
       return new Response('Invalid board', { status: 400 });
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) {
-      return new Response('Invalid dates', { status: 400 });
-    }
-    if (board === 'best' && !game.boards.includes('best')) return new Response('Invalid board', { status: 400 });
-    const finishes = boardFinishes(this.sql, gameId, language, variant, from, to);
-    const gate = url.searchParams.get('gate') === 'lifetime' ? 'lifetime' : url.searchParams.get('gate') === 'share' ? 'share' : '';
-    const aggregated = qualifyBoard(aggregateBoard(finishes, gameId, board), from, to, gate);
+    if (parsed.aggregate === 'best' && !game.boards.includes('best')) return new Response('Invalid board', { status: 400 });
+    const now = Date.now();
+    const todayRaw = String(url.searchParams.get('today') || '');
+    const today = puzzleDateAllowed(todayRaw, now) ? todayRaw : new Date(now).toISOString().slice(0, 10);
+    const range = windowFor(definition, today);
+    const finishes = boardFinishes(this.sql, gameId, language, parsed.variant, range.from, range.to);
+    const aggregated = scoreDefined(tallyFinishes(finishes, gameId), definition, today, parsed.aggregate);
     const browserId = parseBrowserId(url.searchParams.get('browserId'));
     let selfKey = '';
     if (browserId) {

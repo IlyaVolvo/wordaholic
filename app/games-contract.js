@@ -26,6 +26,15 @@
  * @property {() => unknown} getStatistics
  * @property {() => boolean} [isSessionActive]
  * @property {() => Promise<void>|void} [onUpdateApproved]
+ * @property {ScoreboardDisplay} [scoreboard]
+ */
+
+/**
+ * Configurations and score text for the scoreboard page.
+ * Definition ids and qualification numbers live in scripts/scoreboard-defs.js.
+ * @typedef {object} ScoreboardDisplay
+ * @property {(language?: { polywordlotLengths?: number[] }) => { id: string, label: string }[]} configurations
+ * @property {(value: number) => string} formatScore
  */
 
 import { GAME_GROUPS } from './games-layout.js';

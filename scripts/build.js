@@ -130,6 +130,9 @@ function main() {
 
   copyDir(path.join(ROOT, 'public'), DIST);
   copyDir(path.join(ROOT, 'app'), path.join(DIST, 'app'));
+  ensureDir(path.join(DIST, 'scripts'));
+  fs.copyFileSync(path.join(ROOT, 'scripts/scoreboard-defs.js'), path.join(DIST, 'scripts/scoreboard-defs.js'));
+  fs.copyFileSync(path.join(ROOT, 'scripts/play-model.js'), path.join(DIST, 'scripts/play-model.js'));
   const commit = gitCommit();
   stampAnnouncements(commit);
   // Shared language definitions for all games (skip local master.json lists)
