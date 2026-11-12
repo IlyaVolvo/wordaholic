@@ -56,12 +56,14 @@ assert.equal(parseConfiguration(3, '8,12'), null);
 assert.equal(parseConfiguration(0, '8,12|best'), null);
 
 const finishes = [
-  { nickname: 'Ada', nameKey: 'ada', puzzleDate: '2026-11-01', rankValue: 1000, helpCount: 1, finishedAt: 1, browserId: 'a' },
-  { nickname: 'Ada', nameKey: 'ada', puzzleDate: '2026-11-01', rankValue: 500, helpCount: 0, finishedAt: 2, browserId: 'b' },
-  { nickname: 'Ada', nameKey: 'ada', puzzleDate: '2026-11-02', rankValue: 900, helpCount: 0, finishedAt: 3, browserId: 'a' },
-  { nickname: 'Bea', nameKey: 'bea', puzzleDate: '2026-11-02', rankValue: 400, helpCount: 0, finishedAt: 4, browserId: 'c' },
+  { nickname: 'Ada', nameKey: 'ada', puzzleDate: '2026-11-01', rankValue: 1000, lossReason: 1, finishedAt: 1, browserId: 'a' },
+  { nickname: 'Ada', nameKey: 'ada', puzzleDate: '2026-11-01', rankValue: 500, lossReason: null, finishedAt: 2, browserId: 'b' },
+  { nickname: 'Ada', nameKey: 'ada', puzzleDate: '2026-11-02', rankValue: 900, lossReason: null, finishedAt: 3, browserId: 'a' },
+  { nickname: 'Bea', nameKey: 'bea', puzzleDate: '2026-11-02', rankValue: 400, lossReason: null, finishedAt: 4, browserId: 'c' },
 ];
 const transword = tallyFinishes(finishes, 1);
+const wordlot = tallyFinishes(finishes, 0);
+assert.deepEqual(wordlot.find((row) => row.nameKey === 'ada').days.map((day) => day.date), ['2026-11-02']);
 const ada = transword.find((row) => row.nameKey === 'ada');
 assert.deepEqual(ada.days.map((day) => day.date), ['2026-11-02']);
 assert.equal(ada.days[0].value, 900);

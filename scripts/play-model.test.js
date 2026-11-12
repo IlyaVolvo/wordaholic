@@ -28,20 +28,47 @@ const fastClock = parsePlayReport(
   now
 );
 assert.equal(fastClock.report.clientTime, now);
+const endBase = {
+  browserId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  language: 'en',
+  puzzleDate: '2026-10-26',
+  kind: 'end',
+  clientTime: now,
+};
+const wordlotLoss = parsePlayReport({ ...endBase, gameId: 0, variant: '5', value: 6, lossReason: 1 }, now);
+assert.equal(wordlotLoss.ok && wordlotLoss.report.lossReason, 1);
+const wordlotWin = parsePlayReport({ ...endBase, gameId: 0, variant: '5', value: 6 }, now);
+assert.equal(wordlotWin.ok && wordlotWin.report.lossReason, null);
+assert.equal(parsePlayReport({ ...endBase, gameId: 0, variant: '5', value: 6, lossReason: 2 }, now).ok, false);
+const hinted = parsePlayReport({ ...endBase, gameId: 1, variant: '2,4', value: 1000, lossReason: 2 }, now);
+assert.equal(hinted.ok && hinted.report.lossReason, 2);
+const clean = parsePlayReport({ ...endBase, gameId: 1, variant: '2,4', value: 1000, lossReason: 0 }, now);
+assert.equal(clean.ok && clean.report.lossReason, null);
+const hydraLoss = parsePlayReport({ ...endBase, gameId: 2, variant: '5,8', value: 7, lossReason: 7 }, now);
+assert.equal(hydraLoss.ok && hydraLoss.report.lossReason, 7);
+assert.equal(parsePlayReport({ ...endBase, gameId: 2, variant: '5,8', value: 7, lossReason: 14 }, now).ok, false);
+assert.equal(parsePlayReport({ ...endBase, gameId: 3, variant: '8,12', value: 40, lossReason: 1 }, now).ok, false);
+const letterixWin = parsePlayReport({ ...endBase, gameId: 3, variant: '8,12', value: 40 }, now);
+assert.equal(letterixWin.ok && letterixWin.report.lossReason, null);
 
 const finishes = [
-  { nickname: 'Ada', nameKey: 'ada', puzzleDate: '2026-10-01', rankValue: 4, helpCount: 1, finishedAt: 1, browserId: 'a' },
-  { nickname: 'Ada', nameKey: 'ada', puzzleDate: '2026-10-01', rankValue: 2, helpCount: 0, finishedAt: 2, browserId: 'b' },
-  { nickname: 'Bea', nameKey: 'bea', puzzleDate: '2026-10-01', rankValue: 3, helpCount: 0, finishedAt: 3, browserId: 'c' },
-  { nickname: 'Ada', nameKey: 'ada', puzzleDate: '2026-10-02', rankValue: 2, helpCount: 0, finishedAt: 4, browserId: 'a' },
+  { nickname: 'Ada', nameKey: 'ada', puzzleDate: '2026-10-01', rankValue: 4, lossReason: 1, finishedAt: 1, browserId: 'a' },
+  { nickname: 'Ada', nameKey: 'ada', puzzleDate: '2026-10-01', rankValue: 2, lossReason: null, finishedAt: 2, browserId: 'b' },
+  { nickname: 'Bea', nameKey: 'bea', puzzleDate: '2026-10-01', rankValue: 3, lossReason: null, finishedAt: 3, browserId: 'c' },
+  { nickname: 'Ada', nameKey: 'ada', puzzleDate: '2026-10-02', rankValue: 2, lossReason: null, finishedAt: 4, browserId: 'a' },
 ];
 const transword = aggregateBoard(finishes, 1, 'average');
 assert.deepEqual(
   transword.map((row) => [row.nickname, row.value, row.puzzles]),
   [['Bea', 3, 1], ['Ada', 2, 1]]
 );
+const lostWordlot = aggregateBoard(finishes, 0, 'average');
+assert.deepEqual(
+  lostWordlot.map((row) => [row.nickname, row.value, row.puzzles]),
+  [['Bea', 3, 1], ['Ada', 2, 1]]
+);
 const wordlot = aggregateBoard(
-  finishes.map((row) => ({ ...row, helpCount: null })),
+  finishes.map((row) => ({ ...row, lossReason: null })),
   0,
   'average'
 );

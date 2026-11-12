@@ -978,6 +978,7 @@ export const Game: React.FC<GameProps> = ({
         variant: `${wordLength},${boardCount}`,
         puzzleDate: selectedPlayDate,
         value: progress.used,
+        lossReason: progress.won ? null : progress.used,
       });
     }
   }, [

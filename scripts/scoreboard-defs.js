@@ -153,13 +153,13 @@ export function parseConfiguration(gameId, configuration) {
 }
 
 /**
- * Earliest finish per player and puzzle date. A helped TransWord finish drops that puzzle.
+ * Earliest finish per player and puzzle date. A finish with loss_reason set drops that puzzle.
  * @param {{
  *   nickname: string,
  *   nameKey: string,
  *   puzzleDate: string,
  *   rankValue: number,
- *   helpCount: number | null,
+ *   lossReason: number | null,
  *   finishedAt: number,
  *   browserId: string,
  * }[]} finishes
@@ -178,7 +178,7 @@ export function tallyFinishes(finishes, gameId) {
   /** @type {Map<string, { nickname: string, nameKey: string, days: { date: string, value: number }[] }>} */
   const byNick = new Map();
   for (const row of earliest.values()) {
-    if (gameId === 1 && (row.helpCount || 0) > 0) continue;
+    if (row.lossReason != null) continue;
     let slot = byNick.get(row.nameKey);
     if (!slot) {
       slot = { nickname: row.nickname, nameKey: row.nameKey, days: [] };

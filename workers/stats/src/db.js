@@ -29,7 +29,7 @@ export function ensureSchema(sql) {
       started_at INTEGER,
       finished_at INTEGER,
       rank_value INTEGER,
-      help_count INTEGER,
+      loss_reason INTEGER,
       ip TEXT NOT NULL DEFAULT '',
       country TEXT NOT NULL DEFAULT '',
       region TEXT NOT NULL DEFAULT '',
@@ -72,6 +72,13 @@ export function ensureSchema(sql) {
     )`,
   ];
   for (const statement of statements) sql.exec(statement);
+  const columns = new Set(
+    sqlRows(sql, `SELECT name FROM pragma_table_info('plays')`).map((row) => String(row.name))
+  );
+  if (columns.has('help_count') && !columns.has('loss_reason')) {
+    sql.exec(`ALTER TABLE plays RENAME COLUMN help_count TO loss_reason`);
+  }
+  sql.exec(`UPDATE plays SET loss_reason = NULL WHERE loss_reason = 0`);
 }
 
 /**
@@ -308,11 +315,11 @@ export function applyPlay(sql, report, edge) {
   if (!existing || existing.started_at == null) return { ok: false, retry: true };
   if (existing.rank_value != null) return { ok: true };
   sql.exec(
-    `UPDATE plays SET finished_at = ?, rank_value = ?, help_count = ?
+    `UPDATE plays SET finished_at = ?, rank_value = ?, loss_reason = ?
      WHERE browser_id = ? AND game_id = ? AND puzzle_date = ? AND language = ? AND variant = ? AND rank_value IS NULL`,
     report.clientTime,
     report.value,
-    report.helpCount,
+    report.lossReason,
     report.browserId,
     report.gameId,
     report.puzzleDate,
@@ -326,7 +333,7 @@ export function boardFinishes(sql, gameId, language, variant, from, to) {
   return sqlRows(
     sql,
     `SELECT n.display AS nickname, n.name_key AS name_key, p.puzzle_date AS puzzle_date,
-            p.rank_value AS rank_value, p.help_count AS help_count, p.finished_at AS finished_at,
+            p.rank_value AS rank_value, p.loss_reason AS loss_reason, p.finished_at AS finished_at,
             p.browser_id AS browser_id
      FROM plays p
      JOIN browsers b ON b.id = p.browser_id
@@ -344,7 +351,7 @@ export function boardFinishes(sql, gameId, language, variant, from, to) {
     nameKey: String(row.name_key),
     puzzleDate: String(row.puzzle_date),
     rankValue: Number(row.rank_value),
-    helpCount: row.help_count == null ? null : Number(row.help_count),
+    lossReason: row.loss_reason == null ? null : Number(row.loss_reason),
     finishedAt: Number(row.finished_at),
     browserId: String(row.browser_id),
   }));

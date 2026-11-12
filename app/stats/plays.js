@@ -47,7 +47,7 @@ export function reportPlayStart(fields) {
 }
 
 /**
- * @param {{ gameId: number, language: string, variant: string, puzzleDate: string, value: number, helpCount?: number }} fields
+ * @param {{ gameId: number, language: string, variant: string, puzzleDate: string, value: number, lossReason?: number | null }} fields
  */
 export function reportPlayEnd(fields) {
   enqueuePlay({
@@ -55,7 +55,7 @@ export function reportPlayEnd(fields) {
     kind: 'end',
     clientTime: Date.now(),
     value: fields.value,
-    helpCount: fields.helpCount,
+    lossReason: fields.lossReason,
   });
 }
 

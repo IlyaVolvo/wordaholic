@@ -878,6 +878,7 @@ export const Game: React.FC<GameProps> = ({
         variant: String(wordLength),
         puzzleDate: gameState.date,
         value: newGuesses.length,
+        lossReason: isWon ? null : 1,
       });
     }
   }, [gameState, dictionary, wordLength, targetWord, language, keyboardRtl, saveGameToApi, updateLetterStates, onRecordPlayed]);

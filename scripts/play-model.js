@@ -104,34 +104,61 @@ export function clampClientTime(raw, now) {
 }
 
 /**
+ * NULL is a ranked win. Any other integer is a stored finish the scoreboard drops.
+ * PolyWordlot is 1. Transword is the hint count, and 0 is stored as NULL.
+ * PolyHydra is the guesses used when the loss was detected. Letterix rejects a number.
+ * @param {number} gameId
+ * @param {string} variant
+ * @param {unknown} lossReason
+ * @returns {{ ok: true, lossReason: number | null } | { ok: false }}
+ */
+function parseLossReason(gameId, variant, lossReason) {
+  if (lossReason == null) return { ok: true, lossReason: null };
+  if (!Number.isInteger(lossReason)) return { ok: false };
+  if (gameId === 0) return lossReason === 1 ? { ok: true, lossReason: 1 } : { ok: false };
+  if (gameId === 1) {
+    if (lossReason === 0) return { ok: true, lossReason: null };
+    if (lossReason < 1 || lossReason > MAX_HELP) return { ok: false };
+    return { ok: true, lossReason };
+  }
+  if (gameId === 2) {
+    const boards = Number(String(variant).split(',')[1]);
+    const max = boards + 5;
+    if (lossReason < 1 || lossReason > max) return { ok: false };
+    return { ok: true, lossReason };
+  }
+  return { ok: false };
+}
+
+/**
  * @param {number} gameId
  * @param {string} variant
  * @param {unknown} value
- * @param {unknown} helpCount
- * @returns {{ ok: true, value: number, helpCount: number | null } | { ok: false }}
+ * @param {unknown} lossReason
+ * @returns {{ ok: true, value: number, lossReason: number | null } | { ok: false }}
  */
-export function parseResult(gameId, variant, value, helpCount) {
+export function parseResult(gameId, variant, value, lossReason) {
   if (!Number.isInteger(value)) return { ok: false };
+  const reason = parseLossReason(gameId, variant, lossReason);
+  if (!reason.ok) return { ok: false };
   if (gameId === 0) {
     if (value < 1 || value > 6) return { ok: false };
-    return { ok: true, value, helpCount: null };
+    return { ok: true, value, lossReason: reason.lossReason };
   }
   if (gameId === 2) {
     const boards = Number(String(variant).split(',')[1]);
     if (!Number.isInteger(boards) || boards < 2 || boards > 20) return { ok: false };
     const max = boards + 5;
     if (value < 1 || value > max) return { ok: false };
-    return { ok: true, value, helpCount: null };
+    return { ok: true, value, lossReason: reason.lossReason };
   }
   if (gameId === 1) {
-    const help = helpCount == null ? 0 : helpCount;
-    if (!Number.isInteger(help) || help < 0 || help > MAX_HELP) return { ok: false };
     if (value < 0 || value > MAX_TIME_MS) return { ok: false };
-    return { ok: true, value, helpCount: help };
+    return { ok: true, value, lossReason: reason.lossReason };
   }
   if (gameId === 3) {
     if (value < 0 || value > MAX_POINTS) return { ok: false };
-    return { ok: true, value, helpCount: null };
+    return { ok: true, value, lossReason: null };
   }
   return { ok: false };
 }
@@ -165,7 +192,7 @@ export function variantAllowed(gameId, variant) {
  *   kind: 'start' | 'end',
  *   clientTime: number,
  *   value: number | null,
- *   helpCount: number | null,
+ *   lossReason: number | null,
  * } } | { ok: false }}
  */
 export function parsePlayReport(raw, now) {
@@ -194,11 +221,11 @@ export function parsePlayReport(raw, now) {
         kind,
         clientTime,
         value: null,
-        helpCount: null,
+        lossReason: null,
       },
     };
   }
-  const result = parseResult(/** @type {number} */ (gameId), variant, rec.value, rec.helpCount);
+  const result = parseResult(/** @type {number} */ (gameId), variant, rec.value, rec.lossReason);
   if (!result.ok) return { ok: false };
   return {
     ok: true,
@@ -211,20 +238,20 @@ export function parsePlayReport(raw, now) {
       kind,
       clientTime,
       value: result.value,
-      helpCount: result.helpCount,
+      lossReason: result.lossReason,
     },
   };
 }
 
 /**
- * Earliest finish per nickname and puzzle. A helped Transword earliest finish
- * drops that puzzle. Average, or the highest points when the board is best.
+ * Earliest finish per nickname and puzzle. A finish with loss_reason set drops
+ * that puzzle. Average, or the highest points when the board is best.
  * @param {{
  *   nickname: string,
  *   nameKey: string,
  *   puzzleDate: string,
  *   rankValue: number,
- *   helpCount: number | null,
+ *   lossReason: number | null,
  *   finishedAt: number,
  *   browserId: string,
  * }[]} finishes
@@ -244,7 +271,7 @@ export function aggregateBoard(finishes, gameId, board) {
   /** @type {Map<string, { nickname: string, nameKey: string, values: number[] }>} */
   const byNick = new Map();
   for (const row of earliest.values()) {
-    if (gameId === 1 && (row.helpCount || 0) > 0) continue;
+    if (row.lossReason != null) continue;
     let slot = byNick.get(row.nameKey);
     if (!slot) {
       slot = { nickname: row.nickname, nameKey: row.nameKey, values: [] };

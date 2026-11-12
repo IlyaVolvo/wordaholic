@@ -1118,7 +1118,7 @@ async function submitWord(word, opts = {}) {
         variant: `${combo.vocabLevel},${combo.difficulty}`,
         puzzleDate: combo.gameDate,
         value: Math.max(0, Math.round(elapsedMsStored)),
-        helpCount,
+        lossReason: helpCount > 0 ? helpCount : null,
       });
     }
     showWin(true);
