@@ -133,6 +133,22 @@ export function setCutoverIfEmpty(sql, day) {
   return day;
 }
 
+/**
+ * Remove every stored row and leave the tables in place.
+ * @returns {Record<string, number>}
+ */
+export function clearSite(sql) {
+  const tables = ['plays', 'browsers', 'nicknames', 'daily_live', 'daily_frozen', 'places', 'meta'];
+  /** @type {Record<string, number>} */
+  const cleared = {};
+  for (const table of tables) {
+    const row = sqlOne(sql, `SELECT COUNT(*) AS n FROM ${table}`);
+    cleared[table] = Number(row && row.n) || 0;
+    sql.exec(`DELETE FROM ${table}`);
+  }
+  return cleared;
+}
+
 export function ensureBrowser(sql, browserId) {
   sql.exec(`INSERT OR IGNORE INTO browsers (id, nickname_id) VALUES (?, NULL)`, browserId);
 }

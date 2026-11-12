@@ -49,6 +49,7 @@ export function isStatsWorkerPath(pathname) {
     p === '/api/stats' ||
     p === '/api/stats/geo' ||
     p === '/api/stats/import' ||
+    p === '/api/stats/reset' ||
     p === '/api/plays' ||
     p === '/api/player' ||
     p === '/api/scoreboard' ||

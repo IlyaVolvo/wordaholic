@@ -67,6 +67,10 @@ function aggregate(files) {
 const names = fs.existsSync(hoursDir)
   ? fs.readdirSync(hoursDir).filter((name) => name.endsWith('.json')).sort()
   : [];
+if (!names.length) {
+  console.error(`No hour files in ${hoursDir}. Refusing to import, so the cutover date is not set.`);
+  process.exit(1);
+}
 const days = aggregate(names.map((name) => path.join(hoursDir, name)));
 const places = fs.existsSync(placesFile)
   ? parsePlacesDocument(JSON.parse(fs.readFileSync(placesFile, 'utf8')))

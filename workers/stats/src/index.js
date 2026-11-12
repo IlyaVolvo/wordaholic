@@ -31,6 +31,7 @@ import {
   ensureBrowser,
   ensureSchema,
   fillLiveGeo,
+  clearSite,
   getCutover,
   importFrozenDays,
   importPlaces,
@@ -186,7 +187,7 @@ function edgeFields(request) {
 export class StatsStore {
   /**
    * @param {DurableObjectState} ctx
-   * @param {{ STATS_IMPORT_TOKEN?: string, LOCAL_GEO?: string }} env
+   * @param {{ STATS_IMPORT_TOKEN?: string, STATS_ALLOW_RESET?: string, LOCAL_GEO?: string }} env
    */
   constructor(ctx, env) {
     this.ctx = ctx;
@@ -216,6 +217,7 @@ export class StatsStore {
     if (path === '/api/scoreboard/catalog') return this.catalog(method);
     if (path === '/api/scoreboard') return this.scoreboard(url, method);
     if (path === '/api/stats/import') return this.importStats(request, method);
+    if (path === '/api/stats/reset') return this.resetStats(request, method);
     if (path === '/stats') return this.statsPage(url, method);
     if (path === '/api/stats/geo') return this.geo(url, method);
     if (path === '/api/stats') return this.statsApi(request, method);
@@ -345,6 +347,24 @@ export class StatsStore {
     const days = Array.isArray(body.days) ? body.days : [];
     const frozen = importFrozenDays(this.sql, /** @type {never[]} */ (days), chosen);
     return json({ cutover: chosen, places, frozen });
+  }
+
+  /**
+   * @param {Request} request
+   * @param {string} method
+   */
+  async resetStats(request, method) {
+    if (method !== 'POST') return new Response('Method not allowed', { status: 405 });
+    const expected = this.env.STATS_IMPORT_TOKEN || '';
+    const header = request.headers.get('Authorization') || '';
+    if (!expected || header !== `Bearer ${expected}` || this.env.STATS_ALLOW_RESET !== '1') {
+      return new Response('Not found', { status: 404 });
+    }
+    const read = await readJson(request, 2048);
+    if (read.error) return new Response(read.error === 413 ? 'Payload too large' : 'Bad request', { status: read.error });
+    const body = /** @type {Record<string, unknown>} */ (read.body);
+    if (body.confirm !== 'clear-site') return new Response('Bad request', { status: 400 });
+    return json({ cleared: clearSite(this.sql) });
   }
 
   /**
