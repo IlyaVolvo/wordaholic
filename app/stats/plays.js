@@ -47,6 +47,14 @@ export function reportPlayStart(fields) {
 }
 
 /**
+ * Drop an unfinished play. A wordset change wiped that game, and the replay is a new start.
+ * @param {{ gameId: number, language: string, variant: string, puzzleDate: string }} fields
+ */
+export function reportPlayVoid(fields) {
+  enqueuePlay({ ...fields, kind: 'void', clientTime: Date.now() });
+}
+
+/**
  * @param {{ gameId: number, language: string, variant: string, puzzleDate: string, value: number, lossReason?: number | null }} fields
  */
 export function reportPlayEnd(fields) {

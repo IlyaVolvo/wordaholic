@@ -35,6 +35,8 @@ const endBase = {
   kind: 'end',
   clientTime: now,
 };
+const wiped = parsePlayReport({ ...endBase, gameId: 0, variant: '5', kind: 'void' }, now);
+assert.equal(wiped.ok && wiped.report.kind, 'void');
 const wordlotLoss = parsePlayReport({ ...endBase, gameId: 0, variant: '5', value: 6, lossReason: 6 }, now);
 assert.equal(wordlotLoss.ok && wordlotLoss.report.lossReason, 6);
 assert.equal(parsePlayReport({ ...endBase, gameId: 0, variant: '5', value: 6, lossReason: 7 }, now).ok, false);

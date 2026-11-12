@@ -18,7 +18,7 @@ import { openHelp, isHelpOpen } from '@wordaholic/help';
 import { openMissingWordReport, openQuestionableWordReport } from '../../../../../app/shell/word-report.js';
 import { mountHeaderChrome } from '../../../../../app/play/header-chrome.js';
 import helpTopic from '../../help/topic.js';
-import { reportPlayEnd, reportPlayStart } from '@wordaholic/stats';
+import { reportPlayEnd, reportPlayStart, reportPlayVoid } from '@wordaholic/stats';
 
 const MAX_GUESSES = 6;
 
@@ -500,6 +500,12 @@ export const Game: React.FC<GameProps> = ({
         const effectiveDate = gameDate || playDate;
         const expectedTarget = getDailyWord(dictionary, effectiveDate);
         if (target !== expectedTarget) {
+          reportPlayVoid({
+            gameId: 0,
+            language,
+            variant: String(wordLength),
+            puzzleDate: effectiveDate,
+          });
           const resetState: GameState = {
             guesses: [],
             currentGuess: '',
@@ -623,6 +629,12 @@ export const Game: React.FC<GameProps> = ({
           const expectedTarget = getDailyWord(dictionary, effectiveDate);
           if (target !== expectedTarget) {
             // The dictionary has been changed, we wipe out the started game. That should be rare!
+            reportPlayVoid({
+              gameId: 0,
+              language,
+              variant: String(wordLength),
+              puzzleDate: effectiveDate,
+            });
             const resetState: GameState = {
               guesses: [],
               currentGuess: optionalFirstKey ?? '',
@@ -737,6 +749,12 @@ export const Game: React.FC<GameProps> = ({
               .filter((g: any) => staleDates.has(g.game_date || g.gameDate))
               .map(async (game: any) => {
                 const gameDate = game.game_date || game.gameDate;
+                reportPlayVoid({
+                  gameId: 0,
+                  language,
+                  variant: String(wordLength),
+                  puzzleDate: gameDate,
+                });
                 const expectedTarget = dictionary ? getDailyWord(dictionary, gameDate) : game.targetWord;
                 await apiClient.saveGame({
                   language,

@@ -21,7 +21,7 @@ import {
 import { openHelp } from '@wordaholic/help';
 import { openMissingWordReport, openQuestionableWordReport } from '../../../../../app/shell/word-report.js';
 import helpTopic from '../../help/topic.js';
-import { reportPlayEnd, reportPlayStart } from '@wordaholic/stats';
+import { reportPlayEnd, reportPlayStart, reportPlayVoid } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../../app/daily/variantVisit.js';
 import { mountHeaderChrome } from '../../../../../app/play/header-chrome.js';
@@ -539,13 +539,28 @@ export const Game: React.FC<GameProps> = ({
         if (cancelled) return;
         if (stored) {
           const ended = isHydraComplete(stored);
+          const freshTargets = getHydraDailyWords(dict, date, boardCount);
+          const storedTargets = stored.target_words;
+          const targetsChanged =
+            !ended &&
+            storedTargets.length === boardCount &&
+            freshTargets.some((word, i) => word !== storedTargets[i]);
+          if (targetsChanged) {
+            reportPlayVoid({
+              gameId: 2,
+              language,
+              variant: `${wordLength},${boardCount}`,
+              puzzleDate: date,
+            });
+            await startFresh(dict, date);
+          } else {
           const targets =
-            ended && stored.target_words.length === boardCount
-              ? stored.target_words
-              : getHydraDailyWords(dict, date, boardCount);
+            ended && storedTargets.length === boardCount
+              ? storedTargets
+              : freshTargets;
           const resolved = { ...stored, target_words: targets };
           applyStored(resolved, dict);
-          if (!ended && stored.target_words.length) {
+          if (!ended && storedTargets.length) {
             await putStoredGame({ ...stored, target_words: [] });
           }
           const rows = boardRows(resolved);
@@ -561,6 +576,7 @@ export const Game: React.FC<GameProps> = ({
                 )
               );
             }
+          }
           }
         } else {
           await startFresh(dict, date);

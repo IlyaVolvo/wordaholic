@@ -192,7 +192,7 @@ export function variantAllowed(gameId, variant) {
  *   puzzleDate: string,
  *   language: string,
  *   variant: string,
- *   kind: 'start' | 'end',
+ *   kind: 'start' | 'end' | 'void',
  *   clientTime: number,
  *   value: number | null,
  *   lossReason: number | null,
@@ -210,9 +210,9 @@ export function parsePlayReport(raw, now) {
   const kind = rec.kind;
   if (!LANG_RE.test(language) || !variantAllowed(/** @type {number} */ (gameId), variant)) return { ok: false };
   if (!puzzleDateAllowed(puzzleDate, now)) return { ok: false };
-  if (kind !== 'start' && kind !== 'end') return { ok: false };
+  if (kind !== 'start' && kind !== 'end' && kind !== 'void') return { ok: false };
   const clientTime = clampClientTime(rec.clientTime, now);
-  if (kind === 'start') {
+  if (kind === 'start' || kind === 'void') {
     return {
       ok: true,
       report: {

@@ -288,6 +288,20 @@ export function applyPlay(sql, report, edge) {
     report.language,
     report.variant
   );
+  if (report.kind === 'void') {
+    if (!existing || existing.rank_value != null) return { ok: true };
+    sql.exec(
+      `DELETE FROM plays
+       WHERE browser_id = ? AND game_id = ? AND puzzle_date = ? AND language = ? AND variant = ?
+         AND rank_value IS NULL`,
+      report.browserId,
+      report.gameId,
+      report.puzzleDate,
+      report.language,
+      report.variant
+    );
+    return { ok: true };
+  }
   if (report.kind === 'start') {
     ensureBrowser(sql, report.browserId);
     rememberPlace(sql, edge);
