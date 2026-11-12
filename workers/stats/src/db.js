@@ -280,7 +280,7 @@ export function rememberLookedUpPlace(sql, geo) {
 export function applyPlay(sql, report, edge) {
   const existing = sqlOne(
     sql,
-    `SELECT started_at, rank_value FROM plays
+    `SELECT started_at, rank_value, loss_reason FROM plays
      WHERE browser_id = ? AND game_id = ? AND puzzle_date = ? AND language = ? AND variant = ?`,
     report.browserId,
     report.gameId,
@@ -329,7 +329,22 @@ export function applyPlay(sql, report, edge) {
     return { ok: true };
   }
   if (!existing || existing.started_at == null) return { ok: false, retry: true };
-  if (existing.rank_value != null) return { ok: true };
+  if (existing.rank_value != null) {
+    if (existing.loss_reason == null && report.lossReason != null) {
+      sql.exec(
+        `UPDATE plays SET loss_reason = ?
+         WHERE browser_id = ? AND game_id = ? AND puzzle_date = ? AND language = ? AND variant = ?
+           AND rank_value IS NOT NULL AND loss_reason IS NULL`,
+        report.lossReason,
+        report.browserId,
+        report.gameId,
+        report.puzzleDate,
+        report.language,
+        report.variant
+      );
+    }
+    return { ok: true };
+  }
   sql.exec(
     `UPDATE plays SET finished_at = ?, rank_value = ?, loss_reason = ?
      WHERE browser_id = ? AND game_id = ? AND puzzle_date = ? AND language = ? AND variant = ? AND rank_value IS NULL`,

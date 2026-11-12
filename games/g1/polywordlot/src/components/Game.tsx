@@ -152,6 +152,7 @@ export const Game: React.FC<GameProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [letterStates, setLetterStates] = useState<Map<string, LetterState>>(new Map());
   const historicalDateRef = useRef(historicalDate);
+  const playEndKey = useRef('');
   historicalDateRef.current = historicalDate;
   const initializedRef = useRef<boolean>(false);
   /** Ref set when dictionary is loaded so load effect only runs for current language/wordLength */
@@ -246,6 +247,22 @@ export const Game: React.FC<GameProps> = ({
     };
     loadDict();
   }, [language, wordLength]);
+
+  useEffect(() => {
+    if (!gameState?.isComplete || !gameState.guesses.length || !gameState.date) return;
+    const guesses = gameState.guesses.length;
+    const key = `${language}|${wordLength}|${gameState.date}|${guesses}|${gameState.isWon ? 1 : 0}`;
+    if (playEndKey.current === key) return;
+    playEndKey.current = key;
+    reportPlayEnd({
+      gameId: 0,
+      language,
+      variant: String(wordLength),
+      puzzleDate: gameState.date,
+      value: guesses,
+      lossReason: gameState.isWon ? null : guesses,
+    });
+  }, [gameState, language, wordLength]);
 
   // Load RTL once per language from language.json (static for the session)
   useEffect(() => {
@@ -869,16 +886,6 @@ export const Game: React.FC<GameProps> = ({
         language,
         variant: String(wordLength),
         puzzleDate: gameState.date,
-      });
-    }
-    if (isComplete) {
-      reportPlayEnd({
-        gameId: 0,
-        language,
-        variant: String(wordLength),
-        puzzleDate: gameState.date,
-        value: newGuesses.length,
-        lossReason: isWon ? null : 1,
       });
     }
   }, [gameState, dictionary, wordLength, targetWord, language, keyboardRtl, saveGameToApi, updateLetterStates, onRecordPlayed]);

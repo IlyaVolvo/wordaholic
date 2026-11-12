@@ -35,11 +35,13 @@ const endBase = {
   kind: 'end',
   clientTime: now,
 };
-const wordlotLoss = parsePlayReport({ ...endBase, gameId: 0, variant: '5', value: 6, lossReason: 1 }, now);
-assert.equal(wordlotLoss.ok && wordlotLoss.report.lossReason, 1);
+const wordlotLoss = parsePlayReport({ ...endBase, gameId: 0, variant: '5', value: 6, lossReason: 6 }, now);
+assert.equal(wordlotLoss.ok && wordlotLoss.report.lossReason, 6);
+assert.equal(parsePlayReport({ ...endBase, gameId: 0, variant: '5', value: 6, lossReason: 7 }, now).ok, false);
 const wordlotWin = parsePlayReport({ ...endBase, gameId: 0, variant: '5', value: 6 }, now);
 assert.equal(wordlotWin.ok && wordlotWin.report.lossReason, null);
-assert.equal(parsePlayReport({ ...endBase, gameId: 0, variant: '5', value: 6, lossReason: 2 }, now).ok, false);
+const earlyLoss = parsePlayReport({ ...endBase, gameId: 0, variant: '5', value: 2, lossReason: 2 }, now);
+assert.equal(earlyLoss.ok && earlyLoss.report.lossReason, 2);
 const hinted = parsePlayReport({ ...endBase, gameId: 1, variant: '2,4', value: 1000, lossReason: 2 }, now);
 assert.equal(hinted.ok && hinted.report.lossReason, 2);
 const clean = parsePlayReport({ ...endBase, gameId: 1, variant: '2,4', value: 1000, lossReason: 0 }, now);

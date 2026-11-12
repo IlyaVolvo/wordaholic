@@ -105,7 +105,7 @@ export function clampClientTime(raw, now) {
 
 /**
  * NULL is a ranked win. Any other integer is a stored finish the scoreboard drops.
- * PolyWordlot is 1. Transword is the hint count, and 0 is stored as NULL.
+ * PolyWordlot is the guesses used. Transword is the hint count, and 0 is stored as NULL.
  * PolyHydra is the guesses used when the loss was detected. Letterix rejects a number.
  * @param {number} gameId
  * @param {string} variant
@@ -115,7 +115,10 @@ export function clampClientTime(raw, now) {
 function parseLossReason(gameId, variant, lossReason) {
   if (lossReason == null) return { ok: true, lossReason: null };
   if (!Number.isInteger(lossReason)) return { ok: false };
-  if (gameId === 0) return lossReason === 1 ? { ok: true, lossReason: 1 } : { ok: false };
+  if (gameId === 0) {
+    if (lossReason < 1 || lossReason > 6) return { ok: false };
+    return { ok: true, lossReason };
+  }
   if (gameId === 1) {
     if (lossReason === 0) return { ok: true, lossReason: null };
     if (lossReason < 1 || lossReason > MAX_HELP) return { ok: false };

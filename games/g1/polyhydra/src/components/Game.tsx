@@ -625,7 +625,32 @@ export const Game: React.FC<GameProps> = ({
     });
   }, [targets, boardGuesses, language]);
 
+  const playEndKey = useRef('');
   const progress = hydraProgress(targets, boardGuesses, language, boardCount);
+  useEffect(() => {
+    if (loading || !targets.length || !progress.historyComplete) return;
+    const key = `${language}|${wordLength}|${boardCount}|${selectedPlayDate}|${progress.used}|${progress.won ? 1 : 0}`;
+    if (playEndKey.current === key) return;
+    playEndKey.current = key;
+    reportPlayEnd({
+      gameId: 2,
+      language,
+      variant: `${wordLength},${boardCount}`,
+      puzzleDate: selectedPlayDate,
+      value: progress.used,
+      lossReason: progress.won ? null : progress.used,
+    });
+  }, [
+    loading,
+    targets.length,
+    progress.historyComplete,
+    progress.used,
+    progress.won,
+    language,
+    wordLength,
+    boardCount,
+    selectedPlayDate,
+  ]);
   const wordsLeft = progress.wordsLeft;
   const attemptsLeft = progress.attemptsLeft;
   const doomed = progress.doomed;
@@ -931,7 +956,6 @@ export const Game: React.FC<GameProps> = ({
     }
 
     const isDailyStart = boardGuesses.every((g) => g.length === 0);
-    const wasComplete = hydraProgress(targets, boardGuesses, language, boardCount).historyComplete;
     const nextGuesses = boardGuesses.map((words, i) => {
       if (boardSolvedAt(words, targets[i], language)) return words;
       const committed = isWinningGuessForLanguage(guess, targets[i], language) ? targets[i] : guess;
@@ -969,16 +993,6 @@ export const Game: React.FC<GameProps> = ({
         language,
         variant: `${wordLength},${boardCount}`,
         puzzleDate: selectedPlayDate,
-      });
-    }
-    if (!wasComplete && progress.historyComplete) {
-      reportPlayEnd({
-        gameId: 2,
-        language,
-        variant: `${wordLength},${boardCount}`,
-        puzzleDate: selectedPlayDate,
-        value: progress.used,
-        lossReason: progress.won ? null : progress.used,
       });
     }
   }, [
