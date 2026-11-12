@@ -260,7 +260,7 @@ export const Game: React.FC<GameProps> = ({
       variant: String(wordLength),
       puzzleDate: gameState.date,
       value: guesses,
-      lossReason: gameState.isWon ? null : guesses,
+      lossReason: gameState.isWon ? null : 1,
     });
   }, [gameState, language, wordLength]);
 

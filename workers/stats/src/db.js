@@ -308,7 +308,7 @@ export function applyPlay(sql, report, edge) {
     if (existing && existing.started_at != null) return { ok: true };
     if (existing) {
       sql.exec(
-        `UPDATE plays SET started_at = ?, ip = ?, country = ?, region = ?, city = ?, as_org = ?
+        `UPDATE plays SET started_at = ?, rank_value = NULL, loss_reason = NULL, ip = ?, country = ?, region = ?, city = ?, as_org = ?
          WHERE browser_id = ? AND game_id = ? AND puzzle_date = ? AND language = ? AND variant = ? AND started_at IS NULL`,
         report.clientTime,
         edge.ip,
@@ -326,8 +326,8 @@ export function applyPlay(sql, report, edge) {
     }
     sql.exec(
       `INSERT INTO plays (
-        browser_id, game_id, puzzle_date, language, variant, started_at, ip, country, region, city, as_org
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        browser_id, game_id, puzzle_date, language, variant, started_at, rank_value, loss_reason, ip, country, region, city, as_org
+      ) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?)`,
       report.browserId,
       report.gameId,
       report.puzzleDate,
