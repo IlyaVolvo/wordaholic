@@ -4,7 +4,7 @@ import { mountHeaderChrome } from '../../../../app/play/header-chrome.js';
 import { openHelp } from '@wordaholic/help';
 import { openQuestionableWordReport } from '../../../../app/shell/word-report.js';
 import helpTopic from '../help/topic.js';
-import { reportPlayEnd, reportPlayStart, reportStats } from '@wordaholic/stats';
+import { reportPlayEnd, reportPlayStart } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import type { Lexicon } from './lexicon.ts';
 import { fitCell, localCalendarDate, PARAMS } from './params.ts';
@@ -237,7 +237,6 @@ export const Game: React.FC<{
             puzzleDate: finished.date,
             value: Math.max(0, Math.round(finished.score)),
           });
-          reportStats({ games: { [GAME_ID]: { [`${finished.language},${finished.W},${finished.H}`]: 1 } } });
           void loadScores(finished.language, finished.W, finished.H, finished.date).then(async (existing) => {
             const record = await saveScores(finished, existing);
             scoresRef.current = record;

@@ -122,7 +122,7 @@ Current guess is shown on all unsolved boards at the same row index.
 - `word-data/languages.json` and `scripts/build-languages-catalog.js`: if PolyWordlot lengths exist, also list `polyhydra` (same dict; no second word tree)
 - `scripts/build.js`: Vite-build into `dist/games/g1/polyhydra`, hash `manifest.games.polyhydra`
 - `app/shell/offline-prep.js`, `app/updates/service-worker.js`, `app/updates/manifest.js`
-- **Anonymous site `/stats`:** **not in this game’s slice.** Hydra still emits `reportStats({ games: { polyhydra: { 'en,5,16': 1 } } })` on first daily guess. Making ingest/store/`/stats` columns follow a game registry so PolyHydra (and later games) appear automatically is the **current stats workflow**.
+- **Anonymous site `/stats`:** a play start on the first daily guess. The operator page counts that start. Hydra does not send the legacy `games` field.
 - Export/import: dedicated Hydra branch in `app/storage/export-records.js` (do **not** reuse `guesses.length >= 6`). Record stores `board_count`, `target_words[]`, and per-board guess lists. `app/shell/site-backup.js` copy lists Hydra
 - Help: `app/help/topics.js`; placeholders under `public/help/polyhydra/`
 - Site help export blurb should name Hydra with the other games

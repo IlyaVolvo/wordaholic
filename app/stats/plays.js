@@ -60,15 +60,31 @@ export function reportPlayEnd(fields) {
 }
 
 let flushing = false;
+let flushAgain = false;
+
+function sameReport(a, b) {
+  return (
+    a.kind === b.kind &&
+    a.browserId === b.browserId &&
+    a.gameId === b.gameId &&
+    a.puzzleDate === b.puzzleDate &&
+    a.language === b.language &&
+    a.variant === b.variant &&
+    a.clientTime === b.clientTime
+  );
+}
 
 export async function flushPlays() {
-  if (flushing || typeof navigator !== 'undefined' && !navigator.onLine) return;
-  const queue = readQueue();
-  if (!queue.length) return;
+  if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+  if (flushing) {
+    flushAgain = true;
+    return;
+  }
   flushing = true;
   try {
+    const queue = readQueue();
+    if (!queue.length) return;
     const batch = queue.slice(0, 50);
-    const rest = queue.slice(50);
     const res = await fetch('/api/plays', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -77,16 +93,35 @@ export async function flushPlays() {
     if (!res.ok) return;
     const body = await res.json();
     const results = Array.isArray(body.results) ? body.results : [];
-    const retry = [];
-    for (let i = 0; i < batch.length; i += 1) {
-      const result = results[i];
-      if (!result || (result.ok !== true && result.ok !== false)) retry.push(batch[i]);
+    const pending = batch.map((item, index) => {
+      const result = results[index];
+      const keep = !result || result.retry === true || (result.ok !== true && result.ok !== false);
+      return keep ? item : null;
+    });
+    const current = readQueue();
+    const kept = [];
+    const used = new Set();
+    for (const item of current) {
+      const index = pending.findIndex((candidate, i) => candidate && !used.has(i) && sameReport(candidate, item));
+      if (index >= 0) {
+        used.add(index);
+        kept.push(item);
+      } else if (!batch.some((sent) => sameReport(sent, item))) {
+        kept.push(item);
+      }
     }
-    writeQueue([...retry, ...rest]);
+    writeQueue(kept);
+    const accepted = pending.filter((item) => !item).length;
+    const arrived = current.filter((item) => !batch.some((sent) => sameReport(sent, item)));
+    if ((accepted > 0 && kept.length > 0) || arrived.length > 0) flushAgain = true;
   } catch {
     /* stay queued */
   } finally {
     flushing = false;
+    if (flushAgain) {
+      flushAgain = false;
+      void flushPlays();
+    }
   }
 }
 

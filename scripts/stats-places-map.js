@@ -4,8 +4,7 @@
  *
  *   node scripts/stats-places-map.js <hoursDir> <target.json>
  *
- * Upload later:
- *   gcloud storage cp <target.json> gs://wordaholic-stats/places.json
+ * The target file is the one scripts/stats-import.js loads into the places table.
  */
 import fs from 'node:fs';
 import path from 'node:path';

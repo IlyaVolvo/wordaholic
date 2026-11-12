@@ -18,7 +18,7 @@ import { openHelp, isHelpOpen } from '@wordaholic/help';
 import { openMissingWordReport, openQuestionableWordReport } from '../../../../../app/shell/word-report.js';
 import { mountHeaderChrome } from '../../../../../app/play/header-chrome.js';
 import helpTopic from '../../help/topic.js';
-import { reportPlayEnd, reportPlayStart, reportStats } from '@wordaholic/stats';
+import { reportPlayEnd, reportPlayStart } from '@wordaholic/stats';
 
 const MAX_GUESSES = 6;
 
@@ -870,7 +870,6 @@ export const Game: React.FC<GameProps> = ({
         variant: String(wordLength),
         puzzleDate: gameState.date,
       });
-      reportStats({ games: { polywordlot: { [`${language},${wordLength}`]: 1 } } });
     }
     if (isComplete) {
       reportPlayEnd({

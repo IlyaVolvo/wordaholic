@@ -1,7 +1,7 @@
 /**
  * Turn daily SQLite rows into the hour documents the operator page already reads.
  * A day is stored as midnight UTC. Days before the cutover use the frozen table.
- * On and after the cutover, game counts come from plays and home/language from live rows.
+ * On and after the cutover, game counts come from play starts (the UTC date of started_at) and home/language from live rows.
  */
 import { pickRicherGeo } from './stats-combine.js';
 import { playGame } from './play-model.js';

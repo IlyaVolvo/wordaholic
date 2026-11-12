@@ -3,7 +3,7 @@ import { combineBodies, combineTrends, normalizeGeo, parseDateRange, parseTrendI
 import { canonicalPath, isStatsWorkerPath, isWordReportApiPath } from '../../../scripts/stats-path.js';
 import { submitWordReport, WORD_REPORT_MAX_BYTES } from '../../../scripts/word-report.js';
 import { renderStatsHtml, trendIdentityAllowIds, trendLanguageAllow } from '../../../scripts/stats-page.js';
-import { buildStatsGeoPayload } from '../../../scripts/stats-geo-api.js';
+import { buildStatsGeoPayload, enrichInputsWithLookedUpGeo } from '../../../scripts/stats-geo-api.js';
 import { lookupMissingGeos } from '../../../scripts/stats-geo-lookup.js';
 import { statsInputsFromTables } from '../../../scripts/stats-hours.js';
 import {
@@ -276,8 +276,8 @@ export class StatsStore {
         results.push({ ok: false });
         continue;
       }
-      applyPlay(this.sql, parsed.report, edge);
-      results.push({ ok: true });
+      const applied = applyPlay(this.sql, parsed.report, edge);
+      results.push(applied.ok ? { ok: true } : { ok: false, retry: true });
     }
     return json({ results });
   }
@@ -379,13 +379,12 @@ export class StatsStore {
   async geo(url, method) {
     if (method !== 'GET' && method !== 'HEAD') return new Response('Method not allowed', { status: 405 });
     const inputs = await this.statsInputs();
+    const from = url.searchParams.get('from') || '';
+    const to = url.searchParams.get('to') || '';
+    const found = await enrichInputsWithLookedUpGeo(inputs, parseDateRange(from, to));
+    for (const [ip, geo] of found) fillLiveGeo(this.sql, ip, geo);
     const places = loadPlacesDocument(this.sql);
-    const payload = await buildStatsGeoPayload(
-      inputs,
-      url.searchParams.get('from') || '',
-      url.searchParams.get('to') || '',
-      places
-    );
+    const payload = await buildStatsGeoPayload(inputs, from, to, places);
     return new Response(method === 'HEAD' ? null : JSON.stringify(payload), { status: 200, headers: JSON_HEADERS });
   }
 

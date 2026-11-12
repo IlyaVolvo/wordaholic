@@ -7,7 +7,7 @@ The live Worker is `wordaholic-stats` (`workers/stats`). It already collects on 
 
 The page posts to the host it was loaded from (`POST /api/stats` in `app/stats/report.js`). It never sends counts to `wordaholic.volvovski.com` from somewhere else. A new public hostname stays silent until that hostname is proxied by Cloudflare and those same paths are routed to this Worker.
 
-Do this when the new domain is ready. Leave the existing volvovski routes in place. Counts from every routed hostname share one Durable Object, the object named `site`. Do not create a second Worker, a second Durable Object, or a second set of Google bucket secrets.
+Do this when the new domain is ready. Leave the existing volvovski routes in place. Counts from every routed hostname share one Durable Object, the object named `site`. Do not create a second Worker or a second Durable Object.
 
 How collection works is in [STATS.md](STATS.md).
 
@@ -75,7 +75,7 @@ npm run deploy:stats
 
 That command is `npx wrangler deploy --config workers/stats/wrangler.toml`.
 
-Do not run `wrangler secret put` again. `GCS_BUCKET`, `GCS_HMAC_ACCESS_KEY`, and `GCS_HMAC_SECRET` already belong to this Worker and apply to every route. The `v1` Durable Object migration is already applied. Do not add another `new_sqlite_classes` migration.
+The `v1` Durable Object migration is already applied. Do not add another `new_sqlite_classes` migration. Word reports still need the Telegram secrets already on this Worker. Do not create a second set.
 
 ## 4. Check the new host
 

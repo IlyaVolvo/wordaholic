@@ -21,7 +21,7 @@ import {
 import { openHelp } from '@wordaholic/help';
 import { openMissingWordReport, openQuestionableWordReport } from '../../../../../app/shell/word-report.js';
 import helpTopic from '../../help/topic.js';
-import { reportPlayEnd, reportPlayStart, reportStats } from '@wordaholic/stats';
+import { reportPlayEnd, reportPlayStart } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../../app/daily/variantVisit.js';
 import { mountHeaderChrome } from '../../../../../app/play/header-chrome.js';
@@ -970,7 +970,6 @@ export const Game: React.FC<GameProps> = ({
         variant: `${wordLength},${boardCount}`,
         puzzleDate: selectedPlayDate,
       });
-      reportStats({ games: { polyhydra: { [`${language},${wordLength},${boardCount}`]: 1 } } });
     }
     if (!wasComplete && progress.historyComplete) {
       reportPlayEnd({

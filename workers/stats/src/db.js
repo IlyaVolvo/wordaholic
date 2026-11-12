@@ -209,14 +209,55 @@ function rememberPlace(sql, geo) {
 }
 
 /**
+ * A looked-up city is stored once. Coordinates from that lookup replace an empty pair.
+ * A later request reads the table and does not look the city up again.
+ * @param {{ country?: string, region?: string, city?: string, lat?: number, lon?: number } | null} geo
+ */
+export function rememberLookedUpPlace(sql, geo) {
+  if (!geo || !geo.country) return;
+  const suggested = suggestPlace(geo.country, geo.region || '', geo.city || '');
+  if (!suggested) return;
+  const lat = Number(geo.lat);
+  const lon = Number(geo.lon);
+  const hasLookupCoords = Number.isFinite(lat) && Number.isFinite(lon);
+  const rowLat = hasLookupCoords ? lat : suggested.lat;
+  const rowLon = hasLookupCoords ? lon : suggested.lon;
+  const source = hasLookupCoords ? 'geocode' : suggested.source;
+  const key = placeKey(suggested.country, suggested.region, suggested.city);
+  const existing = sqlOne(sql, `SELECT lat FROM places WHERE key = ?`, key);
+  if (existing) {
+    if (existing.lat != null || rowLat == null || rowLon == null) return;
+    sql.exec(
+      `UPDATE places SET lat = ?, lon = ?, source = ? WHERE key = ? AND lat IS NULL`,
+      rowLat,
+      rowLon,
+      source,
+      key
+    );
+    return;
+  }
+  sql.exec(
+    `INSERT INTO places (key, country, region, city, lat, lon, source) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    key,
+    suggested.country,
+    suggested.region,
+    suggested.city,
+    rowLat,
+    rowLon,
+    source
+  );
+}
+
+/**
+ * A start is stored once. A finish only fills the result on that row.
+ * A finish with no start is retryable: the device still has the start queued behind it, or the start has not been stored yet.
  * @param {{ ip: string, country: string, region: string, city: string, asOrg: string }} edge
+ * @returns {{ ok: true } | { ok: false, retry: true }}
  */
 export function applyPlay(sql, report, edge) {
-  ensureBrowser(sql, report.browserId);
-  rememberPlace(sql, edge);
   const existing = sqlOne(
     sql,
-    `SELECT started_at, finished_at, rank_value FROM plays
+    `SELECT started_at, rank_value FROM plays
      WHERE browser_id = ? AND game_id = ? AND puzzle_date = ? AND language = ? AND variant = ?`,
     report.browserId,
     report.gameId,
@@ -225,7 +266,27 @@ export function applyPlay(sql, report, edge) {
     report.variant
   );
   if (report.kind === 'start') {
-    if (existing) return;
+    ensureBrowser(sql, report.browserId);
+    rememberPlace(sql, edge);
+    if (existing && existing.started_at != null) return { ok: true };
+    if (existing) {
+      sql.exec(
+        `UPDATE plays SET started_at = ?, ip = ?, country = ?, region = ?, city = ?, as_org = ?
+         WHERE browser_id = ? AND game_id = ? AND puzzle_date = ? AND language = ? AND variant = ? AND started_at IS NULL`,
+        report.clientTime,
+        edge.ip,
+        edge.country,
+        edge.region,
+        edge.city,
+        edge.asOrg,
+        report.browserId,
+        report.gameId,
+        report.puzzleDate,
+        report.language,
+        report.variant
+      );
+      return { ok: true };
+    }
     sql.exec(
       `INSERT INTO plays (
         browser_id, game_id, puzzle_date, language, variant, started_at, ip, country, region, city, as_org
@@ -242,31 +303,10 @@ export function applyPlay(sql, report, edge) {
       edge.city,
       edge.asOrg
     );
-    return;
+    return { ok: true };
   }
-  if (!existing) {
-    sql.exec(
-      `INSERT INTO plays (
-        browser_id, game_id, puzzle_date, language, variant, finished_at, rank_value, help_count,
-        ip, country, region, city, as_org
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      report.browserId,
-      report.gameId,
-      report.puzzleDate,
-      report.language,
-      report.variant,
-      report.clientTime,
-      report.value,
-      report.helpCount,
-      edge.ip,
-      edge.country,
-      edge.region,
-      edge.city,
-      edge.asOrg
-    );
-    return;
-  }
-  if (existing.rank_value != null) return;
+  if (!existing || existing.started_at == null) return { ok: false, retry: true };
+  if (existing.rank_value != null) return { ok: true };
   sql.exec(
     `UPDATE plays SET finished_at = ?, rank_value = ?, help_count = ?
      WHERE browser_id = ? AND game_id = ? AND puzzle_date = ? AND language = ? AND variant = ? AND rank_value IS NULL`,
@@ -279,6 +319,7 @@ export function applyPlay(sql, report, edge) {
     report.language,
     report.variant
   );
+  return { ok: true };
 }
 
 export function boardFinishes(sql, gameId, language, variant, from, to) {
@@ -448,10 +489,10 @@ export function loadTableRows(sql) {
   const plays = sqlRows(
     sql,
     `SELECT ip,
-            substr(datetime(COALESCE(started_at, finished_at) / 1000, 'unixepoch'), 1, 10) AS day,
+            substr(datetime(started_at / 1000, 'unixepoch'), 1, 10) AS day,
             game_id, language, variant, COUNT(*) AS n
      FROM plays
-     WHERE COALESCE(started_at, finished_at) IS NOT NULL AND ip != ''
+     WHERE started_at IS NOT NULL AND ip != ''
      GROUP BY ip, day, game_id, language, variant`
   ).map((row) => ({
     ip: String(row.ip),
@@ -495,5 +536,5 @@ export function fillLiveGeo(sql, ip, geo) {
       String(row.day)
     );
   }
-  rememberPlace(sql, geo.country ? geo : null);
+  rememberLookedUpPlace(sql, geo.country ? geo : null);
 }

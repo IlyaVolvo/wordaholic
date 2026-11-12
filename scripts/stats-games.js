@@ -1,6 +1,6 @@
 /**
- * Site-stats registry. Ingest, store, combine, /stats, and the CLI all read this.
- * A new game is one entry here plus reportStats({ games: { [id]: { 'lang,rest': 1 } } }).
+ * Site-stats registry. Ingest still accepts a legacy games field from older clients and does not store it.
+ * A new game needs an entry here so that field stays valid, and a play-start report for the count.
  */
 
 export const STATS_LANG = '[a-z]{2,8}';

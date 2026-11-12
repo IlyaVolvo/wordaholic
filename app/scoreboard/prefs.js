@@ -1,4 +1,4 @@
-import { gameIdForKey, parseConfiguration, resolveDefinition } from '/scripts/scoreboard-defs.js';
+import { gameIdForKey, parseConfiguration, resolveDefinition } from '../../scripts/scoreboard-defs.js';
 
 const KEY = 'wordaholic-scoreboard-v2';
 const MODES = ['language', 'configuration', 'custom'];

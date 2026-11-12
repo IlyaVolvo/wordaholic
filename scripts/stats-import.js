@@ -1,6 +1,11 @@
 /**
- * Load the saved hour files and the places file into the local Worker once.
- * The Worker does not read the Google bucket.
+ * Load the saved hour files and the places file into the Worker once.
+ * The Worker does not read or write a bucket. The files are already on disk.
+ *
+ * The cutover date defaults to the next UTC date. Days in the hour files before
+ * that date are frozen. The current UTC day is a gap: it is not imported, and
+ * live rows before the cutover are not shown. Deploy the worker before that
+ * midnight. The cutover day starts empty. A later import does not move the date.
  *
  *   STATS_IMPORT_TOKEN=local-import node scripts/stats-import.js
  */
@@ -15,7 +20,14 @@ const hoursDir = path.resolve(process.env.STATS_HOURS_DIR || path.join(root, 'st
 const placesFile = path.resolve(process.env.STATS_PLACES_FILE || path.join(root, 'scripts/stats-places.json'));
 const origin = process.env.STATS_WORKER_ORIGIN || 'http://127.0.0.1:8787';
 const token = process.env.STATS_IMPORT_TOKEN || 'local-import';
-const cutover = process.env.STATS_CUTOVER || new Date().toISOString().slice(0, 10);
+
+function nextUtcDate(now = new Date()) {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1))
+    .toISOString()
+    .slice(0, 10);
+}
+
+const cutover = process.env.STATS_CUTOVER || nextUtcDate();
 
 function addCounts(into, extra) {
   for (const [key, raw] of Object.entries(extra || {})) {

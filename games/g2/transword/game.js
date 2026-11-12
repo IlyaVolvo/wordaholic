@@ -25,7 +25,7 @@ import { openHelp } from '../../../app/help/dialog.js';
 import helpTopic from './help/topic.js';
 import { mountPortraitGate } from '../../../app/play/portrait-gate.js';
 import { mountHeaderChrome } from '../../../app/play/header-chrome.js';
-import { reportPlayEnd, reportPlayStart, reportStats } from '../../../app/stats/report.js';
+import { reportPlayEnd, reportPlayStart } from '../../../app/stats/report.js';
 import {
   calendarMonthForSelection,
   openVariant,
@@ -1097,9 +1097,6 @@ async function submitWord(word, opts = {}) {
       language: combo.language,
       variant: `${combo.vocabLevel},${combo.difficulty}`,
       puzzleDate: combo.gameDate,
-    });
-    reportStats({
-      games: { transword: { [`${combo.language},${combo.vocabLevel},${combo.difficulty}`]: 1 } },
     });
   }
   if (opts.fromHelp) helpCount += 1;

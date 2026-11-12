@@ -1,5 +1,6 @@
 /**
- * Fire-and-forget stats delta. Drops on failure / offline.
+ * Fire-and-forget home and language counts. Drops on failure and offline.
+ * A legacy games field is still accepted and ignored. Game starts are play reports.
  * @param {{
  *   homeHits?: number,
  *   languages?: Record<string, number>,

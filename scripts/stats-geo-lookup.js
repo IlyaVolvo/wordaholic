@@ -62,12 +62,16 @@ async function lookupIpwho(addr) {
   const body = await fetchJson(`${IPWHO}/${encodeURIComponent(addr)}`);
   if (!body || body.success === false) return null;
   const conn = body.connection && typeof body.connection === 'object' ? body.connection : {};
-  return normalizeGeo({
-    country: body.country_code || '',
-    city: body.city || '',
-    region: body.region || '',
-    asOrg: conn.isp || conn.org || '',
-  });
+  return withCoords(
+    normalizeGeo({
+      country: body.country_code || '',
+      city: body.city || '',
+      region: body.region || '',
+      asOrg: conn.isp || conn.org || '',
+    }),
+    body.latitude,
+    body.longitude
+  );
 }
 
 /**
@@ -77,12 +81,16 @@ async function lookupIpwho(addr) {
 async function lookupGeojs(addr) {
   const body = await fetchJson(`${GEOJS}/${encodeURIComponent(addr)}.json`);
   if (!body || typeof body !== 'object') return null;
-  return normalizeGeo({
-    country: body.country_code || '',
-    city: body.city || '',
-    region: body.region || '',
-    asOrg: body.organization_name || body.organization || '',
-  });
+  return withCoords(
+    normalizeGeo({
+      country: body.country_code || '',
+      city: body.city || '',
+      region: body.region || '',
+      asOrg: body.organization_name || body.organization || '',
+    }),
+    body.latitude,
+    body.longitude
+  );
 }
 
 /**
@@ -177,17 +185,46 @@ async function lookupCymru(addr) {
  * @param {string} ipOrIdentity
  * @returns {Promise<import('./stats-combine.js').StatsGeo | null>}
  */
+/**
+ * @param {import('./stats-combine.js').StatsGeo | null} geo
+ * @param {unknown} lat
+ * @param {unknown} lon
+ */
+function withCoords(geo, lat, lon) {
+  if (!geo) return null;
+  const latitude = Number(lat);
+  const longitude = Number(lon);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return geo;
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return geo;
+  return { ...geo, lat: latitude, lon: longitude };
+}
+
+/**
+ * @param {import('./stats-combine.js').StatsGeo & { lat?: number, lon?: number } | null | undefined} geo
+ */
+function takeCoords(geo) {
+  if (!geo || !Number.isFinite(geo.lat) || !Number.isFinite(geo.lon)) return null;
+  return { lat: geo.lat, lon: geo.lon };
+}
+
 export async function lookupGeo(ipOrIdentity) {
   const addr = lookupAddress(ipOrIdentity);
   if (!addr) return null;
   const [who, js] = await Promise.all([lookupIpwho(addr), lookupGeojs(addr)]);
-  if (who && (who.city || who.region)) return who;
-  if (js && (js.city || js.region)) return js;
-  try {
-    return pickRicherGeo(pickRicherGeo(who, js), await lookupCymru(addr));
-  } catch {
-    return pickRicherGeo(who, js);
+  /** @type {import('./stats-combine.js').StatsGeo | null} */
+  let geo = null;
+  if (who && (who.city || who.region)) geo = who;
+  else if (js && (js.city || js.region)) geo = js;
+  else {
+    try {
+      geo = pickRicherGeo(pickRicherGeo(who, js), await lookupCymru(addr));
+    } catch {
+      geo = pickRicherGeo(who, js);
+    }
   }
+  if (!geo) return null;
+  const coords = takeCoords(who) || takeCoords(js);
+  return coords ? { ...geo, lat: coords.lat, lon: coords.lon } : geo;
 }
 
 /**

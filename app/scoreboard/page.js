@@ -3,7 +3,7 @@ import { getNickname } from '../identity/player.js';
 import { loadLanguages } from '../shell/languages.js';
 import '../game-registry.js';
 import { listGames } from '../games-contract.js';
-import { definitionsForGame, gameIdForKey, qualificationLine, resolveDefinition } from '/scripts/scoreboard-defs.js';
+import { definitionsForGame, gameIdForKey, qualificationLine, resolveDefinition } from '../../scripts/scoreboard-defs.js';
 import { loadScoreboardPrefs, saveScoreboardPrefs } from './prefs.js';
 import {
   addCustomGroup,

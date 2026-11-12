@@ -1,5 +1,5 @@
 /**
- * Persistent place → lat/lon map for stats (GCS object places.json).
+ * Persistent place → lat/lon map for stats. The places table is the copy the worker reads.
  * Key: COUNTRY|region|city (region/city lowercased). Existing keys are never overwritten.
  */
 import { countryCode, normalizeGeo } from './stats-combine.js';
