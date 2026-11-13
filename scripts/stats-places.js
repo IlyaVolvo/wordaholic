@@ -153,14 +153,18 @@ export function suggestPlace(country, region = '', city = '') {
 }
 
 /**
- * Lookup with fallbacks: exact → country+city → country+region → country.
+ * Lookup with fallbacks: exact city in this region, then the same city name
+ * only when the region matches, then a region or country row that has coordinates.
+ * A city that merely shares the name in another region is not a match.
  * @param {Record<string, StatsPlace>} places
  * @param {string} country
  * @param {string} [region]
  * @param {string} [city]
  */
 export function lookupPlace(places, country, region = '', city = '') {
-  const keys = [placeKey(country, region, city), placeKey(country, '', city)];
+  const regionKey = String(region || '').trim().toLowerCase();
+  const keys = [placeKey(country, region, city)];
+  if (!regionKey) keys.push(placeKey(country, '', city));
   for (const key of keys) {
     const row = places[key];
     if (!row) continue;
@@ -174,6 +178,8 @@ export function lookupPlace(places, country, region = '', city = '') {
       if (row.country !== cc) continue;
       if (String(row.city || '').trim().toLowerCase() !== cityKey) continue;
       if (row.lat == null || row.lon == null) continue;
+      const rowRegion = String(row.region || '').trim().toLowerCase();
+      if (regionKey && rowRegion !== regionKey) continue;
       return row;
     }
   }
@@ -187,7 +193,60 @@ export function lookupPlace(places, country, region = '', city = '') {
 }
 
 /**
- * Places file first, then the static city/capital table.
+ * Point inside a region for a city that has no coordinates of its own.
+ * An explicit region row wins; otherwise this is the average of cities in
+ * that region that already have coordinates. A city-sized offset keeps the
+ * dot off a sibling city so the two labels stay separate.
+ * @param {Record<string, StatsPlace>} places
+ * @param {string} country
+ * @param {string} region
+ * @param {string} city
+ * @returns {{ lat: number, lon: number } | null}
+ */
+function regionAnchor(places, country, region, city) {
+  const prefix = placeKey(country, region, '');
+  if (!prefix || prefix.endsWith('||')) return null;
+  const direct = places[prefix];
+  /** @type {{ lat: number, lon: number }[]} */
+  const pts = [];
+  if (direct && direct.lat != null && direct.lon != null) {
+    pts.push({ lat: direct.lat, lon: direct.lon });
+  } else {
+    for (const [key, row] of Object.entries(places)) {
+      if (!key.startsWith(prefix) || key === prefix) continue;
+      if (row.lat == null || row.lon == null) continue;
+      pts.push({ lat: row.lat, lon: row.lon });
+    }
+  }
+  if (!pts.length) return null;
+  const lat = pts.reduce((sum, p) => sum + p.lat, 0) / pts.length;
+  const lon = pts.reduce((sum, p) => sum + p.lon, 0) / pts.length;
+  const onSibling = pts.some((p) => Math.abs(p.lat - lat) < 0.002 && Math.abs(p.lon - lon) < 0.002);
+  return onSibling ? spreadNear(lat, lon, city) : { lat, lon };
+}
+
+/**
+ * Stable offset of about 5 km so an approximate city does not cover a known one.
+ * @param {number} lat
+ * @param {number} lon
+ * @param {string} city
+ */
+function spreadNear(lat, lon, city) {
+  let hash = 2166136261;
+  const name = String(city || '').trim().toLowerCase();
+  for (let i = 0; i < name.length; i += 1) {
+    hash ^= name.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  const angle = ((hash >>> 0) % 360) * (Math.PI / 180);
+  const dLat = 0.05;
+  const dLon = 0.05 / Math.max(0.25, Math.cos((lat * Math.PI) / 180));
+  return { lat: lat + Math.cos(angle) * dLat, lon: lon + Math.sin(angle) * dLon };
+}
+
+/**
+ * Exact place, then a known city in the static table, then other
+ * coordinates in the same region, then the country capital.
  * @param {Record<string, StatsPlace>} [places]
  * @param {string} country
  * @param {string} [region]
@@ -204,7 +263,20 @@ export function resolvePlaceCoords(places, country, region = '', city = '') {
       placeLabel: row.city || city || row.region || country,
     };
   }
-  return resolveLocalityCoords(country, city);
+  const named = resolveLocalityCoords(country, city);
+  if (named && !named.capitalFallback) return named;
+  if (places && String(city || '').trim() && String(region || '').trim()) {
+    const anchor = regionAnchor(places, country, region, city);
+    if (anchor) {
+      return {
+        lat: anchor.lat,
+        lon: anchor.lon,
+        capitalFallback: true,
+        placeLabel: String(region).trim(),
+      };
+    }
+  }
+  return named;
 }
 
 /**

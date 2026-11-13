@@ -1084,7 +1084,7 @@ function eventCountsFromRecord(rec, allowLanguages) {
 
 /**
  * Locality activity for the home map (event counts, no IPs).
- * City missing/unresolved → country capital coordinates.
+ * City missing/unresolved → a point in the same region, then the country capital.
  *
  * @param {{ source: string, body: unknown }[]} inputs
  * @param {{ from?: string | null, toExclusive?: string | null }} [range]
