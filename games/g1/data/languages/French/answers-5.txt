@@ -2364,7 +2364,6 @@ turne 259,NOUN
 fayot 258,NOUN
 iodés 258,ADJECTIVE
 fêlés 257,ADJECTIVE
-cæcum 257,NOUN
 infox 257,NOUN
 ciron 256,NOUN
 stone 255,ADJECTIVE
@@ -2552,7 +2551,6 @@ pouet 148,ADJECTIVE
 coxal 147,ADJECTIVE
 sayon 147,NOUN
 enfeu 146,NOUN
-nævus 146,NOUN
 graff 146,NOUN
 zarbi 145,ADJECTIVE
 carné 145,ADJECTIVE,HAS_EXAMPLE
@@ -2947,7 +2945,6 @@ tesla 41,NOUN
 méger 41,NOUN
 vomer 41,NOUN
 copra 41,NOUN
-tænia 41,NOUN
 anser 41,VERB
 dogat 40,NOUN
 hourd 40,NOUN
@@ -2984,14 +2981,12 @@ renoi 36,NOUN
 mammy 36,NOUN
 iambe 36,NOUN
 gondi 36,NOUN
-dæmon 36,NOUN,OBSOLETE
 diène 35,NOUN
 éland 35,NOUN
 smalt 34,NOUN
 safre 34,ADJECTIVE
 tamil 34,ADJECTIVE
 zâhir 34,NOUN
-uræus 34,NOUN
 bilig 34,NOUN
 calla 34,NOUN
 feujs 33,ADJECTIVE
@@ -3041,7 +3036,6 @@ shido 29,NOUN
 natel 29,NOUN,HAS_EXAMPLE
 miter 29,VERB
 halde 29,NOUN
-cæcal 29,ADJECTIVE
 bahaï 29,ADJECTIVE
 lobée 29,ADJECTIVE
 ognon 29,NOUN

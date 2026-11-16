@@ -3870,9 +3870,6 @@ câline	1
 câliner	1
 câpre	1
 câprier	1
-cæcal	1
-cæcale	1
-cæcum	1
 cèderai	1
 cèdre	1
 cèlerai	1
@@ -4399,7 +4396,6 @@ dynamo	1
 dynaste	1
 dyspnée	1
 dysurie	1
-dæmon	1
 dèche	1
 débat	1
 débet	1
@@ -9653,7 +9649,6 @@ nymphe	1
 nympho	1
 nymphéa	1
 nymphée	1
-nævus	1
 nèfle	1
 nègre	1
 néant	1
@@ -14223,7 +14218,6 @@ tzotzil	1
 tâche	1
 tâter	1
 tâterez	1
-tænia	1
 téflon	1
 télex	1
 télique	1
@@ -14305,7 +14299,6 @@ urique	1
 uriques	1
 ursidé	1
 ursidés	1
-uræus	1
 urètre	1
 uréase	1
 urémie	1
@@ -37126,9 +37119,6 @@ câliners	3
 câlinées	3
 câlisses	3
 câpriers	3
-cæcales	3
-cæcals	3
-cæcums	3
 cèdents	3
 cèderais	3
 cèderas	3
@@ -37648,7 +37638,6 @@ dynamos	3
 dynastes	3
 dyspnées	3
 dysuries	3
-dæmons	3
 dèches	3
 déballas	3
 déballes	3
@@ -48059,7 +48048,6 @@ tâtonnas	3
 tâtonnes	3
 tâtonnés	3
 tâtées	3
-tænias	3
 tètents	3
 téflons	3
 téliques	3
