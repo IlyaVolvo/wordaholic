@@ -1,0 +1,4 @@
+#!/bin/sh
+# Reject a commit that adds words outside a language keyboard, or outside that group's limits.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+node scripts/verify-words.js --staged
