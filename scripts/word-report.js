@@ -1,7 +1,8 @@
 /**
  * Anonymous word reports posted into a Telegram topic as a poll.
  * Missing and Questionable topics come from TELEGRAM_TOPIC_MISSING and TELEGRAM_TOPIC_QUESTIONABLE.
- * The question is the words. The description is language, game, name, and client IP.
+ * The question is the words. The description is language, game, name, client IP, and the comment.
+ * A blank comment is written as italic "No message provided".
  * Missing votes Add or Leave out. Questionable votes Remove or Keep.
  * Authentication is not required yet; reject here later before sendTelegram.
  */
@@ -11,7 +12,7 @@ const MAX_PER_WINDOW = 8;
 /** @type {Map<string, number[]>} */
 const recent = new Map();
 
-export const WORD_REPORT_MAX_BYTES = 2048;
+export const WORD_REPORT_MAX_BYTES = 4096;
 
 /** Menus match word-data/<Language>/language.json. */
 const LANGUAGES = {
@@ -37,8 +38,24 @@ const GAMES = {
 const WORD_RE = /^(?=.*\p{L})[\p{L}\p{M}'’ʼ-]+$/u;
 const MAX_WORDS = 40;
 const MAX_NAME = 80;
+const MAX_COMMENT = 500;
 const POLL_QUESTION_MAX = 300;
 const POLL_DESCRIPTION_MAX = 1024;
+const EMPTY_COMMENT = 'No message provided';
+
+/**
+ * A comment is optional. Blank stays blank. Newlines are kept.
+ * @param {unknown} raw
+ * @returns {string | null}
+ */
+function reportComment(raw) {
+  if (raw == null || raw === '') return '';
+  if (typeof raw !== 'string') return null;
+  const comment = raw.trim();
+  if (!comment) return '';
+  if (comment.length > MAX_COMMENT || /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(comment)) return null;
+  return comment;
+}
 
 /**
  * Blank stays anonymous. A provided name is one line, capped in length.
@@ -66,7 +83,7 @@ function parseWords(raw) {
 
 /**
  * @param {unknown} body
- * @returns {{ ok: true, report: { game: string, gameName: string, language: string, languageName: string, action: string, words: string[], name: string } } | { ok: false, error: string }}
+ * @returns {{ ok: true, report: { game: string, gameName: string, language: string, languageName: string, action: string, words: string[], name: string, comment: string } } | { ok: false, error: string }}
  */
 export function parseWordReport(body) {
   if (!body || typeof body !== 'object') return { ok: false, error: 'Invalid report' };
@@ -76,11 +93,13 @@ export function parseWordReport(body) {
   const action = rawAction === 'remove' ? 'questionable' : rawAction;
   const words = typeof body.words === 'string' ? parseWords(body.words) : null;
   const name = reportName(body.name);
+  const comment = reportComment(body.comment);
   if (!GAMES[game]) return { ok: false, error: 'Choose a game' };
   if (!LANGUAGES[language]) return { ok: false, error: 'Choose a language' };
   if (!ACTIONS.has(action)) return { ok: false, error: 'Choose missing or questionable' };
   if (!words) return { ok: false, error: 'Enter one or more words, separated by spaces or commas' };
   if (!name) return { ok: false, error: 'Name is too long' };
+  if (comment == null) return { ok: false, error: 'Comment is too long' };
   return {
     ok: true,
     report: {
@@ -91,6 +110,7 @@ export function parseWordReport(body) {
       action,
       words,
       name,
+      comment,
     },
   };
 }
@@ -129,21 +149,30 @@ function clip(text, max) {
 
 /**
  * Poll the topic can vote on. The question is the words. The description keeps
- * language, game, name, and client IP. A blank name is written as anonymous.
- * @param {{ gameName: string, languageName: string, action: string, words: string[], name: string }} report
+ * language, game, name, client IP, and the comment.
+ * A blank name is written as anonymous. A blank comment is "No message provided", in italic.
+ * @param {{ gameName: string, languageName: string, action: string, words: string[], name: string, comment?: string }} report
  * @param {string} ip
- * @returns {{ question: string, description: string, options: { text: string }[] }}
+ * @returns {{ question: string, description: string, options: { text: string }[], entities: { type: string, offset: number, length: number }[] }}
  */
 export function reportPoll(report, ip) {
   const who = report.name && report.name.trim() ? report.name.trim() : 'anonymous';
   const words = report.words.join(', ');
   const about = `${report.languageName}: ${report.gameName}: ${who} (${reportIp(ip)})`;
+  const comment = String(report.comment || '').trim();
+  const commentText = comment || EMPTY_COMMENT;
   const question = clip(words, POLL_QUESTION_MAX);
-  const description = clip(question === words ? about : `${about}\n${words}`, POLL_DESCRIPTION_MAX);
+  const lines = [about, commentText];
+  if (question !== words) lines.push(words);
+  const description = clip(lines.join('\n'), POLL_DESCRIPTION_MAX);
+  const commentAt = about.length + 1;
+  const entities = !comment && description.startsWith(`${about}\n${EMPTY_COMMENT}`)
+    ? [{ type: 'italic', offset: commentAt, length: EMPTY_COMMENT.length }]
+    : [];
   const options = report.action === 'missing'
     ? [{ text: 'Add' }, { text: 'Leave out' }]
     : [{ text: 'Remove' }, { text: 'Keep' }];
-  return { question, description, options };
+  return { question, description, options, entities };
 }
 
 /**
@@ -166,7 +195,7 @@ export function allowReport(ip, now = Date.now()) {
  * @param {string} token
  * @param {string} chatId
  * @param {number} threadId
- * @param {{ question: string, description: string, options: { text: string }[] }} poll
+ * @param {{ question: string, description: string, options: { text: string }[], entities?: { type: string, offset: number, length: number }[] }} poll
  */
 async function sendTelegram(token, chatId, threadId, poll) {
   let res;
@@ -179,6 +208,7 @@ async function sendTelegram(token, chatId, threadId, poll) {
         message_thread_id: threadId,
         question: poll.question,
         description: poll.description,
+        description_entities: poll.entities?.length ? poll.entities : undefined,
         options: poll.options,
         is_anonymous: false,
         allows_multiple_answers: false,
