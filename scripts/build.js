@@ -23,6 +23,20 @@ function gitCommit() {
   }
 }
 
+/** Oldest-first ancestry of HEAD. Announcement order uses this, not the catalog array. */
+function writeCommitOrder() {
+  let list = '';
+  try {
+    list = execSync('git rev-list --reverse HEAD', { cwd: ROOT, encoding: 'utf8' });
+  } catch {
+    return;
+  }
+  const commits = list.split('\n').map((line) => line.trim()).filter(Boolean);
+  const dest = path.join(DIST, 'app/commit-order.json');
+  ensureDir(path.dirname(dest));
+  fs.writeFileSync(dest, `${JSON.stringify(commits)}\n`);
+}
+
 function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
@@ -132,6 +146,7 @@ function main() {
   copyDir(path.join(ROOT, 'app'), path.join(DIST, 'app'));
   const commit = gitCommit();
   stampAnnouncements(commit);
+  writeCommitOrder();
   // Shared language definitions for all games (skip local master.json lists)
   copyDir(path.join(ROOT, 'word-data'), path.join(DIST, 'word-data'), {
     skipNames: ['.DS_Store', 'master.json'],

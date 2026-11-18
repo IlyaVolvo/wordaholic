@@ -77,6 +77,7 @@ export async function prepareOffline(onProgress) {
     '/app/play/header-chrome.js',
     '/deployment-manifest.json',
     '/app/announcements.json',
+    '/app/commit-order.json',
     '/data/languages.json',
     '/map/world.svg',
     ...KNOWN_GAME_IDS.map((id) => `${gameUrl(id)}index.html`),
