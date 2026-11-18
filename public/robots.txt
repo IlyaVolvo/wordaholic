@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /games/g2/transword/admin/
+
+Sitemap: https://www.wordaholic-games.com/sitemap.xml
