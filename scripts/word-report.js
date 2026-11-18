@@ -1,7 +1,7 @@
 /**
  * Anonymous word reports posted into a Telegram topic as a poll.
  * Missing and Questionable topics come from TELEGRAM_TOPIC_MISSING and TELEGRAM_TOPIC_QUESTIONABLE.
- * The question is the words. The description is language, game, name, client IP, and the comment.
+ * Each word is its own poll. The question is that word. The description is language, game, name, client IP, and the comment.
  * A blank comment is written as italic "No message provided".
  * Missing votes Add or Leave out. Questionable votes Remove or Keep.
  * Authentication is not required yet; reject here later before sendTelegram.
@@ -148,7 +148,7 @@ function clip(text, max) {
 }
 
 /**
- * Poll the topic can vote on. The question is the words. The description keeps
+ * One poll the topic can vote on. The question is a single word. The description keeps
  * language, game, name, client IP, and the comment.
  * A blank name is written as anonymous. A blank comment is "No message provided", in italic.
  * @param {{ gameName: string, languageName: string, action: string, words: string[], name: string, comment?: string }} report
@@ -173,6 +173,15 @@ export function reportPoll(report, ip) {
     ? [{ text: 'Add' }, { text: 'Leave out' }]
     : [{ text: 'Remove' }, { text: 'Keep' }];
   return { question, description, options, entities };
+}
+
+/**
+ * One voting poll per word. A report of several words is several polls.
+ * @param {{ gameName: string, languageName: string, action: string, words: string[], name: string, comment?: string }} report
+ * @param {string} ip
+ */
+export function reportPolls(report, ip) {
+  return report.words.map((word) => reportPoll({ ...report, words: [word] }, ip));
 }
 
 /**
@@ -260,7 +269,9 @@ export async function submitWordReport({ method, raw, env, ip }) {
   if (!allowReport(ip)) {
     return { status: 429, body: { error: 'Too many reports. Try again later.' } };
   }
-  const sent = await sendTelegram(token, chatId, threadId, reportPoll(report.report, ip));
-  if (!sent) return { status: 502, body: { error: 'Could not send the report' } };
+  for (const poll of reportPolls(report.report, ip)) {
+    const sent = await sendTelegram(token, chatId, threadId, poll);
+    if (!sent) return { status: 502, body: { error: 'Could not send the report' } };
+  }
   return { status: 200, body: { ok: true } };
 }
