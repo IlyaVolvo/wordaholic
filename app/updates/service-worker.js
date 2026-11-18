@@ -20,6 +20,7 @@ const PRECACHE = [
   '/app/shell/update-ui.js',
   '/app/shell/announcements.js',
   '/app/announcements.json',
+  '/app/commit-order.json',
   '/app/shell/author.js',
   '/app/shell/site-backup.js',
   '/app/shell/auto-export.js',

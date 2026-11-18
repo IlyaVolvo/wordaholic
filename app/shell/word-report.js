@@ -1,11 +1,38 @@
 /**
  * Home-map popup: missing or questionable word report.
- * Sends game, language, action, words, and an optional name. No account is attached.
- * A blank name is sent as anonymous.
+ * Sends game, language, action, words, an optional name, and an optional comment.
+ * No account is attached. A blank name is sent as anonymous. A blank comment is sent as "No message provided".
  */
 
 const WORD_RE = /^(?=.*\p{L})[\p{L}\p{M}'’ʼ-]+$/u;
+const MAX_COMMENT = 500;
+const COMMENT_PROMPT = {
+  missing: 'Explain why this word should be added',
+  questionable: 'Explain why this word should be removed',
+};
 const NAME_INPUT = `<input type="text" name="name" maxlength="80" autocomplete="name" dir="auto" value="anonymous" placeholder="anonymous" />`;
+
+/**
+ * @param {string} [action]
+ */
+function commentField(action) {
+  const prompt = COMMENT_PROMPT[action] || '';
+  return `<label class="word-report-field">
+          Comment
+          <textarea name="comment" maxlength="${MAX_COMMENT}" rows="3" dir="auto" placeholder="${prompt}"></textarea>
+        </label>`;
+}
+
+/**
+ * Empty is allowed. Too long is refused.
+ * @param {unknown} raw
+ * @returns {string | null}
+ */
+function readComment(raw) {
+  const comment = String(raw || '').trim();
+  if (comment.length > MAX_COMMENT || /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(comment)) return null;
+  return comment;
+}
 
 /**
  * @param {string} name
@@ -147,6 +174,7 @@ export function openWordReport(languages, games) {
           Words
           <input type="text" name="words" required maxlength="800" autocomplete="off" dir="auto" placeholder="Separate with spaces or commas" />
         </label>
+        ${commentField()}
         <p class="word-report-error" data-word-report-error hidden></p>
         <div class="update-actions">
           <button type="submit" class="btn primary" data-word-report-send>Send report</button>
@@ -193,6 +221,13 @@ export function openWordReport(languages, games) {
   document.addEventListener('keydown', onKey);
   document.body.appendChild(host);
   const homeName = /** @type {HTMLInputElement | null} */ (host.querySelector('input[name="name"]'));
+  const commentBox = /** @type {HTMLTextAreaElement | null} */ (host.querySelector('textarea[name="comment"]'));
+  host.querySelectorAll('input[name="action"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      if (!(input instanceof HTMLInputElement) || !commentBox) return;
+      commentBox.placeholder = COMMENT_PROMPT[input.value] || '';
+    });
+  });
   bindNameField(homeName);
   homeName?.focus();
 }
@@ -211,6 +246,7 @@ async function sendReport(host) {
   const action = String(data.get('action') || '');
   const words = String(data.get('words') || '').trim();
   const name = String(data.get('name') || '').trim().replace(/\s+/g, ' ');
+  const comment = readComment(data.get('comment'));
   const showError = (message) => {
     errorEl.hidden = false;
     errorEl.textContent = message;
@@ -235,13 +271,17 @@ async function sendReport(host) {
     showError('Name is too long');
     return;
   }
+  if (comment == null) {
+    showError('Comment is too long');
+    return;
+  }
   errorEl.hidden = true;
   if (sendBtn) sendBtn.disabled = true;
   try {
     const res = await fetch('/api/word-report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ game, language, action, words, name }),
+      body: JSON.stringify({ game, language, action, words, name, comment }),
     });
     /** @type {{ ok?: boolean, error?: string }} */
     let body = {};
@@ -328,12 +368,17 @@ function ensureReportStyles() {
       font-weight: 600;
       font-size: 0.92rem;
     }
-    [data-word-report] .word-report-field input {
+    [data-word-report] .word-report-field input,
+    [data-word-report] .word-report-field textarea {
       font: inherit;
       font-weight: 400;
       border: 1px solid #c4c7ca;
       border-radius: 10px;
       padding: 0.5rem 0.65rem;
+    }
+    [data-word-report] .word-report-field textarea {
+      resize: vertical;
+      min-height: 4.5rem;
     }
     [data-word-report] .word-report-error {
       margin: 0 0 0.35rem;
@@ -399,7 +444,7 @@ function ensureReportStyles() {
 
 /**
  * @param {HTMLElement} host
- * @param {{ game: string, language: string, action: string, words: string, name: string }} payload
+ * @param {{ game: string, language: string, action: string, words: string, name: string, comment: string }} payload
  * @param {HTMLButtonElement | null} sendBtn
  * @param {Element | null} errorEl
  */
@@ -463,6 +508,7 @@ export function openMissingWordReport(report) {
         Name
         ${NAME_INPUT}
       </label>
+      ${commentField('missing')}
       <p class="word-report-error" data-word-report-error hidden></p>
       <div class="update-actions">
         <button type="button" class="btn primary" data-word-report-send>Send report</button>
@@ -483,6 +529,7 @@ export function openMissingWordReport(report) {
     if (target.closest('[data-close]')) close();
   });
   const nameInput = /** @type {HTMLInputElement | null} */ (host.querySelector('input[name="name"]'));
+  const commentInput = /** @type {HTMLTextAreaElement | null} */ (host.querySelector('textarea[name="comment"]'));
   const sendBtn = /** @type {HTMLButtonElement | null} */ (host.querySelector('[data-word-report-send]'));
   const errorEl = host.querySelector('[data-word-report-error]');
   bindNameField(nameInput);
@@ -492,12 +539,21 @@ export function openMissingWordReport(report) {
     if (sendBtn) sendBtn.textContent = 'Send report';
   };
   nameInput?.addEventListener('input', refresh);
+  commentInput?.addEventListener('input', refresh);
   sendBtn?.addEventListener('click', () => {
     const name = nameInput?.value.trim().replace(/\s+/g, ' ') || '';
+    const comment = readComment(commentInput?.value);
     if (name.length > 80) {
       if (errorEl) {
         errorEl.hidden = false;
         errorEl.textContent = 'Name is too long';
+      }
+      return;
+    }
+    if (comment == null) {
+      if (errorEl) {
+        errorEl.hidden = false;
+        errorEl.textContent = 'Comment is too long';
       }
       return;
     }
@@ -513,6 +569,7 @@ export function openMissingWordReport(report) {
       action: 'missing',
       words: word,
       name,
+      comment,
     }, sendBtn, errorEl);
   });
   document.addEventListener('keydown', onKey);
@@ -551,6 +608,7 @@ export function openQuestionableWordReport(report) {
     <div class="update-dialog-card" role="dialog" aria-modal="true" aria-labelledby="word-report-title">
       <h2 id="word-report-title">Mark Questionable Words</h2>
       <ul class="word-report-list">${items || '<li>No words in this game.</li>'}</ul>
+      ${commentField('questionable')}
       <p class="word-report-error" data-word-report-error hidden></p>
       <div class="word-report-send-row">
         ${NAME_INPUT}
@@ -592,12 +650,22 @@ export function openQuestionableWordReport(report) {
     });
     if (!picked.length) return;
     const name = nameInput?.value.trim().replace(/\s+/g, ' ') || '';
+    const commentInput = /** @type {HTMLTextAreaElement | null} */ (host.querySelector('textarea[name="comment"]'));
+    const comment = readComment(commentInput?.value);
+    if (comment == null) {
+      if (errorEl) {
+        errorEl.hidden = false;
+        errorEl.textContent = 'Comment is too long';
+      }
+      return;
+    }
     void postReport(host, {
       game: report.game,
       language: report.language,
       action: 'questionable',
       words: picked.join(', '),
       name,
+      comment,
     }, sendBtn, errorEl);
   });
   document.addEventListener('keydown', onKey);

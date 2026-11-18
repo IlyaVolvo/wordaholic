@@ -2,15 +2,18 @@
  * Site-wide handwritten notes, one per commit.
  * Each note plays at most once. Non-permanent notes play when the running
  * revision is at or past theirs and newer than the revision already
- * acknowledged. Permanent notes do that too, and also play on the first
- * visit in this browser.
+ * acknowledged. A permanent note plays once on first installation, and once
+ * when an upgrade moves from a commit strictly before that note to a commit
+ * at or after it. Order comes from git history (oldest first).
  */
 import { getLocalManifest } from '../updates/manifest.js';
 
 const CURSOR_KEY = 'wordaholic.lastAnnouncementCommit';
 const SEEN_KEY = 'wordaholic.announcementSeen';
 const ACK_KEY = 'wordaholic.announcementAck';
+const REVISION_KEY = 'wordaholic.announcementRevision';
 const CATALOG_URL = '/app/announcements.json';
+const ORDER_URL = '/app/commit-order.json';
 const PLACES = new Set(['top', 'bottom', 'left', 'right']);
 
 /**
@@ -164,9 +167,52 @@ function acknowledgedThroughCursor(notes, cursor, currentCommit, reached) {
 }
 
 /**
+ * Oldest-first git history. A short SHA matches the full SHA it prefixes.
+ * @param {string[]} order
+ * @param {string} commit
+ */
+function commitIndex(order, commit) {
+  const value = String(commit || '').trim();
+  if (value.length < 7 || !order.length) return -1;
+  return order.findIndex((item) => item === value || item.startsWith(value) || value.startsWith(item));
+}
+
+/**
+ * @param {string[]} order
+ * @param {string} earlier
+ * @param {string} later
+ * @returns {boolean | null}
+ */
+function isStrictlyBefore(order, earlier, later) {
+  const before = commitIndex(order, earlier);
+  const after = commitIndex(order, later);
+  if (before < 0 || after < 0) return null;
+  return before < after;
+}
+
+/**
+ * Permanent notes play on first installation, and when the stored revision is
+ * strictly before the note while the running revision is that note or newer.
+ * @param {{ commit: string }} note
+ * @param {string} currentCommit
+ * @param {string} previousRevision
+ * @param {string[]} order
+ */
+function showPermanent(note, currentCommit, previousRevision, order) {
+  const noteCommit = note.commit === 'HEAD' ? currentCommit : note.commit;
+  if (!noteCommit) return !previousRevision;
+  if (!previousRevision) return true;
+  const before = isStrictlyBefore(order, previousRevision, noteCommit);
+  const reached = isStrictlyBefore(order, noteCommit, currentCommit);
+  const same = commitIndex(order, noteCommit) >= 0 && commitIndex(order, noteCommit) === commitIndex(order, currentCommit);
+  if (before === null || (reached === null && !same)) return false;
+  return before === true && (reached === true || same);
+}
+
+/**
  * Non-permanent notes are queued only when this revision newly reaches them.
- * Permanent notes are queued for that upgrade and for the first visit.
- * An id already in `seen` is left out, whichever path would have played it.
+ * Permanent notes are queued once for first installation and once for an
+ * upgrade that crosses their commit. An id already in `seen` is left out.
  * On the first visit, `acknowledge` records every reached note so those
  * non-permanent notes are not treated as a later upgrade.
  * @param {{ commit: string, permanent?: boolean }[]} notes
@@ -174,9 +220,11 @@ function acknowledgedThroughCursor(notes, cursor, currentCommit, reached) {
  * @param {string} currentCommit
  * @param {Set<string>} [seen]
  * @param {Set<string>} [ack]
+ * @param {string[]} [order]
+ * @param {string} [previousRevision]
  * @returns {{ queue: { commit: string, permanent?: boolean }[], stamp: string | null, acknowledge: string[] }}
  */
-export function planAnnouncements(notes, cursor, currentCommit, seen = new Set(), ack = new Set()) {
+export function planAnnouncements(notes, cursor, currentCommit, seen = new Set(), ack = new Set(), order = [], previousRevision = '') {
   const reached = reachedIndex(notes, currentCommit);
   if (reached < 0) return { queue: [], stamp: null, acknowledge: [] };
   const known = new Set(ack);
@@ -194,8 +242,11 @@ export function planAnnouncements(notes, cursor, currentCommit, seen = new Set()
     const note = notes[i];
     const id = announcementId(note, currentCommit, notes);
     if (seen.has(id) || seen.has(note.commit) || queued.has(id)) continue;
+    if (note.permanent && (seen.has('HEAD') || known.has('HEAD'))) continue;
     const isNew = !known.has(id) && !known.has(note.commit);
-    if (!note.permanent && (firstVisit || !isNew)) continue;
+    if (note.permanent) {
+      if (!showPermanent(note, currentCommit, previousRevision, order)) continue;
+    } else if (firstVisit || !isNew) continue;
     queued.add(id);
     queue.push(note);
   }
@@ -272,6 +323,23 @@ function setCursor(commit) {
   if (!commit) return;
   try {
     localStorage.setItem(CURSOR_KEY, commit);
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function getRevision() {
+  try {
+    return localStorage.getItem(REVISION_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+function setRevision(commit) {
+  if (!commit) return;
+  try {
+    localStorage.setItem(REVISION_KEY, commit);
   } catch {
     /* ignore quota */
   }
@@ -571,13 +639,26 @@ async function runAnnouncements() {
   const currentCommit = getLocalManifest()?.commit || '';
   const cursor = getCursor();
   const seen = seenAnnouncements();
+  let order = [];
+  try {
+    const orderRes = await fetch(ORDER_URL, { cache: 'no-store' });
+    if (orderRes.ok) {
+      const data = await orderRes.json();
+      if (Array.isArray(data)) order = data.filter((item) => typeof item === 'string' && item);
+    }
+  } catch {
+    order = [];
+  }
   const { queue, stamp, acknowledge } = planAnnouncements(
     notes,
     cursor,
     currentCommit,
     seen,
     ackAnnouncements(),
+    order,
+    getRevision(),
   );
+  if (currentCommit) setRevision(currentCommit);
   if (stamp) setCursor(stamp);
   if (acknowledge.length) markAcknowledged(acknowledge);
   for (const note of queue) {

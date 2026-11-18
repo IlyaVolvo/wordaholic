@@ -54,6 +54,11 @@ function emptyCounts(): ExtraCounts {
   return Object.fromEntries(EXTRA_SCORES.map((s) => [s, 0]));
 }
 
+function countWithPct(count: number, total: number): string {
+  if (total <= 0) return String(count);
+  return `${count} (${Math.round((count / total) * 100)}%)`;
+}
+
 function rareMention(counts: ExtraCounts): string | null {
   const parts = RARE_SCORES.filter((score) => (counts[score] || 0) > 0).map((score) => {
     const n = counts[score];
@@ -225,8 +230,7 @@ export const Statistics: React.FC<StatisticsProps> = ({
                         aria-label={[
                           rare,
                           ...BAR_SCORES.filter((s) => row.counts[s] > 0).map(
-                            (s) =>
-                              `${extraLabel(s)}: ${row.counts[s]} (${Math.round((row.counts[s] / row.total) * 100)}%)`
+                            (s) => `${extraLabel(s)}: ${countWithPct(row.counts[s], row.total)}`
                           ),
                         ]
                           .filter(Boolean)
@@ -235,15 +239,15 @@ export const Statistics: React.FC<StatisticsProps> = ({
                         {BAR_SCORES.map((score) => {
                           const count = row.counts[score] || 0;
                           if (count <= 0) return null;
-                          const pct = (count / row.total) * 100;
+                          const label = countWithPct(count, row.total);
                           return (
                             <div
                               key={score}
                               className={`hydra-stats-seg extra-${score}`}
                               style={{ flexGrow: count, flexBasis: 0 }}
-                              title={`${extraLabel(score)}: ${count} (${pct.toFixed(1)}%)`}
+                              title={`${extraLabel(score)}: ${label}`}
                             >
-                              {count}
+                              {label}
                             </div>
                           );
                         })}

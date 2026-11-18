@@ -4522,7 +4522,6 @@ baffle 77,NOUN
 besant 77,NOUN
 cénote 77,NOUN
 bryone 76,NOUN
-cæcale 76,ADJECTIVE
 élusif 76,ADJECTIVE
 ratier 76,NOUN
 nouchi 76,NOUN

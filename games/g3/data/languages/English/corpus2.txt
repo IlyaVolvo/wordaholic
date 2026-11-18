@@ -3534,7 +3534,6 @@ doings
 reals
 reales
 reis
-réis
 reais
 differents
 havings
@@ -3652,7 +3651,6 @@ yeahs
 classes
 closes
 ideas
-ideæ
 pasts
 possibles
 causes
@@ -4216,7 +4214,6 @@ teachers
 theories
 agencies
 cameras
-cameræ
 camerae
 catches
 cells
@@ -7785,8 +7782,6 @@ tuckers
 vendors
 alignments
 allergics
-apparatûs
-apparatūs
 apparati
 backpacks
 balconies
@@ -8045,7 +8040,6 @@ paynes
 phenomenas
 phenomenae
 pneumonias
-pneumoniæ
 pneumoniae
 policemen
 potents
@@ -8301,7 +8295,6 @@ dietaries
 emissions
 floras
 florae
-floræ
 foldings
 fractures
 gammas
@@ -8384,7 +8377,6 @@ mustards
 neighbours
 personas
 personae
-personæ
 plaques
 preaches
 preachings
@@ -8525,7 +8517,6 @@ mists
 moles
 molecules
 moleculae
-moleculæ
 monarchies
 mormons
 orgasms
@@ -9383,7 +9374,6 @@ monas
 nanas
 nauseas
 nauseae
-nauseæ
 optima
 optimums
 oysters
@@ -9486,7 +9476,6 @@ weaves
 wirings
 anarchies
 aurae
-auræ
 auras
 ballrooms
 beginners
@@ -9511,7 +9500,6 @@ eruptions
 examiners
 faunae
 faunas
-faunæ
 fidelities
 flirts
 fluents
@@ -10551,7 +10539,6 @@ hillsides
 hoverings
 hysterias
 hysteriae
-hysteriæ
 imprints
 infancies
 inhibitors
@@ -10821,7 +10808,6 @@ rolexes
 rubins
 salivas
 salivae
-salivæ
 shortcuts
 skyes
 slammings
@@ -10840,7 +10826,6 @@ webbers
 adherences
 adjectives
 amnesias
-amnesiæ
 ascensions
 aspirins
 bards
@@ -10909,7 +10894,6 @@ slings
 sturgeons
 subpoenas
 subpoenae
-subpoenæ
 syllabi
 syllabuses
 teamings
@@ -11129,7 +11113,6 @@ hamsters
 hookings
 hydras
 hydrae
-hydræ
 indigos
 indigoes
 instructs
@@ -12252,7 +12235,6 @@ absentees
 amins
 anemias
 anemiae
-anemiæ
 bamas
 beggars
 bismarcks
@@ -12295,7 +12277,6 @@ hornes
 hotspots
 inertias
 inertiae
-inertiæ
 ironmen
 ironmans
 lazinesses
@@ -12445,7 +12426,6 @@ chores
 cliques
 corollas
 corollae
-corollæ
 crunchings
 drizzles
 edgings
@@ -12688,7 +12668,6 @@ stampedes
 standoffs
 sugaries
 supernovae
-supernovæ
 supernovas
 synonyms
 tantrums
@@ -12960,7 +12939,6 @@ pells
 pellets
 phobias
 phobiae
-phobiæ
 pinballs
 planters
 plats
@@ -13958,7 +13936,6 @@ headbands
 heretics
 hernias
 herniae
-herniæ
 hummuses
 kingpins
 kiosks
@@ -14171,7 +14148,6 @@ dockers
 dockets
 fascias
 fasciae
-fasciæ
 fizzes
 fondas
 foresters
@@ -15422,7 +15398,6 @@ fintechs
 freebies
 gabies
 gardai
-gardaí
 garibaldis
 garricks
 geezers
@@ -15472,7 +15447,6 @@ salvoes
 simmerings
 spatulas
 spatulae
-spatulæ
 splicings
 stepdads
 surats
@@ -16347,7 +16321,6 @@ onsides
 pampers
 panaceas
 panaceae
-panaceæ
 parcs
 parietals
 paupers
@@ -16828,7 +16801,6 @@ twits
 ventricles
 vulvas
 vulvae
-vulvæ
 waistbands
 warhammers
 wipeouts
@@ -16926,7 +16898,6 @@ teardrops
 thievings
 togas
 togae
-togæ
 toolbars
 trills
 twisties
@@ -18450,7 +18421,6 @@ boli
 bruisers
 bulgers
 bursae
-bursæ
 bustas
 bylaws
 chainings
@@ -18476,7 +18446,6 @@ fanciers
 feedstocks
 fistulas
 fistulae
-fistulæ
 foxtrots
 friths
 frizzies
@@ -19574,7 +19543,6 @@ bringers
 brothas
 caseloads
 cassias
-cassiæ
 chattels
 chorales
 clavicles
@@ -19816,7 +19784,6 @@ teats
 techies
 testas
 testae
-testæ
 tokis
 trops
 trundles
@@ -19894,7 +19861,6 @@ mammograms
 medicos
 medullas
 medullae
-medullæ
 meerkats
 mikados
 minutemen
@@ -20342,7 +20308,6 @@ calyces
 calyxes
 cannulas
 cannulae
-cannulæ
 cartwheels
 cicelies
 citrons
@@ -21154,7 +21119,6 @@ overhands
 ova
 parabolas
 parabolae
-parabolæ
 pavlovas
 petermen
 pistes
@@ -21576,7 +21540,6 @@ abutments
 applejacks
 areolas
 areolae
-areolæ
 armrests
 bagpipes
 barberas
@@ -21904,7 +21867,6 @@ eyeglasses
 fluorites
 footstools
 genae
-genæ
 germanes
 gneisses
 gomers
@@ -22686,7 +22648,6 @@ schemers
 scrapyards
 setas
 setae
-setæ
 sextants
 shoops
 sheep
@@ -23716,7 +23677,6 @@ wellies
 wishers
 wracks
 wursts
-würste
 xylems
 albies
 apatites
@@ -26037,7 +25997,6 @@ chlorates
 clackings
 cogitos
 cursuses
-cursūs
 cursi
 curtsies
 daikons
@@ -26289,7 +26248,6 @@ sarmas
 scalpers
 scleras
 sclerae
-scleræ
 scullions
 seiners
 servals
@@ -26399,7 +26357,6 @@ hokums
 hucksters
 hyperbolas
 hyperbolae
-hyperbolæ
 interwebs
 interwebz
 jadeites
@@ -26495,7 +26452,6 @@ axolotls
 axolots
 ballistas
 ballistae
-ballistæ
 baryons
 bellings
 benihanas
@@ -26544,7 +26500,6 @@ flippies
 folklives
 foveas
 foveae
-foveæ
 fundi
 fursonas
 fursonae

@@ -1352,7 +1352,8 @@ main {
   font-weight: 600;
 }
 .word-report-field select,
-.word-report-field input[type="text"] {
+.word-report-field input[type="text"],
+.word-report-field textarea {
   font: inherit;
   font-weight: 400;
   border: 1px solid var(--line);
@@ -1360,6 +1361,10 @@ main {
   padding: 0.5rem 0.65rem;
   background: #fff;
   color: var(--ink);
+}
+.word-report-field textarea {
+  resize: vertical;
+  min-height: 4.5rem;
 }
 .word-report-choices {
   display: flex;
