@@ -4276,10 +4276,12 @@ a.header-brand-home:focus-visible {
   justify-content: center;
   min-width: 0;
   overflow: hidden;
-  font-size: 0.75rem;
+  padding: 0 4px;
+  font-size: 0.7rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .hydra-stats-total {
