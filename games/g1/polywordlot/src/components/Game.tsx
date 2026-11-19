@@ -100,6 +100,13 @@ function guessWord(g: { word?: string } | string | null | undefined): string {
   return typeof g === 'string' ? g : g?.word || '';
 }
 
+/** On a loss, the answer is listed with the guesses so it can be reported. */
+function questionableWords(guesses: { word?: string }[], lost: boolean, answers: string[]): string[] {
+  const played = guesses.map((guess) => guessWord(guess)).filter(Boolean);
+  if (!lost) return played;
+  return [...answers.filter(Boolean), ...played];
+}
+
 function guessesWithEvaluations(
   guesses: unknown,
   target: string,
@@ -1110,7 +1117,7 @@ export const Game: React.FC<GameProps> = ({
                   onClick={() => openQuestionableWordReport({
                     game: 'polywordlot',
                     language,
-                    words: gameState.guesses.map((guess) => guess.word),
+                    words: questionableWords(gameState.guesses, !gameState.isWon, [targetWord]),
                   })}
                 >
                   <img src="/brand/word-report.png" alt="" />
@@ -1189,7 +1196,7 @@ export const Game: React.FC<GameProps> = ({
                       onClick={() => openQuestionableWordReport({
                         game: 'polywordlot',
                         language,
-                        words: gameState.guesses.map((guess) => guess.word),
+                        words: questionableWords(gameState.guesses, !gameState.isWon, [targetWord]),
                       })}
                     >
                       <img src="/brand/word-report.png" alt="" width={18} height={18} />

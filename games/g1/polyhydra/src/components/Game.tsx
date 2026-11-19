@@ -79,6 +79,13 @@ function usedLetterMap(boardGuesses: string[][], language: string): Map<string, 
   return used;
 }
 
+/** On a loss, unsolved answers are listed with the guesses so they can be reported. */
+function questionableWords(guesses: string[], lost: boolean, answers: string[]): string[] {
+  const played = guesses.filter(Boolean);
+  if (!lost) return played;
+  return [...answers.filter(Boolean), ...played];
+}
+
 function remainingTargets(targets: string[], boardGuesses: string[][], language: string): string[] {
   return targets.filter((target, i) => {
     const guesses = boardGuesses[i] || [];
@@ -1248,7 +1255,11 @@ export const Game: React.FC<GameProps> = ({
                   onClick={() => openQuestionableWordReport({
                     game: 'polyhydra',
                     language,
-                    words: boardGuesses.flat(),
+                    words: questionableWords(
+                      boardGuesses.flat(),
+                      !isWon,
+                      remainingTargets(targets, boardGuesses, language),
+                    ),
                   })}
                 >
                   <img src="/brand/word-report.png" alt="" />
@@ -1303,7 +1314,11 @@ export const Game: React.FC<GameProps> = ({
                       onClick={() => openQuestionableWordReport({
                         game: 'polyhydra',
                         language,
-                        words: boardGuesses.flat(),
+                        words: questionableWords(
+                          boardGuesses.flat(),
+                          !isWon,
+                          remainingTargets(targets, boardGuesses, language),
+                        ),
                       })}
                     >
                       <img src="/brand/word-report.png" alt="" width={18} height={18} />
