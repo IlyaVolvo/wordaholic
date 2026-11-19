@@ -72,17 +72,29 @@ const DEFAULT_ACTIONS = {
 };
 const OP_LABELS = { substitute: 'replaced', insert: 'added', delete: 'removed', anagram: 'anagrammed' };
 
-const DEFAULT_DISPLAY_PREFS = { showTime: true, showOptimal: true, mode: 'daily' };
+const VOCAB_LEVELS = new Set([1, 2, 3]);
+const DIFFICULTY_VALUES = new Set([3, 4, 6]);
+const DEFAULT_DISPLAY_PREFS = {
+  showTime: true,
+  showOptimal: true,
+  mode: 'daily',
+  vocabLevel: 2,
+  difficulty: 4,
+};
 
 /** @type {{ showTime: boolean, showOptimal: boolean }} */
 let displayPrefs = { ...DEFAULT_DISPLAY_PREFS };
 
 function normalizeDisplayPrefs(raw) {
   if (!raw || typeof raw !== 'object') return { ...DEFAULT_DISPLAY_PREFS };
+  const vocabLevel = Number(raw.vocabLevel);
+  const difficulty = Number(raw.difficulty);
   return {
     showTime: raw.showTime !== false,
     showOptimal: raw.showOptimal !== false,
     mode: 'daily',
+    vocabLevel: VOCAB_LEVELS.has(vocabLevel) ? vocabLevel : DEFAULT_DISPLAY_PREFS.vocabLevel,
+    difficulty: DIFFICULTY_VALUES.has(difficulty) ? difficulty : DEFAULT_DISPLAY_PREFS.difficulty,
   };
 }
 
@@ -114,6 +126,20 @@ async function hydrateDisplayPrefs() {
     }
   }
   displayPrefs.mode = 'daily';
+  applyComboPrefs();
+}
+
+function applyComboPrefs() {
+  const level = /** @type {HTMLSelectElement | null} */ ($('#level-select'));
+  const difficulty = /** @type {HTMLSelectElement | null} */ ($('#difficulty'));
+  if (level) level.value = String(displayPrefs.vocabLevel);
+  if (difficulty) difficulty.value = String(displayPrefs.difficulty);
+}
+
+function saveComboPrefs() {
+  displayPrefs.vocabLevel = selectedLevel();
+  displayPrefs.difficulty = selectedDifficulty();
+  saveDisplayPrefs();
 }
 
 function applyDisplayPrefs() {
@@ -149,6 +175,10 @@ function wireDisplayPrefs() {
 let corpusEntries = [];
 let fullGraph = null;
 let puzzleGraph = null;
+/** Canonical word → corpus level. Level 4 is playable but excluded from the auto solution. */
+let wordLevels = new Map();
+const ADVANCED_WORD_TIP =
+  'An advanced word was used. It is not used for the auto solution, so the number of steps can be shorter than optimal.';
 let puzzle = null;
 let chain = [];
 /** Accumulated ms while paused + current segment */
@@ -169,6 +199,8 @@ let helpCount = 0;
 let inDeadend = false;
 /** BFS from the target — `prev` is the next word toward the end. */
 let endBfs = null;
+/** Reachability on the auto-solution dictionary (no advanced words). */
+let solverBfs = null;
 /** Selected daily date (local YYYY-MM-DD) */
 let selectedGameDate = formatLocalDate();
 let calendarMonth = new Date();
@@ -361,14 +393,40 @@ function selectedLevel() {
   return parseInt($('#level-select').value, 10);
 }
 
+/** Highest corpus level the automatic solution may use. Category 4 is never included. */
+function solverCap() {
+  const selected = selectedLevel();
+  if (selected <= 1) return 1;
+  if (selected === 2) return 2;
+  return 3;
+}
+
+function vocabName(level) {
+  if (Number(level) <= 1) return 'Basic';
+  if (Number(level) === 2) return 'Standard';
+  return 'Expert';
+}
+
+/** A played word the auto solution does not use. */
+function isAdvancedWord(word) {
+  const level = wordLevels.get(canonicalWord(word));
+  return level != null && level > solverCap();
+}
+
 function selectedDifficulty() {
   return parseInt($('#difficulty').value, 10);
 }
 
-/** Shortest path in transforms (words − 1), using the same dictionary the player can use. */
+/** Shortest path in transforms (words − 1) on the auto-solution dictionary. */
+function solutionGraph(start, end) {
+  if (puzzleGraph?.has(start) && puzzleGraph?.has(end)) return puzzleGraph;
+  return fullGraph;
+}
+
 function optimalStepCount(start, end, fallback) {
-  if (!fullGraph || !start || !end) return fallback;
-  const result = shortestPath(fullGraph, start, end);
+  const graph = solutionGraph(start, end);
+  if (!graph || !start || !end) return fallback;
+  const result = shortestPath(graph, start, end);
   if (!result) return fallback;
   return result.dist;
 }
@@ -406,6 +464,7 @@ async function purgePracticeState() {
 
 function refreshEndBfs() {
   endBfs = fullGraph && puzzle?.end ? bfs(fullGraph, puzzle.end) : null;
+  solverBfs = puzzleGraph && puzzle?.end ? bfs(puzzleGraph, puzzle.end) : null;
 }
 
 function currentIsDeadend() {
@@ -416,9 +475,9 @@ function currentIsDeadend() {
 }
 
 function nextHelpWord() {
-  if (!puzzle || !endBfs || solved) return null;
+  if (!puzzle || !solverBfs || solved) return null;
   const cur = chain[chain.length - 1];
-  const info = endBfs.get(cur);
+  const info = solverBfs.get(cur);
   if (!info || info.prev == null) return null;
   return info.prev;
 }
@@ -485,7 +544,7 @@ function dailyFields(extra = {}) {
 }
 
 function buildGraphs(entries) {
-  const lvl = selectedLevel();
+  const lvl = solverCap();
   const levels = new Map();
   const spellings = new Map();
   for (const { word, level } of entries) {
@@ -501,6 +560,7 @@ function buildGraphs(entries) {
     }
   }
   spellingsByKey = spellings;
+  wordLevels = levels;
   const allWords = [...levels.keys()];
   const puzzleWords = allWords.filter((word) => levels.get(word) <= lvl);
   fullGraph = new WordGraph(allWords);
@@ -885,6 +945,14 @@ function makeWordNode(word, isStart, isEnd, canUndo, prevWord, isDeadend = false
     });
   } else slot.textContent = shown.join('');
   wrap.appendChild(slot);
+  if (isAdvancedWord(word)) {
+    const star = document.createElement('span');
+    star.className = 'advanced-star';
+    star.textContent = '★';
+    star.title = ADVANCED_WORD_TIP;
+    star.setAttribute('aria-label', ADVANCED_WORD_TIP);
+    wrap.appendChild(star);
+  }
   if (canUndo) {
     const x = document.createElement('button');
     x.className = 'undo-x';
@@ -1253,7 +1321,8 @@ function renderMinimalSolution() {
   const pathEl = $('#win-path');
   if (!box || !pathEl) return;
   pathEl.replaceChildren();
-  const best = puzzle && fullGraph ? shortestPath(fullGraph, puzzle.start, puzzle.end) : null;
+  const graph = puzzle ? solutionGraph(puzzle.start, puzzle.end) : null;
+  const best = puzzle && graph ? shortestPath(graph, puzzle.start, puzzle.end) : null;
   const longer = !!(best && chain.length > best.path.length);
   box.classList.toggle('hidden', !longer);
   if (!longer || !best) return;
@@ -1261,7 +1330,7 @@ function renderMinimalSolution() {
   for (let i = 0; i < best.path.length; i++) {
     const word = best.path[i];
     if (i > 0) {
-      const op = fullGraph.classifyOp(best.path[i - 1], word);
+      const op = graph.classifyOp(best.path[i - 1], word);
       if (op) {
         const badge = document.createElement('span');
         badge.className = `op-inline ${op}`;
@@ -1298,7 +1367,7 @@ function openHistory() {
   const combo = currentCombo();
   const diffLabel =
     combo.difficulty <= 3 ? 'Easy' : combo.difficulty <= 5 ? 'Medium' : 'Hard';
-  const vocabLabel = combo.vocabLevel <= 1 ? 'Basic' : 'Standard';
+  const vocabLabel = vocabName(combo.vocabLevel);
   $('#history-combo-label').textContent = `${vocabLabel} · ${diffLabel}`;
   calendarMonth = calendarMonthForSelection(selectedGameDate);
   overlay.hidden = false;
@@ -1461,6 +1530,7 @@ async function refreshStats() {
 
 async function onComboControlsChanged() {
   if (investigateSpec) return;
+  saveComboPrefs();
   await persistLeavingGame();
   buildGraphs(corpusEntries);
   await beginForCurrentSettings();

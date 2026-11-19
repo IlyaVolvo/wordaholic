@@ -680,6 +680,18 @@ h1 {
   display: inline-block;
 }
 
+.advanced-star {
+  position: absolute;
+  z-index: 2;
+  left: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #f0c050;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: help;
+}
+
 .missing-word-report {
   position: absolute;
   z-index: 3;

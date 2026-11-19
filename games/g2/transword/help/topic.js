@@ -108,7 +108,7 @@ export default {
     {
       image: START,
       click: { x: 11.3, y: 80.7, r: 2.8 },
-      callouts: [{ x: 14.3, y: 80.7, text: 'Basic uses common words; Standard allows more.', place: 'right' }],
+      callouts: [{ x: 14.3, y: 80.7, text: 'Basic, Standard, and Expert set the auto solution. Advanced words can still be played.', place: 'right' }],
     },
     {
       image: DISPLAY,
