@@ -2750,7 +2750,6 @@ aster 83,NOUN
 amide 83,NOUN
 ponté 83,ADJECTIVE
 chiée 82,NOUN,HAS_EXAMPLE
-jaïne 82,ADJECTIVE
 dulie 82,NOUN
 lamer 82,VERB
 baste 82,NOUN
