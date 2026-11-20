@@ -41,6 +41,11 @@ export type Sim = {
   colGen: number[];
   falling: Piece[];
   held: { row: number; col: number } | null;
+  /**
+   * A top letter just dragged over an empty cell. It stays on this row through one fall tick
+   * so a quick move can carry it further. Absent from saved games.
+   */
+  floatHold: { row: number; col: number } | null;
   phase: Phase;
   choice: DecideChoice;
   paused: boolean;
@@ -373,6 +378,7 @@ function stepDown(sim: Sim, piece: Piece): boolean {
 
 function stepPlay(sim: Sim) {
   releaseFloating(sim);
+  sim.floatHold = null;
   const pieces = sim.falling.filter((f) => f.kind === 'play');
   let locked = false;
   for (const piece of pieces) {
@@ -417,6 +423,7 @@ export function createSim(opts: {
     colGen: Array(opts.W).fill(0),
     falling: [],
     held: null,
+    floatHold: null,
     phase: 'ready',
     choice: 'use',
     paused: false,
@@ -515,6 +522,7 @@ export function selectTop(sim: Sim, row: number, col: number): boolean {
 /** A letter with an empty cell under it becomes a falling letter, even when another letter sits further down. */
 function releaseUnsupported(sim: Sim, row: number, col: number, select: boolean): boolean {
   if (row <= 0 || sim.grid[row - 1]?.[col] || overlapsFalling(sim, row, col)) return false;
+  if (sim.floatHold && sim.floatHold.row === row && sim.floatHold.col === col) return false;
   const letter = sim.grid[row]?.[col];
   if (!letter) return false;
   const drop = cellDrop(sim, row, col);
@@ -579,6 +587,11 @@ function shiftHeld(sim: Sim, dir: -1 | 1): boolean {
     bump(sim, held.row, to);
   }
   sim.held = { row: held.row, col: held.col + dir };
+  const parked = sim.held;
+  sim.floatHold =
+    parked.row > 0 && !sim.grid[parked.row - 1]?.[parked.col]
+      ? { row: parked.row, col: parked.col }
+      : null;
   releaseFloating(sim);
   const offer = scanOffer(sim);
   if (offer.length) beginDecide(sim, offer);

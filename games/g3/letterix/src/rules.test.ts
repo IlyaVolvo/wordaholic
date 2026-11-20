@@ -391,18 +391,23 @@ test('a top letter moved over a gap keeps falling until it reaches the letter be
   const score = sim.score;
   assert.equal(selectTop(sim, 3, 0), true);
   assert.equal(tryMove(sim, 1), true);
-  assert.equal(sim.grid[3][1], null);
+  assert.equal(sim.grid[3][1], 'b');
   assert.equal(sim.grid[0][1], 'c');
+  assert.deepEqual(sim.held, { row: 3, col: 1 });
+  tick(sim, pixelInterval(sim.A));
+  assert.equal(sim.grid[3][1], 'b');
+  tick(sim, pixelInterval(sim.A));
+  assert.equal(sim.grid[3][1], null);
   assert.equal(sim.held, null);
   const piece = sim.falling.find((f) => f.letter === 'b');
   assert.ok(piece);
   assert.equal(piece.kind, 'play');
   assert.equal(piece.selected, true);
   assert.equal(piece.col, 1);
-  assert.equal(piece.yPx, 3 * sim.A);
+  assert.equal(piece.yPx, 3 * sim.A - 1);
   assert.equal(dropBlocked(sim), false);
   assert.equal(sim.score, score);
-  tick(sim, pixelInterval(sim.A) * 4);
+  tick(sim, pixelInterval(sim.A) * 3);
   assert.equal(piece.yPx, 3 * sim.A - 4);
   runUntil(sim, pixelInterval(sim.A) * (3 * sim.A + 40));
   assert.equal(sim.grid[1][1], 'b');
@@ -420,12 +425,17 @@ test('removing the top letter lets a letter with a gap below start falling', () 
   assert.equal(selectTop(sim, 4, 0), true);
   assert.equal(tryMove(sim, 1), true);
   const left = sim.falling.find((f) => f.letter === 'b');
-  const moved = sim.falling.find((f) => f.letter === 'c');
   assert.ok(left);
   assert.equal(left.kind, 'play');
   assert.equal(left.col, 0);
   assert.equal(left.yPx, 2 * sim.A);
   assert.equal(left.selected, false);
+  assert.equal(sim.grid[4][1], 'c');
+  assert.deepEqual(sim.held, { row: 4, col: 1 });
+  tick(sim, pixelInterval(sim.A));
+  assert.equal(sim.grid[4][1], 'c');
+  tick(sim, pixelInterval(sim.A));
+  const moved = sim.falling.find((f) => f.letter === 'c');
   assert.ok(moved);
   assert.equal(moved.col, 1);
   assert.equal(moved.selected, true);
@@ -497,6 +507,12 @@ test('a top letter moved over an empty column becomes a falling letter', () => {
   assert.equal(selectTop(sim, 2, 0), true);
   assert.equal(tryMove(sim, 1), true);
   assert.equal(sim.grid[2][0], null);
+  assert.equal(sim.grid[2][1], 'b');
+  assert.deepEqual(sim.held, { row: 2, col: 1 });
+  assert.equal(sim.score, score);
+  tick(sim, pixelInterval(sim.A));
+  assert.equal(sim.grid[2][1], 'b');
+  tick(sim, pixelInterval(sim.A));
   assert.equal(sim.grid[2][1], null);
   assert.equal(sim.held, null);
   const piece = sim.falling.find((f) => f.letter === 'b');
@@ -504,8 +520,7 @@ test('a top letter moved over an empty column becomes a falling letter', () => {
   assert.equal(piece.kind, 'play');
   assert.equal(piece.selected, true);
   assert.equal(piece.col, 1);
-  assert.equal(piece.yPx, 2 * sim.A);
-  assert.equal(sim.score, score);
+  assert.equal(piece.yPx, 2 * sim.A - 1);
   const before = piece.yPx;
   tick(sim, pixelInterval(sim.A) * 2);
   assert.ok(piece.yPx < before);
@@ -531,6 +546,26 @@ test('a pushed top letter falls when its new cell has nothing under it', () => {
   assert.equal(piece?.kind, 'play');
   assert.equal(piece?.selected, false);
   assert.equal(piece?.yPx, sim.A);
+});
+
+test('a quick sideways move carries a top letter across a gap on the same row', () => {
+  const sim = board();
+  sim.phase = 'fall';
+  sim.dict = new Set();
+  sim.spawnWaitPx = 80000;
+  placeFrozen(sim, 0, 0, 'a');
+  placeFrozen(sim, 1, 0, 'b');
+  placeFrozen(sim, 0, 3, 'c');
+  assert.equal(selectTop(sim, 1, 0), true);
+  assert.equal(tryMove(sim, 1), true);
+  assert.equal(tryMove(sim, 1), true);
+  assert.equal(tryMove(sim, 1), true);
+  assert.equal(sim.grid[1][3], 'b');
+  assert.deepEqual(sim.held, { row: 1, col: 3 });
+  assert.equal(sim.falling.some((f) => f.letter === 'b'), false);
+  tick(sim, pixelInterval(sim.A) * 3);
+  assert.equal(sim.grid[1][3], 'b');
+  assert.equal(sim.grid[0][3], 'c');
 });
 
 test('a top letter pushes other top letters in the same row', () => {

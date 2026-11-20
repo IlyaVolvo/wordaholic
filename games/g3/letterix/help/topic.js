@@ -84,7 +84,7 @@ export default {
         {
           x: 60.1,
           y: 75,
-          text: '→ moved E onto the next column. A top letter that ends up over a gap falls.',
+          text: '→ moved E onto the next column. A top letter over a gap stays for one fall tick, so a quick move can carry it across. Then it falls.',
           place: 'top',
         },
       ],
