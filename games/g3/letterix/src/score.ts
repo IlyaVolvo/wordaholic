@@ -1,7 +1,7 @@
 import { PARAMS, speedFactor } from './params.ts';
 
 /** A bonus that stays on one letter until a word containing it is taken. */
-export type LetterBonus = { drop: number };
+export type LetterBonus = { drop: number; missing?: boolean };
 
 /** 1 at the floor. 2 when the drop spans the bucket, from the loss line to the floor. */
 export function dropFactor(rowsTravelled: number, bucketRows: number): number {

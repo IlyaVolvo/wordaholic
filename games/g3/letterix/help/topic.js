@@ -112,6 +112,17 @@ export default {
       ],
     },
     {
+      image: WORD_ACROSS,
+      callouts: [
+        {
+          x: 48.3,
+          y: 80,
+          text: 'Double-click a settled letter to turn it pink. Double-click it again to clear that. Double-click another letter in the same row, with no gap between them, and that word is marked missing: it stays pink and is listed at the end. Double-click any letter in that word to clear it.\nIf a word you take uses one of those letters, the pink word leaves the board and stays on the missing list.\nA top letter still moves when you drag it. Letters it reaches move with it, until a wall or a letter that cannot move.',
+          place: 'top',
+        },
+      ],
+    },
+    {
       image: WORD_DOWN,
       callouts: [{ x: 52.5, y: 70.5, text: 'Down: RAIN, read top to bottom.', place: 'right' }],
     },
@@ -157,6 +168,17 @@ export default {
           y: 23.2,
           text: 'Game over: a column grew past the line at the top of the bucket.',
           place: 'right',
+        },
+      ],
+    },
+    {
+      image: GAMEOVER,
+      callouts: [
+        {
+          x: 11,
+          y: 4,
+          text: 'Report lists the words you marked. Missing and Questionable are separate. A list with nothing in it is not shown. When both have words, two buttons switch between them.',
+          place: 'bottom',
         },
       ],
     },

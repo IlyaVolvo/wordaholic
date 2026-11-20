@@ -3,6 +3,7 @@ import { pickLetter } from './lexicon.ts';
 import { lineGen, matchKey, offeredMatches, type Match, type Suppression } from './matches.ts';
 import { dailySeed, PARAMS, pixelInterval } from './params.ts';
 import { hashSeed, nextUnit } from './rng.ts';
+import { addMark, markedMissingRun, type WordMark } from './marks.ts';
 import { dropFactor, earlyBonus, scoredWord, type LetterBonus } from './score.ts';
 
 export type PieceKind = 'play' | 'settle';
@@ -16,6 +17,8 @@ export type Piece = {
   kind: PieceKind;
   /** Drop coefficient kept with this letter while it is in the air. */
   drop?: number;
+  /** This letter belongs to a word marked missing. */
+  missing?: boolean;
 };
 
 export type Phase = 'ready' | 'fall' | 'decide' | 'settle' | 'over';
@@ -45,6 +48,8 @@ export type Sim = {
   offer: Match[];
   /** Words the player took, in order. Display spelling when the match has one. */
   words: string[];
+  /** Words marked during play for the end-of-game report. */
+  marks: WordMark[];
   suppressed: Suppression[];
   fallAccum: number;
   spawnWaitPx: number;
@@ -84,6 +89,7 @@ export type PersistedSim = {
   decideMsLeft: number;
   offer: Match[];
   words?: string[];
+  marks?: WordMark[];
   suppressed: Suppression[];
   fallAccum: number;
   spawnWaitPx?: number;
@@ -130,9 +136,11 @@ function eraseCell(sim: Sim, row: number, col: number) {
   if (sim.bonus[row]) sim.bonus[row][col] = plainBonus();
 }
 
-function writeCell(sim: Sim, row: number, col: number, letter: string, drop = 1) {
+function writeCell(sim: Sim, row: number, col: number, letter: string, drop = 1, missing = false) {
   sim.grid[row][col] = letter;
-  sim.bonus[row][col] = { drop: drop > 0 ? drop : 1 };
+  const bonus: LetterBonus = { drop: drop > 0 ? drop : 1 };
+  if (missing) bonus.missing = true;
+  sim.bonus[row][col] = bonus;
 }
 
 function bump(sim: Sim, row: number, col: number) {
@@ -190,7 +198,7 @@ function lockPiece(sim: Sim, piece: Piece) {
     sim.missedLock = true;
     return;
   }
-  writeCell(sim, row, piece.col, piece.letter, piece.drop ?? 1);
+  writeCell(sim, row, piece.col, piece.letter, piece.drop ?? 1, Boolean(piece.missing));
   bump(sim, row, piece.col);
   if (piece.selected) {
     const next = sim.falling.find((f) => f.kind === 'play');
@@ -202,10 +210,10 @@ function beginSettle(sim: Sim): boolean {
   const pieces: Piece[] = [];
   const rows = rowsOf(sim);
   for (let c = 0; c < sim.W; c++) {
-    const stack: { r: number; letter: string; drop: number }[] = [];
+    const stack: { r: number; letter: string; drop: number; missing: boolean }[] = [];
     for (let r = 0; r < rows; r++) {
       const letter = sim.grid[r][c];
-      if (letter) stack.push({ r, letter, drop: cellDrop(sim, r, c) });
+      if (letter) stack.push({ r, letter, drop: cellDrop(sim, r, c), missing: Boolean(sim.bonus[r]?.[c]?.missing) });
     }
     let write = 0;
     for (const item of stack) {
@@ -220,6 +228,7 @@ function beginSettle(sim: Sim): boolean {
           selected: false,
           kind: 'settle',
           drop: item.drop,
+          missing: item.missing || undefined,
         });
       }
       write += 1;
@@ -323,6 +332,14 @@ function commitClear(sim: Sim) {
     sim.words.push(takenWord(m));
     for (const cell of m.cells) doomed.add(`${cell.r},${cell.c}`);
   }
+  const fade = new Set<string>();
+  for (const key of doomed) {
+    const [r, c] = key.split(',').map((n) => Number(n));
+    if (!sim.bonus[r]?.[c]?.missing) continue;
+    const run = markedMissingRun(sim.grid, (row, col) => Boolean(sim.bonus[row]?.[col]?.missing), r, c, sim.rtl, sim);
+    if (!run) continue;
+    for (const cell of run.cells) fade.add(`${cell.r},${cell.c}`);
+  }
   sim.score += offerPoints(sim);
   for (const key of doomed) {
     const [r, c] = key.split(',').map((n) => Number(n));
@@ -330,6 +347,12 @@ function commitClear(sim: Sim) {
       eraseCell(sim, r, c);
       bump(sim, r, c);
     }
+  }
+  for (const key of fade) {
+    if (doomed.has(key)) continue;
+    const [r, c] = key.split(',').map((n) => Number(n));
+    const bonus = sim.bonus[r]?.[c];
+    if (bonus) delete bonus.missing;
   }
   sim.offer = [];
   if (sim.held && !sim.grid[sim.held.row]?.[sim.held.col]) sim.held = null;
@@ -400,6 +423,7 @@ export function createSim(opts: {
     decideMsLeft: 0,
     offer: [],
     words: [],
+    marks: [],
     suppressed: [],
     fallAccum: 0,
     spawnWaitPx: 0,
@@ -494,6 +518,7 @@ function releaseUnsupported(sim: Sim, row: number, col: number, select: boolean)
   const letter = sim.grid[row]?.[col];
   if (!letter) return false;
   const drop = cellDrop(sim, row, col);
+  const missing = Boolean(sim.bonus[row]?.[col]?.missing);
   eraseCell(sim, row, col);
   bump(sim, row, col);
   if (select) {
@@ -507,6 +532,7 @@ function releaseUnsupported(sim: Sim, row: number, col: number, select: boolean)
     selected: select,
     kind: 'play',
     drop,
+    missing: missing || undefined,
   });
   return true;
 }
@@ -569,13 +595,14 @@ function dropHeld(sim: Sim) {
     return;
   }
   if (held.row === 0 || sim.grid[held.row - 1]?.[held.col]) return;
+  const missing = Boolean(sim.bonus[held.row]?.[held.col]?.missing);
   eraseCell(sim, held.row, held.col);
   bump(sim, held.row, held.col);
   const landRow = Math.round(landY(sim, held.col) / sim.A);
   const drop = dropFactor(held.row - landRow, sim.H);
   if (landRow < 0 || landRow >= rowsOf(sim)) sim.missedLock = true;
   else {
-    writeCell(sim, landRow, held.col, letter, drop);
+    writeCell(sim, landRow, held.col, letter, drop, missing);
     bump(sim, landRow, held.col);
   }
   sim.held = null;
@@ -748,6 +775,44 @@ export function injectFalling(sim: Sim, letter: string, col: number, yPx: number
   touch(sim);
 }
 
+/** The letters stay pink, and the word is filed as missing. */
+export function commitMissingWord(sim: Sim, word: string, cells: { r: number; c: number }[]) {
+  for (const cell of cells) {
+    const bonus = sim.bonus[cell.r]?.[cell.c];
+    if (bonus) bonus.missing = true;
+  }
+  sim.marks = addMark(sim.marks, word, 'missing', sim.normalize);
+  touch(sim);
+}
+
+/** A double-click inside a missing word clears its pink letters and drops it from the list. */
+export function clearMissingWord(sim: Sim, word: string, cells: { r: number; c: number }[]) {
+  for (const cell of cells) {
+    const bonus = sim.bonus[cell.r]?.[cell.c];
+    if (bonus) delete bonus.missing;
+  }
+  const key = sim.normalize(word);
+  sim.marks = sim.marks.filter((mark) => mark.kind !== 'missing' || sim.normalize(mark.word) !== key);
+  touch(sim);
+}
+
+export function replaceMarks(sim: Sim, marks: WordMark[]) {
+  sim.marks = marks.map((mark) => ({ word: mark.word, kind: mark.kind }));
+  touch(sim);
+}
+
+function importedMarks(data: PersistedSim): WordMark[] {
+  if (!Array.isArray(data.marks)) return [];
+  const kept: WordMark[] = [];
+  for (const mark of data.marks) {
+    const word = String(mark?.word || '').trim();
+    const kind = mark?.kind === 'missing' || mark?.kind === 'questionable' ? mark.kind : null;
+    if (!word || !kind) continue;
+    kept.push({ word, kind });
+  }
+  return kept;
+}
+
 export function attachLexicon(sim: Sim, lex: Lexicon) {
   sim.dict = lex.dict;
   sim.values = lex.values;
@@ -782,6 +847,7 @@ export function exportState(sim: Sim): PersistedSim {
     decideMsLeft: sim.decideMsLeft,
     offer: sim.offer.map((m) => ({ ...m, cells: m.cells.map((c) => ({ ...c })) })),
     words: sim.words.slice(),
+    marks: sim.marks.map((mark) => ({ word: mark.word, kind: mark.kind })),
     suppressed: sim.suppressed.map((s) => ({ ...s })),
     fallAccum: sim.fallAccum,
     spawnWaitPx: sim.spawnWaitPx,
@@ -812,7 +878,11 @@ export function importState(data: PersistedSim, lex: Lexicon = EMPTY_LEX as Lexi
   sim.nextId = data.nextId;
   sim.grid = data.grid.map((row) => row.slice());
   sim.bonus = data.bonus
-    ? data.bonus.map((row) => row.map((cell) => ({ drop: cell?.drop > 0 ? cell.drop : 1 })))
+    ? data.bonus.map((row) => row.map((cell) => {
+        const bonus: LetterBonus = { drop: cell?.drop > 0 ? cell.drop : 1 };
+        if (cell?.missing) bonus.missing = true;
+        return bonus;
+      }))
     : blankBonuses(sim.grid.length, sim.W);
   sim.rowGen = data.rowGen.slice();
   sim.colGen = data.colGen.slice();
@@ -823,6 +893,7 @@ export function importState(data: PersistedSim, lex: Lexicon = EMPTY_LEX as Lexi
   sim.decideMsLeft = data.decideMsLeft;
   sim.offer = data.offer.map((m) => ({ ...m, cells: m.cells.map((c) => ({ ...c })) }));
   sim.words = Array.isArray(data.words) ? data.words.map((word) => String(word)) : [];
+  sim.marks = importedMarks(data);
   sim.suppressed = data.suppressed.map((s) => ({ ...s }));
   sim.fallAccum = data.fallAccum;
   sim.spawnWaitPx = typeof data.spawnWaitPx === 'number' && data.spawnWaitPx > 0 ? data.spawnWaitPx : 0;

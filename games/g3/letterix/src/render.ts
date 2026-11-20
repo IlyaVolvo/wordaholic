@@ -2,7 +2,12 @@ import { dropBlocked, offerPoints, type Sim } from './sim.ts';
 import { PARAMS } from './params.ts';
 import { fieldPixels } from './params.ts';
 
-export function drawField(ctx: CanvasRenderingContext2D, sim: Sim, now: number) {
+export function drawField(
+  ctx: CanvasRenderingContext2D,
+  sim: Sim,
+  now: number,
+  tapped: { r: number; c: number } | null = null,
+) {
   const { width, height, wall } = fieldPixels(sim.W, sim.H, sim.A, sim.E);
   ctx.clearRect(0, 0, width, height);
 
@@ -58,13 +63,14 @@ export function drawField(ctx: CanvasRenderingContext2D, sim: Sim, now: number) 
       const word = wordOn && words.has(key);
       const shown = (words.has(key) && words.get(key)) || letter;
       const blocked = selected && dropBlocked(sim);
-      paintTile(ctx, wall + c * sim.A, floor - (r + 1) * sim.A, sim.A, shown, selected, word, blocked);
+      const pink = Boolean(sim.bonus[r]?.[c]?.missing) || (tapped?.r === r && tapped?.c === c);
+      paintTile(ctx, wall + c * sim.A, floor - (r + 1) * sim.A, sim.A, shown, selected, word, blocked, pink);
     }
   }
 
   for (const piece of sim.falling) {
     const blocked = piece.selected && dropBlocked(sim);
-    paintTile(ctx, wall + piece.col * sim.A, floor - (piece.yPx + sim.A), sim.A, piece.letter, piece.selected, false, blocked);
+    paintTile(ctx, wall + piece.col * sim.A, floor - (piece.yPx + sim.A), sim.A, piece.letter, piece.selected, false, blocked, Boolean(piece.missing));
   }
 
   if (sim.phase === 'decide') {
@@ -88,13 +94,14 @@ function paintTile(
   selected: boolean,
   word: boolean,
   blocked: boolean,
+  pink: boolean,
 ) {
   const pad = Math.max(1, Math.round(A * 0.06));
-  ctx.fillStyle = word ? '#f0c400' : selected ? '#1a5f86' : '#f4f0e6';
+  ctx.fillStyle = word ? '#f0c400' : pink ? '#f7b0c8' : selected ? '#1a5f86' : '#f4f0e6';
   roundRect(ctx, x + pad, y + pad, A - pad * 2, A - pad * 2, Math.max(3, A * 0.12));
   ctx.fill();
-  if (selected || word) {
-    ctx.strokeStyle = word ? '#8a6a00' : '#134864';
+  if (selected || word || pink) {
+    ctx.strokeStyle = word ? '#8a6a00' : pink ? '#a8486a' : '#134864';
     ctx.lineWidth = Math.max(2, A * 0.08);
     ctx.stroke();
   }

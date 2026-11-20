@@ -2,11 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { calendarMonthForSelection } from '../../../../app/daily/variantVisit.js';
 import { mountHeaderChrome } from '../../../../app/play/header-chrome.js';
 import { openHelp } from '@wordaholic/help';
-import { openQuestionableWordReport } from '../../../../app/shell/word-report.js';
+import { openMarkedWordReport } from '../../../../app/shell/word-report.js';
 import helpTopic from '../help/topic.js';
 import { reportStats } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import type { Lexicon } from './lexicon.ts';
+import { contiguousRowWord, markedMissingRun } from './marks.ts';
 import { fitCell, localCalendarDate, PARAMS } from './params.ts';
 import { Calendar } from './Calendar.tsx';
 import { drawField, pointerToCell } from './render.ts';
@@ -16,6 +17,8 @@ import {
   hardDrop,
   moveToColumn,
   offerPoints,
+  clearMissingWord,
+  commitMissingWord,
   pieceAt,
   selectChoice,
   selectPiece,
@@ -130,11 +133,26 @@ export const Game: React.FC<{
   const [pausedRuns, setPausedRuns] = useState<{ language: string; W: number; H: number; runs: { date: string; score: number }[] } | null>(null);
   const [statsLanguage, setStatsLanguage] = useState(language);
   const [statsRows, setStatsRows] = useState<ScoreRecord[]>([]);
+  const [anchor, setAnchor] = useState<{ r: number; c: number } | null>(null);
+  const anchorRef = useRef<{ r: number; c: number } | null>(null);
+  const tapRef = useRef<{
+    row: number;
+    col: number;
+    x: number;
+    y: number;
+    columnUnits: number;
+    yFromFloor: number;
+    top: boolean;
+    moved: boolean;
+  } | null>(null);
 
   useEffect(() => {
     let cancel = false;
     simRef.current = null;
     setHud(null);
+    anchorRef.current = null;
+    tapRef.current = null;
+    setAnchor(null);
     void (async () => {
       const [saved, record] = await Promise.all([
         loadRun(language, W, H, date, lex),
@@ -191,7 +209,7 @@ export const Game: React.FC<{
     const loop = (now: number) => {
       const sim = simRef.current;
       const canvas = canvasRef.current;
-      if (sim && canvas) {
+        if (sim && canvas) {
         tick(sim, now - last);
         last = now;
         const ctx = canvas.getContext('2d');
@@ -212,7 +230,7 @@ export const Game: React.FC<{
           canvas.style.width = `${width}px`;
           canvas.style.height = `${height}px`;
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          drawField(ctx, sim, now);
+          drawField(ctx, sim, now, anchorRef.current);
         }
         const next = readHud(sim);
         const sig = `${next.phase}|${next.paused}|${next.score}|${next.points}|${next.seconds}|${next.column}|${next.letter}|${next.dropBlocked}|${next.choice}|${next.speedPct}`;
@@ -422,28 +440,124 @@ export const Game: React.FC<{
     setHud(readHud(sim));
   }
 
+  function chooseAnchor(cell: { r: number; c: number } | null) {
+    anchorRef.current = cell;
+    setAnchor(cell);
+  }
+
+  function tapSettledLetter(row: number, col: number) {
+    const sim = simRef.current;
+    if (!sim || sim.phase === 'ready' || sim.phase === 'over') return;
+    const letter = sim.grid[row]?.[col];
+    if (!letter) return;
+    if (sim.bonus[row]?.[col]?.missing) {
+      const run = markedMissingRun(sim.grid, (r, c) => Boolean(sim.bonus[r]?.[c]?.missing), row, col, sim.rtl, sim);
+      if (run) {
+        clearMissingWord(sim, run.word, run.cells);
+        chooseAnchor(null);
+        return;
+      }
+    }
+    const current = anchorRef.current;
+    if (current && current.r === row && current.c === col) {
+      chooseAnchor(null);
+      return;
+    }
+    if (current && sim.grid[current.r]?.[current.c]) {
+      const run = contiguousRowWord(sim.grid, { row: current.r, col: current.c }, { row, col }, sim.rtl, sim);
+      if (run) {
+        commitMissingWord(sim, run.word, run.cells);
+        chooseAnchor(null);
+        return;
+      }
+    }
+    chooseAnchor({ r: row, c: col });
+  }
+
+  function beginDrag(sim: Sim, canvas: HTMLCanvasElement, event: React.PointerEvent<HTMLCanvasElement>, pending: NonNullable<typeof tapRef.current>) {
+    const hit = pointerToCell(sim, canvas, event.clientX, event.clientY);
+    const piece = pieceAt(sim, pending.col, pending.yFromFloor);
+    const grabbed = piece ? (selectPiece(sim, piece.id), true) : selectTop(sim, pending.row, pending.col);
+    if (!grabbed) return false;
+    chooseAnchor(null);
+    canvas.dataset.drag = '1';
+    dragRef.current = {
+      yFromFloor: pending.yFromFloor,
+      pieceId: piece?.id ?? null,
+      pieceY: piece?.yPx ?? null,
+      fallenPx: 0,
+      dropped: false,
+      column: piece?.col ?? pending.col,
+      columnUnits: pending.columnUnits,
+    };
+    moveToColumn(sim, pending.col + dragSteps(hit.columnUnits - pending.columnUnits));
+    dropIfSwipedDown(sim, hit.yFromFloor);
+    return true;
+  }
+
+  function openReport() {
+    const sim = simRef.current;
+    const normalize = sim?.normalize ?? ((word: string) => word.toLowerCase());
+    const scored = mergeWords([...(sim?.words ?? []), ...storedWords(scores)], normalize);
+    const questionableMarked = (sim?.marks ?? []).filter((mark) => mark.kind === 'questionable').map((mark) => mark.word);
+    const missing = (sim?.marks ?? []).filter((mark) => mark.kind === 'missing').map((mark) => mark.word);
+    openMarkedWordReport({
+      game: 'letterix',
+      language,
+      questionable: mergeWords([...scored, ...questionableMarked], normalize),
+      questionableChecked: questionableMarked,
+      missing: mergeWords(missing, normalize),
+    });
+  }
+
   function onPointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
     const sim = simRef.current;
     const canvas = canvasRef.current;
     if (!sim || !canvas || sim.paused) return;
     const hit = pointerToCell(sim, canvas, event.clientX, event.clientY);
-    const piece = pieceAt(sim, hit.col, hit.yFromFloor);
-    const grabbed = piece ? (selectPiece(sim, piece.id), true) : selectTop(sim, hit.row, hit.col);
-    if (!grabbed) {
-      dragRef.current = null;
+    const inside =
+      hit.columnUnits >= 0 &&
+      hit.columnUnits < sim.W &&
+      hit.row >= 0 &&
+      hit.row < sim.H + sim.E;
+    const piece = inside ? pieceAt(sim, hit.col, hit.yFromFloor) : null;
+    if (piece) {
+      tapRef.current = null;
+      selectPiece(sim, piece.id);
+      canvas.setPointerCapture(event.pointerId);
+      canvas.dataset.drag = '1';
+      dragRef.current = {
+        yFromFloor: hit.yFromFloor,
+        pieceId: piece.id,
+        pieceY: piece.yPx,
+        fallenPx: 0,
+        dropped: false,
+        column: piece.col,
+        columnUnits: hit.columnUnits,
+      };
       return;
     }
-    canvas.setPointerCapture(event.pointerId);
-    canvas.dataset.drag = '1';
-    dragRef.current = {
-      yFromFloor: hit.yFromFloor,
-      pieceId: piece?.id ?? null,
-      pieceY: piece?.yPx ?? null,
-      fallenPx: 0,
-      dropped: false,
-      column: piece?.col ?? hit.col,
+    dragRef.current = null;
+    const settled = inside && Boolean(sim.grid[hit.row]?.[hit.col]);
+    if (!settled || sim.phase === 'ready' || sim.phase === 'over') return;
+    let top = true;
+    for (let r = sim.grid.length - 1; r >= 0; r--) {
+      if (sim.grid[r][hit.col]) {
+        top = r === hit.row;
+        break;
+      }
+    }
+    tapRef.current = {
+      row: hit.row,
+      col: hit.col,
+      x: event.clientX,
+      y: event.clientY,
       columnUnits: hit.columnUnits,
+      yFromFloor: hit.yFromFloor,
+      top: top && sim.phase === 'fall',
+      moved: false,
     };
+    canvas.setPointerCapture(event.pointerId);
   }
 
   /** Columns the letter should shift so a half-cell of finger travel snaps either way. */
@@ -472,18 +586,31 @@ export const Game: React.FC<{
   function onDoubleClick(event: React.MouseEvent<HTMLCanvasElement>) {
     const sim = simRef.current;
     const canvas = canvasRef.current;
-    if (!sim || !canvas || sim.paused || sim.phase !== 'fall') return;
+    if (!sim || !canvas || sim.paused || sim.phase === 'ready' || sim.phase === 'over') return;
     const hit = pointerToCell(sim, canvas, event.clientX, event.clientY);
     const piece = pieceAt(sim, hit.col, hit.yFromFloor);
-    if (piece) selectPiece(sim, piece.id);
-    else if (!(sim.held && sim.held.row === hit.row && sim.held.col === hit.col) && !selectTop(sim, hit.row, hit.col)) return;
-    hardDrop(sim);
+    if (piece) {
+      if (sim.phase !== 'fall') return;
+      selectPiece(sim, piece.id);
+      hardDrop(sim);
+      return;
+    }
+    tapSettledLetter(hit.row, hit.col);
   }
 
   function onPointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
     const sim = simRef.current;
     const canvas = canvasRef.current;
-    if (!sim || !canvas || canvas.dataset.drag !== '1') return;
+    if (!sim || !canvas) return;
+    const pending = tapRef.current;
+    if (pending && canvas.dataset.drag !== '1') {
+      const travel = Math.hypot(event.clientX - pending.x, event.clientY - pending.y);
+      if (travel < Math.max(8, sim.A * 0.35)) return;
+      pending.moved = true;
+      if (pending.top) beginDrag(sim, canvas, event, pending);
+      return;
+    }
+    if (canvas.dataset.drag !== '1') return;
     const hit = pointerToCell(sim, canvas, event.clientX, event.clientY);
     const drag = dragRef.current;
     if (!drag || drag.dropped) return;
@@ -494,7 +621,9 @@ export const Game: React.FC<{
   function onPointerUp(event: React.PointerEvent<HTMLCanvasElement>) {
     const sim = simRef.current;
     const canvas = canvasRef.current;
-    if (!sim || !canvas || canvas.dataset.drag !== '1') return;
+    if (!sim || !canvas) return;
+    if (tapRef.current) tapRef.current = null;
+    if (canvas.dataset.drag !== '1') return;
     const hit = pointerToCell(sim, canvas, event.clientX, event.clientY);
     const drag = dragRef.current;
     if (drag && !drag.dropped) {
@@ -531,16 +660,12 @@ export const Game: React.FC<{
             </Tip>
             <div className="header-icon-cluster" data-header-chrome="icons">
               {hud?.phase === 'over' ? (
-                <Tip label="Report questionable words">
+                <Tip label="Report words">
                   <button
                     type="button"
                     className="help-trigger help-trigger--game header-report-button"
-                    aria-label="Report questionable words"
-                    onClick={() => openQuestionableWordReport({
-                      game: 'letterix',
-                      language,
-                      words: storedWords(scores),
-                    })}
+                    aria-label="Report words"
+                    onClick={openReport}
                   >
                     <img src="/brand/word-report.png" alt="" />
                   </button>
@@ -579,11 +704,7 @@ export const Game: React.FC<{
                     <button
                       type="button"
                       role="menuitem"
-                      onClick={() => openQuestionableWordReport({
-                        game: 'letterix',
-                        language,
-                        words: storedWords(scores),
-                      })}
+                      onClick={openReport}
                     >
                       <img src="/brand/word-report.png" alt="" width={18} height={18} />
                       <span>Report</span>
@@ -1139,6 +1260,19 @@ function formatDateDisplay(selectedDate: string): string {
   const day = selected.getDate();
   if (selected.getFullYear() === todayDate.getFullYear()) return `${month} ${day}`;
   return `${month} ${day}, ${selected.getFullYear()}`;
+}
+
+function mergeWords(words: string[], normalize: (word: string) => string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of words) {
+    const word = String(raw || '').trim();
+    const key = normalize(word);
+    if (!word || seen.has(key)) continue;
+    seen.add(key);
+    out.push(word);
+  }
+  return out;
 }
 
 function canvasFieldWidth(sim: Sim): number {

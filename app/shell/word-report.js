@@ -412,6 +412,27 @@ function ensureReportStyles() {
       color: #6b7280;
       cursor: default;
     }
+    [data-word-report] .word-report-tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin: 0 0 0.75rem;
+    }
+    [data-word-report] .word-report-tabs[hidden] { display: none; }
+    [data-word-report] .word-report-tabs button {
+      font: inherit;
+      font-weight: 700;
+      border: 1px solid #c4c7ca;
+      background: #fff;
+      color: #14232b;
+      border-radius: 999px;
+      padding: 0.4rem 0.85rem;
+      cursor: pointer;
+    }
+    [data-word-report] .word-report-tabs button.is-active {
+      background: #1a5f86;
+      border-color: transparent;
+      color: #fff;
+    }
     [data-word-report] .word-report-list {
       list-style: none;
       margin: 0;
@@ -670,4 +691,169 @@ export function openQuestionableWordReport(report) {
   });
   document.addEventListener('keydown', onKey);
   document.body.appendChild(host);
+}
+
+const REPORT_TITLES = {
+  questionable: 'Mark Questionable Words',
+  missing: 'Report missing words',
+};
+
+/**
+ * Letterix end-of-game report. A list with no words is omitted.
+ * When both lists have words, two buttons switch between them.
+ * Send reports only the open list.
+ * @param {{
+ *   game: string,
+ *   language: string,
+ *   questionable?: string[],
+ *   questionableChecked?: string[],
+ *   missing?: string[],
+ * }} report
+ */
+export function openMarkedWordReport(report) {
+  ensureReportStyles();
+  document.querySelector('[data-word-report]')?.remove();
+  const questionable = uniqueWords(report.questionable);
+  const missing = uniqueWords(report.missing);
+  const checked = {
+    questionable: new Set(uniqueWords(report.questionableChecked).map((word) => word.toLowerCase())),
+    missing: new Set(missing.map((word) => word.toLowerCase())),
+  };
+  const lists = { questionable, missing };
+  /** @type {('questionable' | 'missing')[]} */
+  const tabs = [];
+  if (questionable.length) tabs.push('questionable');
+  if (missing.length) tabs.push('missing');
+  if (!tabs.length) tabs.push('questionable');
+  let active = tabs[0];
+  const host = document.createElement('div');
+  host.className = 'update-dialog';
+  host.dataset.wordReport = '';
+  host.innerHTML = `
+    <div class="update-dialog-backdrop" data-close></div>
+    <div class="update-dialog-card" role="dialog" aria-modal="true" aria-labelledby="word-report-title">
+      <h2 id="word-report-title"></h2>
+      <div class="word-report-tabs" data-report-tabs ${tabs.length > 1 ? '' : 'hidden'}>
+        <button type="button" data-report-tab="questionable">Questionable</button>
+        <button type="button" data-report-tab="missing">Missing</button>
+      </div>
+      <ul class="word-report-list"></ul>
+      ${commentField(active)}
+      <p class="word-report-error" data-word-report-error hidden></p>
+      <div class="word-report-send-row">
+        ${NAME_INPUT}
+        <button type="button" class="btn primary" data-word-report-send disabled>Send</button>
+      </div>
+    </div>
+  `;
+  const close = () => {
+    document.removeEventListener('keydown', onKey);
+    host.remove();
+  };
+  const onKey = (event) => {
+    if (event.key === 'Escape') close();
+  };
+  host.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (target.closest('[data-close]')) close();
+  });
+  const title = host.querySelector('#word-report-title');
+  const list = host.querySelector('.word-report-list');
+  const commentInput = /** @type {HTMLTextAreaElement | null} */ (host.querySelector('textarea[name="comment"]'));
+  const sendBtn = /** @type {HTMLButtonElement | null} */ (host.querySelector('[data-word-report-send]'));
+  const errorEl = host.querySelector('[data-word-report-error]');
+  const nameInput = /** @type {HTMLInputElement | null} */ (host.querySelector('input[name="name"]'));
+  bindNameField(nameInput);
+  const paint = () => {
+    if (title) title.textContent = REPORT_TITLES[active];
+    if (commentInput) commentInput.placeholder = COMMENT_PROMPT[active] || '';
+    host.querySelectorAll('[data-report-tab]').forEach((button) => {
+      if (!(button instanceof HTMLButtonElement)) return;
+      const on = button.dataset.reportTab === active;
+      button.classList.toggle('is-active', on);
+      button.hidden = !tabs.includes(/** @type {'questionable' | 'missing'} */ (button.dataset.reportTab));
+    });
+    const words = lists[active];
+    if (list) {
+      list.innerHTML = words.length
+        ? words.map((word) => `
+          <li>
+            <label>
+              <input type="checkbox" value="${escapeHtml(word)}" ${checked[active].has(word.toLowerCase()) ? 'checked' : ''} />
+              <span dir="auto">${escapeHtml(word)}</span>
+            </label>
+          </li>
+        `).join('')
+        : '<li>No words in this game.</li>';
+    }
+    refresh();
+  };
+  const refresh = () => {
+    let any = false;
+    host.querySelectorAll('.word-report-list label').forEach((label) => {
+      const box = label.querySelector('input');
+      const marked = box instanceof HTMLInputElement && box.checked;
+      label.classList.toggle('is-marked', marked);
+      if (box instanceof HTMLInputElement) {
+        const key = box.value.toLowerCase();
+        if (marked) checked[active].add(key);
+        else checked[active].delete(key);
+      }
+      if (marked) any = true;
+    });
+    if (sendBtn) sendBtn.disabled = !any;
+  };
+  list?.addEventListener('change', refresh);
+  host.querySelector('[data-report-tabs]')?.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLButtonElement) || !target.dataset.reportTab) return;
+    const next = target.dataset.reportTab === 'missing' ? 'missing' : 'questionable';
+    if (!tabs.includes(next) || next === active) return;
+    active = next;
+    paint();
+  });
+  sendBtn?.addEventListener('click', () => {
+    const picked = [];
+    host.querySelectorAll('.word-report-list input:checked').forEach((box) => {
+      if (box instanceof HTMLInputElement && box.value) picked.push(box.value);
+    });
+    if (!picked.length) return;
+    const name = nameInput?.value.trim().replace(/\s+/g, ' ') || '';
+    const comment = readComment(commentInput?.value);
+    if (comment == null) {
+      if (errorEl) {
+        errorEl.hidden = false;
+        errorEl.textContent = 'Comment is too long';
+      }
+      return;
+    }
+    void postReport(host, {
+      game: report.game,
+      language: report.language,
+      action: active,
+      words: picked.join(', '),
+      name,
+      comment,
+    }, sendBtn, errorEl);
+  });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(host);
+  paint();
+}
+
+/**
+ * @param {string[] | undefined} words
+ */
+function uniqueWords(words) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of words || []) {
+    const word = String(raw || '').trim();
+    const key = word.toLowerCase();
+    if (!word || seen.has(key)) continue;
+    seen.add(key);
+    out.push(word);
+  }
+  return out;
 }

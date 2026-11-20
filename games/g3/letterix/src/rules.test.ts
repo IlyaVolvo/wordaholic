@@ -2,13 +2,19 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { languageHooks, spellInPlace } from '../../../../app/i18n/languages/index.js';
 import { buildLexicon, lettersFromSeed } from './lexicon.ts';
+import { contiguousRowWord, markedMissingRun, swipeRun, toggleMark } from './marks.ts';
 import { offeredMatches } from './matches.ts';
 import { drawField } from './render.ts';
 import { PARAMS, pixelInterval } from './params.ts';
 import { dropFactor, earlyBonus, scoredWord, wordValue } from './score.ts';
 import {
+  clearMissingWord,
+  commitMissingWord,
   createSim,
   confirmChoice,
+  exportState,
+  importState,
+  replaceMarks,
   dropBlocked,
   hardDrop,
   injectFalling,
@@ -709,6 +715,154 @@ test('speed can be set before the game starts', () => {
   const sim = board();
   setSpeedPercent(sim, 250);
   assert.equal(sim.speedPct, 250);
+});
+
+function blankGrid(rows = 8, cols = 6): (string | null)[][] {
+  return Array.from({ length: rows }, () => Array(cols).fill(null));
+}
+
+function writeRow(grid: (string | null)[][], row: number, col: number, word: string) {
+  Array.from(word).forEach((letter, index) => {
+    grid[row][col + index] = letter;
+  });
+}
+
+test('two taps on one row mark the letters between them when nothing is empty', () => {
+  const grid = blankGrid();
+  writeRow(grid, 1, 0, 'stone');
+  const run = contiguousRowWord(grid, { row: 1, col: 0 }, { row: 1, col: 4 }, false);
+  assert.equal(run?.word, 'stone');
+  assert.equal(contiguousRowWord(grid, { row: 1, col: 0 }, { row: 1, col: 0 }, false), null);
+  grid[1][2] = null;
+  assert.equal(contiguousRowWord(grid, { row: 1, col: 0 }, { row: 1, col: 4 }, false), null);
+});
+
+test('a marked missing word stays pink when its top letter is pushed', () => {
+  const sim = board();
+  sim.phase = 'fall';
+  placeFrozen(sim, 0, 0, 's');
+  placeFrozen(sim, 0, 1, 't');
+  placeFrozen(sim, 0, 2, 'o');
+  placeFrozen(sim, 0, 3, 'n');
+  commitMissingWord(sim, 'ston', [
+    { r: 0, c: 0 },
+    { r: 0, c: 1 },
+    { r: 0, c: 2 },
+    { r: 0, c: 3 },
+  ]);
+  assert.equal(selectTop(sim, 0, 0), true);
+  assert.equal(tryMove(sim, 1), true);
+  assert.equal(sim.bonus[0][1]?.missing, true);
+  assert.equal(sim.bonus[0][4]?.missing, true);
+  assert.equal(sim.bonus[0][0]?.missing, undefined);
+  assert.deepEqual(sim.marks, [{ word: 'ston', kind: 'missing' }]);
+});
+
+test('a double-click inside a missing word clears that word and leaves the letter beside it', () => {
+  const sim = board();
+  placeFrozen(sim, 0, 0, 's');
+  placeFrozen(sim, 0, 1, 't');
+  placeFrozen(sim, 0, 2, 'o');
+  placeFrozen(sim, 0, 3, 'n');
+  placeFrozen(sim, 0, 4, 'e');
+  commitMissingWord(sim, 'ston', [
+    { r: 0, c: 0 },
+    { r: 0, c: 1 },
+    { r: 0, c: 2 },
+    { r: 0, c: 3 },
+  ]);
+  const run = markedMissingRun(sim.grid, (r, c) => Boolean(sim.bonus[r]?.[c]?.missing), 0, 2, false, sim);
+  assert.equal(run?.word, 'ston');
+  assert.equal(run?.cells.length, 4);
+  clearMissingWord(sim, run!.word, run!.cells);
+  assert.equal(sim.bonus[0][2]?.missing, undefined);
+  assert.equal(sim.bonus[0][0]?.missing, undefined);
+  assert.equal(sim.grid[0][4], 'e');
+  assert.deepEqual(sim.marks, []);
+});
+
+test('a taken word that uses a pink letter hides that missing word and keeps it in the list', () => {
+  const sim = board();
+  for (const [c, ch] of ['a', 'e', 'b', 'c'].entries()) placeFrozen(sim, 0, c, ch);
+  for (const [r, ch] of ['e', 'n', 'o', 't'].entries()) if (r > 0) placeFrozen(sim, r, 1, ch);
+  commitMissingWord(sim, 'aebc', [
+    { r: 0, c: 0 },
+    { r: 0, c: 1 },
+    { r: 0, c: 2 },
+    { r: 0, c: 3 },
+  ]);
+  const tone = matches(sim).find((match) => match.text === 'tone');
+  assert.ok(tone);
+  sim.offer = [tone!];
+  sim.phase = 'decide';
+  sim.choice = 'use';
+  confirmChoice(sim, false);
+  assert.equal(sim.grid[0][1], null);
+  assert.equal(sim.grid[0][0], 'a');
+  assert.equal(sim.bonus[0][0]?.missing, undefined);
+  assert.equal(sim.bonus[0][2]?.missing, undefined);
+  assert.equal(sim.bonus[0][3]?.missing, undefined);
+  assert.deepEqual(sim.marks, [{ word: 'aebc', kind: 'missing' }]);
+});
+
+test('a left-to-right swipe marks the whole settled row', () => {
+  const grid = blankGrid();
+  writeRow(grid, 1, 0, 'stone');
+  const run = swipeRun(grid, false, { row: 1, col: 0 }, { row: 1, col: 4 });
+  assert.equal(run?.word, 'stone');
+  assert.deepEqual(run?.cells.map((cell) => cell.c), [0, 1, 2, 3, 4]);
+});
+
+test('a swipe against the reading direction marks nothing', () => {
+  const grid = blankGrid();
+  writeRow(grid, 1, 0, 'stone');
+  assert.equal(swipeRun(grid, false, { row: 1, col: 4 }, { row: 1, col: 0 }), null);
+  assert.equal(swipeRun(grid, false, { row: 1, col: 0 }, { row: 1, col: 2 }), null);
+});
+
+test('Hebrew marks a row only from right to left', () => {
+  const grid = blankGrid();
+  writeRow(grid, 2, 1, 'enot');
+  const run = swipeRun(grid, true, { row: 2, col: 4 }, { row: 2, col: 1 });
+  assert.equal(run?.word, 'tone');
+  assert.deepEqual(run?.cells.map((cell) => cell.c), [4, 3, 2, 1]);
+  assert.equal(swipeRun(grid, true, { row: 2, col: 1 }, { row: 2, col: 4 }), null);
+});
+
+test('a downward swipe marks a column from top to bottom', () => {
+  const grid = blankGrid();
+  ['t', 'o', 'n', 'e'].forEach((letter, index) => {
+    grid[4 - index][1] = letter;
+  });
+  const run = swipeRun(grid, false, { row: 4, col: 1 }, { row: 1, col: 1 });
+  assert.equal(run?.word, 'tone');
+  assert.deepEqual(run?.cells.map((cell) => cell.r), [4, 3, 2, 1]);
+  assert.equal(swipeRun(grid, false, { row: 1, col: 1 }, { row: 4, col: 1 }), null);
+});
+
+test('a run shorter than four letters is not a mark', () => {
+  const grid = blankGrid();
+  writeRow(grid, 0, 0, 'cat');
+  assert.equal(swipeRun(grid, false, { row: 0, col: -1 }, { row: 0, col: 3 }), null);
+});
+
+test('marking adds, moves, and removes a word', () => {
+  const added = toggleMark([], 'stone', 'missing');
+  assert.deepEqual(added, [{ word: 'stone', kind: 'missing' }]);
+  const moved = toggleMark(added, 'Stone', 'questionable', (word) => word.toLowerCase());
+  assert.deepEqual(moved, [{ word: 'Stone', kind: 'questionable' }]);
+  assert.deepEqual(toggleMark(moved, 'stone', 'questionable', (word) => word.toLowerCase()), []);
+});
+
+test('marked words survive a saved run', () => {
+  const sim = board();
+  replaceMarks(sim, toggleMark(sim.marks, 'stone', 'missing'));
+  const saved = exportState(sim);
+  const loaded = importState(saved, lex());
+  assert.deepEqual(loaded.marks, [{ word: 'stone', kind: 'missing' }]);
+  const older = exportState(board());
+  delete older.marks;
+  assert.deepEqual(importState(older, lex()).marks, []);
 });
 
 test('pause freezes the clear countdown', () => {
