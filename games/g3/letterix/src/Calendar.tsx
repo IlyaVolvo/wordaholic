@@ -7,7 +7,7 @@ function formatLocalDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-type DayResult = { score: number };
+type DayResult = { score: number; paused?: boolean };
 
 type Day = {
   date: Date;
@@ -95,11 +95,18 @@ export const Calendar: React.FC<{
           if (cell.future || !cell.current) classes.push(cell.future ? 'calendar-day-future calendar-day-hidden' : 'calendar-day-other-month');
           if (cell.today) classes.push('calendar-day-today');
           if (cell.selected) classes.push('calendar-day-selected');
-          if (clickable) classes.push('calendar-day-clickable', cell.result ? 'calendar-day-played' : 'calendar-day-empty');
+          if (clickable) {
+            classes.push('calendar-day-clickable');
+            if (cell.result?.paused) classes.push('calendar-day-paused');
+            else if (cell.result) classes.push('calendar-day-played');
+            else classes.push('calendar-day-empty');
+          }
           const label = clickable
-            ? cell.result
-              ? `${cell.day}, score ${cell.result.score}`
-              : String(cell.day)
+            ? cell.result?.paused
+              ? `${cell.day}, paused, score ${cell.result.score}`
+              : cell.result
+                ? `${cell.day}, score ${cell.result.score}`
+                : String(cell.day)
             : undefined;
           return (
             <div
@@ -120,6 +127,7 @@ export const Calendar: React.FC<{
       </div>
       <div className="calendar-legend">
         <div className="legend-item"><div className="legend-color legend-empty" /><span>Not played</span></div>
+        <div className="legend-item"><div className="legend-color legend-paused" /><span>Paused</span></div>
         <div className="legend-item"><div className="legend-color legend-played" /><span>Score</span></div>
       </div>
     </div>

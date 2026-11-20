@@ -33,6 +33,7 @@ import {
   freshSim,
   GAME_ID,
   listLanguageScores,
+  listVariantRuns,
   listVariantScores,
   loadRun,
   loadScores,
@@ -59,6 +60,10 @@ type Hud = {
 
 function notPlaying(sim: Pick<Sim, 'paused' | 'phase'>): boolean {
   return sim.paused || sim.phase === 'ready' || sim.phase === 'over';
+}
+
+function inProgress(phase: Sim['phase'] | undefined): boolean {
+  return phase === 'fall' || phase === 'decide' || phase === 'settle';
 }
 
 function readHud(sim: Sim): Hud {
@@ -121,7 +126,8 @@ export const Game: React.FC<{
     columnUnits: number;
   } | null>(null);
   const [speedPref, setSpeedPref] = useState(0);
-  const [history, setHistory] = useState<ScoreRecord[]>([]);
+  const [history, setHistory] = useState<{ language: string; W: number; H: number; rows: ScoreRecord[] } | null>(null);
+  const [pausedRuns, setPausedRuns] = useState<{ language: string; W: number; H: number; runs: { date: string; score: number }[] } | null>(null);
   const [statsLanguage, setStatsLanguage] = useState(language);
   const [statsRows, setStatsRows] = useState<ScoreRecord[]>([]);
 
@@ -324,16 +330,27 @@ export const Game: React.FC<{
     };
   }, []);
 
-  const locked = hud?.phase === 'fall' || hud?.phase === 'decide' || hud?.phase === 'settle';
+  const paused = Boolean(hud?.paused);
+  const locked = !paused && inProgress(hud?.phase);
   const playing = Boolean(hud && !notPlaying(hud));
   const dayResults = useMemo(() => {
-    const map = new Map<string, { score: number }>();
-    for (const row of history) {
+    const map = new Map<string, { score: number; paused?: boolean }>();
+    const runs = pausedRuns && pausedRuns.language === language && pausedRuns.W === W && pausedRuns.H === H
+      ? pausedRuns.runs
+      : [];
+    for (const run of runs) map.set(run.date, { score: run.score, paused: true });
+    const sim = simRef.current;
+    if (sim && sim.language === language && sim.W === W && sim.H === H && inProgress(sim.phase)) {
+      const existing = map.get(sim.date);
+      if (!existing || existing.paused) map.set(sim.date, { score: sim.score, paused: true });
+    }
+    const rows = history && history.language === language && history.W === W && history.H === H ? history.rows : [];
+    for (const row of rows) {
       const score = storedScore(row);
       if (score != null) map.set(row.game_date, { score });
     }
     return map;
-  }, [history]);
+  }, [pausedRuns, history, hud, language, W, H]);
   const statTable = useMemo(() => buildStatTable(statsRows, localCalendarDate()), [statsRows]);
   const statWidths = useMemo(() => axisValues(PARAMS.Wmin, PARAMS.Wmax), []);
   const statHeights = useMemo(() => axisValues(PARAMS.Hmin, PARAMS.Hmax), []);
@@ -341,8 +358,10 @@ export const Game: React.FC<{
   useEffect(() => {
     if (!showCalendar) return;
     let cancel = false;
-    void listVariantScores(language, W, H).then((rows) => {
-      if (!cancel) setHistory(rows);
+    void Promise.all([listVariantScores(language, W, H), listVariantRuns(language, W, H)]).then(([rows, runs]) => {
+      if (cancel) return;
+      setHistory({ language, W, H, rows });
+      setPausedRuns({ language, W, H, runs });
     });
     return () => {
       cancel = true;
@@ -372,13 +391,29 @@ export const Game: React.FC<{
     else if (sim.phase !== 'ready') hardDrop(sim);
   }
 
+  async function persistInProgress() {
+    const sim = simRef.current;
+    if (!sim || !inProgress(sim.phase)) return;
+    await saveRun(sim);
+  }
+
   function pickDate(next: string) {
     if (locked) return;
     if (!next || next > localCalendarDate()) return;
-    const sim = simRef.current;
-    if (sim && sim.date !== next && sim.phase !== 'ready') void saveRun(sim);
-    setDate(next);
-    setShowCalendar(false);
+    void (async () => {
+      const sim = simRef.current;
+      if (sim && sim.date !== next) await persistInProgress();
+      setDate(next);
+      setShowCalendar(false);
+    })();
+  }
+
+  function switchLanguage(code: string) {
+    if (code === language || locked) return;
+    void (async () => {
+      await persistInProgress();
+      onLanguageChange(code);
+    })();
   }
 
   function begin(sim: Sim) {
@@ -668,12 +703,7 @@ export const Game: React.FC<{
                             </>
                           ),
                         }))}
-                        onPick={(code) => {
-                          if (code === language) return;
-                          const sim = simRef.current;
-                          if (sim && sim.phase !== 'ready') void saveRun(sim);
-                          onLanguageChange(code);
-                        }}
+                        onPick={switchLanguage}
                       />
                     </div>
                     <div data-header-def="other">
@@ -719,12 +749,7 @@ export const Game: React.FC<{
                           </>
                         ),
                       }))}
-                      onPick={(code) => {
-                        if (code === language) return;
-                        const sim = simRef.current;
-                        if (sim && sim.phase !== 'ready') void saveRun(sim);
-                        onLanguageChange(code);
-                      }}
+                      onPick={switchLanguage}
                     />
                   </Tip>
                 </div>
@@ -958,12 +983,16 @@ export const Game: React.FC<{
   );
 
   function setSize(axis: 'W' | 'H', value: number) {
-    if (!Number.isFinite(value)) return;
-    if (axis === 'W') {
-      setW(Math.max(PARAMS.Wmin, Math.min(PARAMS.Wmax, Math.round(value))));
-    } else {
-      setH(Math.max(PARAMS.Hmin, Math.min(PARAMS.Hmax, Math.round(value))));
-    }
+    if (!Number.isFinite(value) || locked) return;
+    const next = axis === 'W'
+      ? Math.max(PARAMS.Wmin, Math.min(PARAMS.Wmax, Math.round(value)))
+      : Math.max(PARAMS.Hmin, Math.min(PARAMS.Hmax, Math.round(value)));
+    if ((axis === 'W' ? W : H) === next) return;
+    void (async () => {
+      await persistInProgress();
+      if (axis === 'W') setW(next);
+      else setH(next);
+    })();
   }
 
   function chooseSpeed(pct: number) {

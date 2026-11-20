@@ -61,6 +61,25 @@ export async function saveRun(sim: Sim) {
   await storage.setGameState(GAME_ID, `run:${variantKey(sim.language, sim.W, sim.H, sim.date)}`, exportState(sim));
 }
 
+export type PausedRun = { date: string; score: number };
+
+const IN_PROGRESS = new Set(['fall', 'decide', 'settle']);
+
+/** In-progress runs for one language and size. Finished (`over`) runs are omitted. */
+export async function listVariantRuns(language: string, W: number, H: number): Promise<PausedRun[]> {
+  const rows = (await storage.listGameStates(GAME_ID)) as { key: string; value: PersistedSim | null }[];
+  const kept: PausedRun[] = [];
+  for (const row of rows) {
+    if (!String(row.key).includes(':run:')) continue;
+    const value = row.value;
+    if (!value || !IN_PROGRESS.has(value.phase)) continue;
+    if (value.language !== language || Number(value.W) !== W || Number(value.H) !== H || !value.date) continue;
+    const score = Number(value.score);
+    kept.push({ date: value.date, score: Number.isFinite(score) ? score : 0 });
+  }
+  return kept;
+}
+
 export async function listVariantScores(language: string, W: number, H: number): Promise<ScoreRecord[]> {
   const rows = await listLanguageScores(language);
   return rows
