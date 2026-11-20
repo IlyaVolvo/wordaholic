@@ -8,8 +8,10 @@ export type Lexicon = {
   values: Record<string, number>;
   table: LetterRow[];
   total: number;
-  /** Folds a board word before the dictionary lookup. Letter draws use base letters. */
+  /** Folds a board word before the dictionary lookup. A one-letter fold is what falls. */
   normalize: (word: string) => string;
+  /** The one corpus spelling of a normalized word, or null when more than one spelling shares it. */
+  written: (word: string) => string | null;
   /** A board word (reading order) as the language writes it in place, e.g. a Hebrew final letter at the end. */
   spell: (word: string) => string;
   /** Horizontal words read right to left. */
@@ -32,19 +34,30 @@ export function buildLexicon(
   options: LexiconOptions = {},
 ): Lexicon {
   const baseLetter = options.baseLetter ?? ((letter: string) => letter);
+  const fallingLetter = (ch: string) => {
+    const base = baseLetter(ch);
+    const folded = Array.from(normalize(base));
+    return folded.length === 1 ? folded[0] : base;
+  };
   const dict = new Set<string>();
   const freq = new Map<string, number>();
+  const spellings = new Map<string, Set<string>>();
   const take = (raw: string, count: boolean) => {
     const surface = Array.from(String(raw || '').trim().toLowerCase()).join('');
     if (!surface) return;
     if (count) {
       for (const ch of surface) {
-        const drawn = baseLetter(ch);
+        const drawn = fallingLetter(ch);
         freq.set(drawn, (freq.get(drawn) || 0) + 1);
       }
     }
     const word = Array.from(normalize(surface)).join('');
-    if (Array.from(surface).length >= PARAMS.Nmin && word) dict.add(word);
+    if (Array.from(surface).length >= PARAMS.Nmin && word) {
+      dict.add(word);
+      const known = spellings.get(word) ?? new Set<string>();
+      known.add(surface);
+      spellings.set(word, known);
+    }
   };
   for (const raw of words) take(raw, true);
   for (const raw of options.extraWords || []) take(raw, false);
@@ -78,6 +91,11 @@ export function buildLexicon(
     table,
     total: cum,
     normalize,
+    written(word: string) {
+      const known = spellings.get(word);
+      if (!known || known.size !== 1) return null;
+      return [...known][0];
+    },
     spell: options.spell ?? ((word: string) => word),
     rtl: Boolean(options.rtl),
   };

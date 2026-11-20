@@ -1,0 +1,515 @@
+{
+  "game": "letterix",
+  "languages": {
+    "en": {
+      "language": "English",
+      "code": "en",
+      "source": "games/g3/data/languages/English/corpus.txt",
+      "words": 31494,
+      "letters": 223930,
+      "distinct": 26,
+      "byFrequency": [
+        {
+          "letter": "e",
+          "count": 27573,
+          "share": 12.31,
+          "value": 1
+        },
+        {
+          "letter": "a",
+          "count": 18834,
+          "share": 8.41,
+          "value": 3.9
+        },
+        {
+          "letter": "r",
+          "count": 16921,
+          "share": 7.56,
+          "value": 4.5
+        },
+        {
+          "letter": "i",
+          "count": 16398,
+          "share": 7.32,
+          "value": 4.7
+        },
+        {
+          "letter": "t",
+          "count": 14946,
+          "share": 6.67,
+          "value": 5.2
+        },
+        {
+          "letter": "o",
+          "count": 14389,
+          "share": 6.43,
+          "value": 5.4
+        },
+        {
+          "letter": "s",
+          "count": 13737,
+          "share": 6.13,
+          "value": 5.6
+        },
+        {
+          "letter": "n",
+          "count": 13457,
+          "share": 6.01,
+          "value": 5.7
+        },
+        {
+          "letter": "l",
+          "count": 12882,
+          "share": 5.75,
+          "value": 5.9
+        },
+        {
+          "letter": "d",
+          "count": 10516,
+          "share": 4.7,
+          "value": 6.7
+        },
+        {
+          "letter": "c",
+          "count": 9445,
+          "share": 4.22,
+          "value": 7
+        },
+        {
+          "letter": "u",
+          "count": 8331,
+          "share": 3.72,
+          "value": 7.4
+        },
+        {
+          "letter": "p",
+          "count": 6737,
+          "share": 3.01,
+          "value": 7.9
+        },
+        {
+          "letter": "m",
+          "count": 6616,
+          "share": 2.95,
+          "value": 7.9
+        },
+        {
+          "letter": "h",
+          "count": 5525,
+          "share": 2.47,
+          "value": 8.3
+        },
+        {
+          "letter": "g",
+          "count": 4857,
+          "share": 2.17,
+          "value": 8.5
+        },
+        {
+          "letter": "b",
+          "count": 4792,
+          "share": 2.14,
+          "value": 8.6
+        },
+        {
+          "letter": "y",
+          "count": 4612,
+          "share": 2.06,
+          "value": 8.6
+        },
+        {
+          "letter": "f",
+          "count": 3539,
+          "share": 1.58,
+          "value": 9
+        },
+        {
+          "letter": "v",
+          "count": 2508,
+          "share": 1.12,
+          "value": 9.3
+        },
+        {
+          "letter": "k",
+          "count": 2483,
+          "share": 1.11,
+          "value": 9.3
+        },
+        {
+          "letter": "w",
+          "count": 2451,
+          "share": 1.09,
+          "value": 9.3
+        },
+        {
+          "letter": "x",
+          "count": 767,
+          "share": 0.34,
+          "value": 9.9
+        },
+        {
+          "letter": "z",
+          "count": 718,
+          "share": 0.32,
+          "value": 9.9
+        },
+        {
+          "letter": "j",
+          "count": 476,
+          "share": 0.21,
+          "value": 10
+        },
+        {
+          "letter": "q",
+          "count": 420,
+          "share": 0.19,
+          "value": 10
+        }
+      ]
+    },
+    "ru": {
+      "language": "Russian",
+      "code": "ru",
+      "source": "games/g3/data/languages/Russian/corpus.txt",
+      "words": 8532,
+      "letters": 49396,
+      "distinct": 32,
+      "byFrequency": [
+        {
+          "letter": "а",
+          "count": 5982,
+          "share": 12.11,
+          "value": 1
+        },
+        {
+          "letter": "о",
+          "count": 4220,
+          "share": 8.54,
+          "value": 3.7
+        },
+        {
+          "letter": "к",
+          "count": 3426,
+          "share": 6.94,
+          "value": 4.9
+        },
+        {
+          "letter": "р",
+          "count": 3377,
+          "share": 6.84,
+          "value": 4.9
+        },
+        {
+          "letter": "е",
+          "count": 3334,
+          "share": 6.75,
+          "value": 5
+        },
+        {
+          "letter": "и",
+          "count": 2910,
+          "share": 5.89,
+          "value": 5.6
+        },
+        {
+          "letter": "т",
+          "count": 2706,
+          "share": 5.48,
+          "value": 5.9
+        },
+        {
+          "letter": "н",
+          "count": 2540,
+          "share": 5.14,
+          "value": 6.2
+        },
+        {
+          "letter": "л",
+          "count": 2380,
+          "share": 4.82,
+          "value": 6.4
+        },
+        {
+          "letter": "с",
+          "count": 2212,
+          "share": 4.48,
+          "value": 6.7
+        },
+        {
+          "letter": "п",
+          "count": 1724,
+          "share": 3.49,
+          "value": 7.4
+        },
+        {
+          "letter": "у",
+          "count": 1532,
+          "share": 3.1,
+          "value": 7.7
+        },
+        {
+          "letter": "д",
+          "count": 1400,
+          "share": 2.83,
+          "value": 7.9
+        },
+        {
+          "letter": "м",
+          "count": 1370,
+          "share": 2.77,
+          "value": 8
+        },
+        {
+          "letter": "в",
+          "count": 1305,
+          "share": 2.64,
+          "value": 8.1
+        },
+        {
+          "letter": "б",
+          "count": 1167,
+          "share": 2.36,
+          "value": 8.3
+        },
+        {
+          "letter": "г",
+          "count": 949,
+          "share": 1.92,
+          "value": 8.6
+        },
+        {
+          "letter": "з",
+          "count": 907,
+          "share": 1.84,
+          "value": 8.7
+        },
+        {
+          "letter": "ь",
+          "count": 896,
+          "share": 1.81,
+          "value": 8.7
+        },
+        {
+          "letter": "я",
+          "count": 775,
+          "share": 1.57,
+          "value": 8.9
+        },
+        {
+          "letter": "ч",
+          "count": 638,
+          "share": 1.29,
+          "value": 9.1
+        },
+        {
+          "letter": "ш",
+          "count": 622,
+          "share": 1.26,
+          "value": 9.1
+        },
+        {
+          "letter": "ы",
+          "count": 480,
+          "share": 0.97,
+          "value": 9.3
+        },
+        {
+          "letter": "х",
+          "count": 460,
+          "share": 0.93,
+          "value": 9.3
+        },
+        {
+          "letter": "ц",
+          "count": 437,
+          "share": 0.88,
+          "value": 9.4
+        },
+        {
+          "letter": "ф",
+          "count": 413,
+          "share": 0.84,
+          "value": 9.4
+        },
+        {
+          "letter": "ж",
+          "count": 409,
+          "share": 0.83,
+          "value": 9.4
+        },
+        {
+          "letter": "й",
+          "count": 349,
+          "share": 0.71,
+          "value": 9.5
+        },
+        {
+          "letter": "ю",
+          "count": 199,
+          "share": 0.4,
+          "value": 9.7
+        },
+        {
+          "letter": "щ",
+          "count": 151,
+          "share": 0.31,
+          "value": 9.8
+        },
+        {
+          "letter": "э",
+          "count": 107,
+          "share": 0.22,
+          "value": 9.9
+        },
+        {
+          "letter": "ъ",
+          "count": 19,
+          "share": 0.04,
+          "value": 10
+        }
+      ]
+    },
+    "he": {
+      "language": "Hebrew",
+      "code": "he",
+      "source": "games/g3/data/languages/Hebrew/corpus.txt",
+      "words": 16693,
+      "letters": 91593,
+      "distinct": 22,
+      "byFrequency": [
+        {
+          "letter": "י",
+          "count": 13664,
+          "share": 14.92,
+          "value": 1
+        },
+        {
+          "letter": "ו",
+          "count": 11283,
+          "share": 12.32,
+          "value": 2.7
+        },
+        {
+          "letter": "מ",
+          "count": 8674,
+          "share": 9.47,
+          "value": 4.6
+        },
+        {
+          "letter": "ת",
+          "count": 6517,
+          "share": 7.12,
+          "value": 6.2
+        },
+        {
+          "letter": "ר",
+          "count": 5699,
+          "share": 6.22,
+          "value": 6.7
+        },
+        {
+          "letter": "נ",
+          "count": 4994,
+          "share": 5.45,
+          "value": 7.2
+        },
+        {
+          "letter": "ה",
+          "count": 4190,
+          "share": 4.57,
+          "value": 7.8
+        },
+        {
+          "letter": "ל",
+          "count": 4004,
+          "share": 4.37,
+          "value": 8
+        },
+        {
+          "letter": "א",
+          "count": 3078,
+          "share": 3.36,
+          "value": 8.6
+        },
+        {
+          "letter": "פ",
+          "count": 3038,
+          "share": 3.32,
+          "value": 8.7
+        },
+        {
+          "letter": "ב",
+          "count": 3010,
+          "share": 3.29,
+          "value": 8.7
+        },
+        {
+          "letter": "ק",
+          "count": 2834,
+          "share": 3.09,
+          "value": 8.8
+        },
+        {
+          "letter": "ש",
+          "count": 2699,
+          "share": 2.95,
+          "value": 8.9
+        },
+        {
+          "letter": "ט",
+          "count": 2471,
+          "share": 2.7,
+          "value": 9.1
+        },
+        {
+          "letter": "ס",
+          "count": 2415,
+          "share": 2.64,
+          "value": 9.1
+        },
+        {
+          "letter": "ד",
+          "count": 2389,
+          "share": 2.61,
+          "value": 9.1
+        },
+        {
+          "letter": "ח",
+          "count": 2357,
+          "share": 2.57,
+          "value": 9.1
+        },
+        {
+          "letter": "ע",
+          "count": 1931,
+          "share": 2.11,
+          "value": 9.5
+        },
+        {
+          "letter": "ג",
+          "count": 1886,
+          "share": 2.06,
+          "value": 9.5
+        },
+        {
+          "letter": "כ",
+          "count": 1826,
+          "share": 1.99,
+          "value": 9.5
+        },
+        {
+          "letter": "צ",
+          "count": 1459,
+          "share": 1.59,
+          "value": 9.8
+        },
+        {
+          "letter": "ז",
+          "count": 1175,
+          "share": 1.28,
+          "value": 10
+        }
+      ]
+    }
+  }
+}

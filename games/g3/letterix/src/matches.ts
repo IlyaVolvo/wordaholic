@@ -14,7 +14,7 @@ export type Match = {
   value: number;
   /** In reading order, so the last cell is the end of the word. */
   cells: { r: number; c: number }[];
-  /** The word as the language writes it when that differs from the board letters, e.g. a Hebrew final form at the end. */
+  /** The word as the language writes it when that differs from the board letters, e.g. ё or a Hebrew final form. */
   display?: string;
 };
 
@@ -22,6 +22,8 @@ type Cell = { r: number; c: number };
 
 export type MatchOptions = {
   normalize?: (word: string) => string;
+  /** Corpus spelling of the normalized word, when exactly one exists. */
+  written?: (word: string) => string | null;
   spell?: (word: string) => string;
   rtl?: boolean;
 };
@@ -50,6 +52,7 @@ function scanLine(
   dict: Set<string>,
   values: Record<string, number>,
   normalize: (word: string) => string,
+  written: ((word: string) => string | null) | undefined,
   spell: ((word: string) => string) | undefined,
   found: Match[],
 ) {
@@ -76,7 +79,9 @@ function scanLine(
         const end = seg + b;
         const cells: Cell[] = [];
         for (let k = start; k < end; k++) cells.push(cellAt(k));
-        const spelled = spell?.(sub);
+        const corpus = written?.(folded);
+        const restored = corpus && Array.from(corpus).length === b - a ? corpus : sub;
+        const spelled = spell?.(restored) ?? restored;
         const match: Match = {
           dir,
           line,
@@ -86,7 +91,7 @@ function scanLine(
           value: wordValue(sub, values),
           cells,
         };
-        if (spelled && spelled !== sub && Array.from(spelled).length === b - a) match.display = spelled;
+        if (spelled !== sub && Array.from(spelled).length === b - a) match.display = spelled;
         found.push(match);
       }
     }
@@ -106,10 +111,10 @@ export function findMatches(
   const found: Match[] = [];
   for (let r = 0; r < rows; r++) {
     const cellAt = options.rtl ? (i: number) => ({ r, c: W - 1 - i }) : (i: number) => ({ r, c: i });
-    scanLine('h', r, W, cellAt, grid, dict, values, normalize, options.spell, found);
+    scanLine('h', r, W, cellAt, grid, dict, values, normalize, options.written, options.spell, found);
   }
   for (let c = 0; c < W; c++) {
-    scanLine('v', c, rows, (i) => ({ r: rows - 1 - i, c }), grid, dict, values, normalize, options.spell, found);
+    scanLine('v', c, rows, (i) => ({ r: rows - 1 - i, c }), grid, dict, values, normalize, options.written, options.spell, found);
   }
   return found.filter(
     (m) =>
@@ -133,12 +138,12 @@ export function offeredMatches(
   grid: (string | null)[][],
   W: number,
   rows: number,
-  lex: Pick<Lexicon, 'dict' | 'values' | 'normalize'> & Partial<Pick<Lexicon, 'spell' | 'rtl'>>,
+  lex: Pick<Lexicon, 'dict' | 'values' | 'normalize'> & Partial<Pick<Lexicon, 'spell' | 'written' | 'rtl'>>,
   suppressed: Suppression[],
   rowGen: number[],
   colGen: number[],
 ): Match[] {
-  const options = { normalize: lex.normalize, spell: lex.spell, rtl: lex.rtl };
+  const options = { normalize: lex.normalize, written: lex.written, spell: lex.spell, rtl: lex.rtl };
   return findMatches(grid, W, rows, lex.dict, lex.values, options).filter((m) => {
     const gen = lineGen(m.dir, m.line, rowGen, colGen);
     const key = matchKey(m);

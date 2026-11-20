@@ -74,6 +74,7 @@ function syncStatic(reason) {
     skipNames: ['.DS_Store', 'master.json'],
   });
   copyGames(writeGamesLayout());
+  copyDir(path.join(ROOT, 'games', 'public'), path.join(DIST, 'games', 'public'));
   embedAdminPassword(path.join(DIST, 'games', gameGroup('transword'), 'transword/admin'));
   ensureDir(path.join(DIST, 'data'));
   fs.writeFileSync(

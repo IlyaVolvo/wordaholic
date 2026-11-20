@@ -169,6 +169,8 @@ function main() {
   }
   embedAdminPassword(path.join(DIST, 'games', gameGroup('transword'), 'transword/admin'));
   copyGameRegistrations(groups);
+  const gamesPublic = path.join(ROOT, 'games', 'public');
+  if (fs.existsSync(gamesPublic)) copyDir(gamesPublic, path.join(DIST, 'games', 'public'));
 
   const catalog = buildLanguagesCatalog();
   ensureDir(path.join(DIST, 'data'));

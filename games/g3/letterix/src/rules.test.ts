@@ -40,6 +40,19 @@ function matches(sim: Sim) {
   return offeredMatches(sim.grid, sim.W, sim.H + sim.E, sim, sim.suppressed, sim.rowGen, sim.colGen);
 }
 
+function paintSink(painted: string[]): CanvasRenderingContext2D {
+  const sink = new Proxy({} as CanvasRenderingContext2D, {
+    get(_target, prop) {
+      if (prop === 'fillText') return (text: string) => painted.push(text);
+      return () => {};
+    },
+    set() {
+      return true;
+    },
+  });
+  return sink;
+}
+
 function makeTestDrop(): Sim {
   const sim = board();
   sim.dict = new Set(['test']);
@@ -129,22 +142,64 @@ test('letter values reverse frequency into 1..Vmax', () => {
   assert.equal(buildLexicon(['qqqq'], (w) => w).values.q, 1);
 });
 
-test('a folded letter keeps its own frequency and still matches', () => {
+test('a folded letter falls as its canonical letter and the removed word shows the real spelling', () => {
   const fold = (word: string) => word.replaceAll('ё', 'е');
-  const dictionary = buildLexicon(['ёлка', 'ель', 'ель'], fold);
+  const dictionary = buildLexicon(['ёлка', 'ель', 'ель'], fold, { extraWords: ['берёза'] });
   const freq = Object.fromEntries(dictionary.table.map((row) => [row.letter, row.freq]));
-  assert.equal(freq['ё'], 1);
-  assert.equal(freq['е'], 2);
-  assert.notEqual(dictionary.values['ё'], dictionary.values['е']);
+  assert.equal(freq['ё'], undefined);
+  assert.equal(freq['е'], 3);
+  assert.equal(dictionary.values['ё'], undefined);
   assert.equal(dictionary.dict.has('елка'), true);
   assert.equal(dictionary.dict.has('ёлка'), false);
+  assert.equal(dictionary.written('елка'), 'ёлка');
+  assert.equal(dictionary.written('береза'), 'берёза');
+  assert.equal(lettersFromSeed('yo|8|16', dictionary, 200).includes('ё'), false);
+
   const sim = createSim({ W: 4, H: 10, language: 'ru', date: '2026-10-03', lex: dictionary, A: 28 });
-  placeFrozen(sim, 9, 0, 'ё');
-  placeFrozen(sim, 8, 0, 'л');
-  placeFrozen(sim, 7, 0, 'к');
-  placeFrozen(sim, 6, 0, 'а');
-  assert.ok(matches(sim).some((m) => m.text === 'ёлка'));
-  assert.equal(wordValue('ёлка', dictionary.values) !== wordValue('елка', dictionary.values), true);
+  for (const [i, ch] of ['е', 'л', 'к', 'а'].entries()) placeFrozen(sim, 0, i, ch);
+  const found = matches(sim);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].text, 'елка');
+  assert.equal(found[0].display, 'ёлка');
+  assert.equal(found[0].value, wordValue('елка', dictionary.values));
+
+  sim.phase = 'decide';
+  sim.offer = found;
+  const painted: string[] = [];
+  drawField(paintSink(painted), sim, 0);
+  assert.ok(painted.includes('Ё'));
+  assert.equal(painted.includes('Е'), false);
+
+  confirmChoice(sim, false);
+  assert.deepEqual(sim.words, ['ёлка']);
+  assert.equal(sim.grid[0][0], null);
+});
+
+test('two corpus spellings of one folded word leave the board letter in place', () => {
+  const fold = (word: string) => word.replaceAll('ё', 'е');
+  const dictionary = buildLexicon(['ёлка', 'елка'], fold);
+  assert.equal(dictionary.written('елка'), null);
+  const sim = createSim({ W: 4, H: 10, language: 'ru', date: '2026-10-03', lex: dictionary, A: 28 });
+  for (const [i, ch] of ['е', 'л', 'к', 'а'].entries()) placeFrozen(sim, 0, i, ch);
+  const found = matches(sim);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].text, 'елка');
+  assert.equal(found[0].display, undefined);
+});
+
+test('a letter that folds into more than one character still falls', () => {
+  const fold = (word: string) => word.replaceAll('ß', 'ss');
+  const dictionary = buildLexicon(['straße'], fold);
+  const freq = Object.fromEntries(dictionary.table.map((row) => [row.letter, row.freq]));
+  assert.equal(freq['ß'], 1);
+  assert.equal(freq['s'], 1);
+  assert.equal(dictionary.dict.has('strasse'), true);
+  const sim = createSim({ W: 6, H: 10, language: 'de', date: '2026-10-03', lex: dictionary, A: 28 });
+  for (const [i, ch] of ['s', 't', 'r', 'a', 'ß', 'e'].entries()) placeFrozen(sim, 0, i, ch);
+  const found = matches(sim);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].text, 'straße');
+  assert.equal(found[0].display, undefined);
 });
 
 const HEBREW_FINALS = ['ם', 'ן', 'ץ', 'ף', 'ך'];
