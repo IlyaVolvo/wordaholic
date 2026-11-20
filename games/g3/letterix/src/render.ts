@@ -120,8 +120,9 @@ export function pointerToCell(sim: Sim, canvas: HTMLCanvasElement, clientX: numb
   const rect = canvas.getBoundingClientRect();
   const px = rect.width ? ((clientX - rect.left) / rect.width) * width : 0;
   const py = rect.height ? ((clientY - rect.top) / rect.height) * height : 0;
-  const col = Math.floor((px - wall) / sim.A);
+  const columnUnits = sim.A ? (px - wall) / sim.A : 0;
+  const col = Math.min(sim.W - 1, Math.max(0, Math.floor(columnUnits)));
   const yFromFloor = height - wall - py;
   const row = Math.floor(yFromFloor / sim.A);
-  return { col, row, yFromFloor, py };
+  return { col, row, yFromFloor, py, columnUnits };
 }

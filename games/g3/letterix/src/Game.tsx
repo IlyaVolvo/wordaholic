@@ -117,6 +117,8 @@ export const Game: React.FC<{
     pieceY: number | null;
     fallenPx: number;
     dropped: boolean;
+    column: number;
+    columnUnits: number;
   } | null>(null);
   const [speedPref, setSpeedPref] = useState(0);
   const [history, setHistory] = useState<ScoreRecord[]>([]);
@@ -404,7 +406,15 @@ export const Game: React.FC<{
       pieceY: piece?.yPx ?? null,
       fallenPx: 0,
       dropped: false,
+      column: piece?.col ?? hit.col,
+      columnUnits: hit.columnUnits,
     };
+  }
+
+  /** Columns the letter should shift so a half-cell of finger travel snaps either way. */
+  function dragSteps(delta: number): number {
+    if (delta === 0) return 0;
+    return Math.trunc(delta + Math.sign(delta) * 0.5);
   }
 
   /**
@@ -440,8 +450,9 @@ export const Game: React.FC<{
     const canvas = canvasRef.current;
     if (!sim || !canvas || canvas.dataset.drag !== '1') return;
     const hit = pointerToCell(sim, canvas, event.clientX, event.clientY);
-    if (dragRef.current?.dropped) return;
-    moveToColumn(sim, hit.col);
+    const drag = dragRef.current;
+    if (!drag || drag.dropped) return;
+    moveToColumn(sim, drag.column + dragSteps(hit.columnUnits - drag.columnUnits));
     dropIfSwipedDown(sim, hit.yFromFloor);
   }
 
@@ -450,8 +461,9 @@ export const Game: React.FC<{
     const canvas = canvasRef.current;
     if (!sim || !canvas || canvas.dataset.drag !== '1') return;
     const hit = pointerToCell(sim, canvas, event.clientX, event.clientY);
-    if (!dragRef.current?.dropped) {
-      moveToColumn(sim, hit.col);
+    const drag = dragRef.current;
+    if (drag && !drag.dropped) {
+      moveToColumn(sim, drag.column + dragSteps(hit.columnUnits - drag.columnUnits));
       dropIfSwipedDown(sim, hit.yFromFloor);
     }
     canvas.dataset.drag = '';
