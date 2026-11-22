@@ -31,7 +31,7 @@ export function drawField(
   ctx.lineTo(width - wall, bucketTop);
   ctx.stroke();
 
-  const wordOn = sim.phase === 'decide' && Math.floor(now / 280) % 2 === 0;
+  const wordOn = (sim.phase === 'decide' || sim.phase === 'flush') && Math.floor(now / 280) % 2 === 0;
   const words = new Map<string, string | null>();
   if (sim.phase === 'decide') {
     for (const match of sim.offer) {
@@ -42,6 +42,15 @@ export function drawField(
         if (!words.has(key) || letter) words.set(key, letter);
       });
     }
+  } else if (sim.phase === 'flush' && sim.flushQueue.length > 0) {
+    // Show the currently flushing word
+    const currentMatch = sim.flushQueue[0];
+    const spelled = currentMatch.display ? Array.from(currentMatch.display) : null;
+    currentMatch.cells.forEach((cell, i) => {
+      const key = `${cell.r},${cell.c}`;
+      const letter = spelled?.[i] ?? null;
+      if (!words.has(key) || letter) words.set(key, letter);
+    });
   }
 
   ctx.strokeStyle = 'rgba(230, 232, 236, 0.45)';

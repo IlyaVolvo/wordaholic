@@ -66,7 +66,7 @@ function notPlaying(sim: Pick<Sim, 'paused' | 'phase'>): boolean {
 }
 
 function inProgress(phase: Sim['phase'] | undefined): boolean {
-  return phase === 'fall' || phase === 'decide' || phase === 'settle';
+  return phase === 'fall' || phase === 'decide' || phase === 'settle' || phase === 'flush';
 }
 
 function readHud(sim: Sim): Hud {
