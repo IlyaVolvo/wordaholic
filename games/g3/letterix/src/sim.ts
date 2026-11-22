@@ -21,7 +21,7 @@ export type Piece = {
   missing?: boolean;
 };
 
-export type Phase = 'ready' | 'fall' | 'decide' | 'settle' | 'over';
+export type Phase = 'ready' | 'fall' | 'decide' | 'settle' | 'flush' | 'over';
 export type DecideChoice = 'use' | 'skip';
 
 export type Sim = {
@@ -62,6 +62,12 @@ export type Sim = {
   missedLock: boolean;
   aborted: boolean;
   revision: number;
+  /** Words queued for sequential flushing. */
+  flushQueue: Match[];
+  /** All cells that participated in any flushed word. */
+  flushCells: Set<string>;
+  /** Milliseconds left in current flush animation. */
+  flushMsLeft: number;
   dict: Set<string>;
   values: Record<string, number>;
   table: Lexicon['table'];
@@ -101,6 +107,8 @@ export type PersistedSim = {
   speedPct?: number;
   missedLock: boolean;
   aborted: boolean;
+  flushQueue?: Match[];
+  flushMsLeft?: number;
 };
 
 const EMPTY_LEX: Pick<Lexicon, 'dict' | 'values' | 'table' | 'total' | 'normalize' | 'written' | 'spell' | 'rtl'> = {
@@ -332,36 +340,55 @@ function takenWord(m: Match): string {
 }
 
 function commitClear(sim: Sim) {
-  const doomed = new Set<string>();
-  for (const m of sim.offer) {
-    sim.words.push(takenWord(m));
-    for (const cell of m.cells) doomed.add(`${cell.r},${cell.c}`);
+  if (sim.offer.length === 0) {
+    if (!beginSettle(sim)) resolve(sim);
+    touch(sim);
+    return;
   }
-  const fade = new Set<string>();
-  for (const key of doomed) {
-    const [r, c] = key.split(',').map((n) => Number(n));
-    if (!sim.bonus[r]?.[c]?.missing) continue;
-    const run = markedMissingRun(sim.grid, (row, col) => Boolean(sim.bonus[row]?.[col]?.missing), r, c, sim.rtl, sim);
-    if (!run) continue;
-    for (const cell of run.cells) fade.add(`${cell.r},${cell.c}`);
-  }
-  sim.score += offerPoints(sim);
-  for (const key of doomed) {
-    const [r, c] = key.split(',').map((n) => Number(n));
-    if (sim.grid[r]?.[c]) {
-      eraseCell(sim, r, c);
-      bump(sim, r, c);
+
+  // If there's only one word, clear it immediately (backward compatibility)
+  if (sim.offer.length === 1) {
+    const doomed = new Set<string>();
+    for (const m of sim.offer) {
+      sim.words.push(takenWord(m));
+      for (const cell of m.cells) doomed.add(`${cell.r},${cell.c}`);
     }
+    const fade = new Set<string>();
+    for (const key of doomed) {
+      const [r, c] = key.split(',').map((n) => Number(n));
+      if (!sim.bonus[r]?.[c]?.missing) continue;
+      const run = markedMissingRun(sim.grid, (row, col) => Boolean(sim.bonus[row]?.[col]?.missing), r, c, sim.rtl, sim);
+      if (!run) continue;
+      for (const cell of run.cells) fade.add(`${cell.r},${cell.c}`);
+    }
+    sim.score += offerPoints(sim);
+    for (const key of doomed) {
+      const [r, c] = key.split(',').map((n) => Number(n));
+      if (sim.grid[r]?.[c]) {
+        eraseCell(sim, r, c);
+        bump(sim, r, c);
+      }
+    }
+    for (const key of fade) {
+      if (doomed.has(key)) continue;
+      const [r, c] = key.split(',').map((n) => Number(n));
+      const bonus = sim.bonus[r]?.[c];
+      if (bonus) delete bonus.missing;
+    }
+    sim.offer = [];
+    if (sim.held && !sim.grid[sim.held.row]?.[sim.held.col]) sim.held = null;
+    if (!beginSettle(sim)) resolve(sim);
+    touch(sim);
+    return;
   }
-  for (const key of fade) {
-    if (doomed.has(key)) continue;
-    const [r, c] = key.split(',').map((n) => Number(n));
-    const bonus = sim.bonus[r]?.[c];
-    if (bonus) delete bonus.missing;
-  }
+
+  // Multiple words: start sequential flush
+  sim.flushQueue = sim.offer.slice();
+  sim.flushCells = new Set();
+  sim.score += offerPoints(sim);
   sim.offer = [];
-  if (sim.held && !sim.grid[sim.held.row]?.[sim.held.col]) sim.held = null;
-  if (!beginSettle(sim)) resolve(sim);
+  sim.phase = 'flush';
+  sim.flushMsLeft = PARAMS.N * 300; // 300ms per word flush
   touch(sim);
 }
 
@@ -395,6 +422,70 @@ function stepSettle(sim: Sim) {
   const pieces = sim.falling.filter((f) => f.kind === 'settle');
   for (const piece of pieces) stepDown(sim, piece);
   if (!sim.falling.some((f) => f.kind === 'settle')) resolve(sim);
+}
+
+function stepFlush(sim: Sim, dtMs: number) {
+  sim.flushMsLeft -= dtMs;
+  
+  if (sim.flushMsLeft <= 0 && sim.flushQueue.length > 0) {
+    // Flush the next word in the queue
+    const match = sim.flushQueue.shift()!;
+    sim.words.push(takenWord(match));
+    
+    // Collect all cells from this word to the total flush set
+    for (const cell of match.cells) {
+      sim.flushCells.add(`${cell.r},${cell.c}`);
+    }
+    
+    // Reset timer for next word
+    if (sim.flushQueue.length > 0) {
+      sim.flushMsLeft = PARAMS.N * 300;
+    } else {
+      // All words flushed, now clear all participating letters
+      finishFlush(sim);
+    }
+    touch(sim);
+  }
+}
+
+function finishFlush(sim: Sim) {
+  const doomed = sim.flushCells;
+  const fade = new Set<string>();
+  
+  // Collect missing word cells that need to fade
+  for (const key of doomed) {
+    const [r, c] = key.split(',').map((n) => Number(n));
+    if (!sim.bonus[r]?.[c]?.missing) continue;
+    const run = markedMissingRun(sim.grid, (row, col) => Boolean(sim.bonus[row]?.[col]?.missing), r, c, sim.rtl, sim);
+    if (!run) continue;
+    for (const cell of run.cells) fade.add(`${cell.r},${cell.c}`);
+  }
+  
+  // Clear all participating letters
+  for (const key of doomed) {
+    const [r, c] = key.split(',').map((n) => Number(n));
+    if (sim.grid[r]?.[c]) {
+      eraseCell(sim, r, c);
+      bump(sim, r, c);
+    }
+  }
+  
+  // Fade missing word markers
+  for (const key of fade) {
+    if (doomed.has(key)) continue;
+    const [r, c] = key.split(',').map((n) => Number(n));
+    const bonus = sim.bonus[r]?.[c];
+    if (bonus) delete bonus.missing;
+  }
+  
+  // Clean up flush state
+  sim.flushQueue = [];
+  sim.flushCells = new Set();
+  sim.flushMsLeft = 0;
+  
+  if (sim.held && !sim.grid[sim.held.row]?.[sim.held.col]) sim.held = null;
+  if (!beginSettle(sim)) resolve(sim);
+  touch(sim);
 }
 
 export function createSim(opts: {
@@ -438,6 +529,9 @@ export function createSim(opts: {
     missedLock: false,
     aborted: false,
     revision: 0,
+    flushQueue: [],
+    flushCells: new Set(),
+    flushMsLeft: 0,
     dict: opts.lex.dict,
     values: opts.lex.values,
     table: opts.lex.table,
@@ -462,6 +556,10 @@ export function tick(sim: Sim, dtMs: number, opts?: { maxSteps?: number }) {
   if (sim.phase === 'decide') {
     sim.decideMsLeft -= dtMs;
     if (sim.decideMsLeft <= 0) confirmChoice(sim, false);
+    return;
+  }
+  if (sim.phase === 'flush') {
+    stepFlush(sim, dtMs);
     return;
   }
   sim.fallAccum += dtMs;
@@ -867,6 +965,8 @@ export function exportState(sim: Sim): PersistedSim {
     speedPct: sim.speedPct,
     missedLock: sim.missedLock,
     aborted: sim.aborted,
+    flushQueue: sim.flushQueue.map((m) => ({ ...m, cells: m.cells.map((c) => ({ ...c })) })),
+    flushMsLeft: sim.flushMsLeft,
   };
 }
 
@@ -900,7 +1000,7 @@ export function importState(data: PersistedSim, lex: Lexicon = EMPTY_LEX as Lexi
   sim.rowGen = data.rowGen.slice();
   sim.colGen = data.colGen.slice();
   sim.falling = data.falling.map((f) => ({ ...f }));
-  sim.phase = data.phase;
+  sim.phase = data.phase === 'flush' ? 'flush' : data.phase;
   sim.choice = importedChoice(data);
   sim.paused = data.paused;
   sim.decideMsLeft = data.decideMsLeft;
@@ -913,6 +1013,9 @@ export function importState(data: PersistedSim, lex: Lexicon = EMPTY_LEX as Lexi
   sim.speedPct = typeof data.speedPct === 'number' && data.speedPct > 0 ? Math.min(PARAMS.speedMax, data.speedPct) : 0;
   sim.missedLock = data.missedLock;
   sim.aborted = Boolean(data.aborted);
+  sim.flushQueue = Array.isArray(data.flushQueue) ? data.flushQueue.map((m) => ({ ...m, cells: m.cells.map((c) => ({ ...c })) })) : [];
+  sim.flushCells = new Set(sim.flushQueue.flatMap((m) => m.cells.map((c) => `${c.r},${c.c}`)));
+  sim.flushMsLeft = typeof data.flushMsLeft === 'number' && data.flushMsLeft > 0 ? data.flushMsLeft : 0;
   return sim;
 }
 
