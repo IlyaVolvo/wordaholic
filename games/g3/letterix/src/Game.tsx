@@ -322,19 +322,21 @@ export const Game: React.FC<{
       Boolean(simRef.current && notPlaying(simRef.current)) &&
       target instanceof HTMLInputElement &&
       target.getAttribute('aria-label') === speedLabel;
+    const inWordReport = (target: EventTarget | null) =>
+      target instanceof Element && Boolean(target.closest('[data-word-report]'));
     const hideKeyboard = () => {
       const vk = (navigator as Navigator & { virtualKeyboard?: { hide: () => void } }).virtualKeyboard;
       vk?.hide();
     };
     const onFocusIn = (event: FocusEvent) => {
-      if (allowSpeedEdit(event.target)) return;
+      if (allowSpeedEdit(event.target) || inWordReport(event.target)) return;
       const target = event.target;
       if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return;
       target.blur();
       hideKeyboard();
     };
     const onTouchStart = (event: TouchEvent) => {
-      if (allowSpeedEdit(event.target)) return;
+      if (allowSpeedEdit(event.target) || inWordReport(event.target)) return;
       const target = event.target;
       if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) return;
       event.preventDefault();

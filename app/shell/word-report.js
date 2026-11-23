@@ -598,110 +598,15 @@ export function openMissingWordReport(report) {
   nameInput?.focus();
 }
 
-/**
- * @param {{ game: string, language: string, words: string[] }} report
- */
-export function openQuestionableWordReport(report) {
-  ensureReportStyles();
-  document.querySelector('[data-word-report]')?.remove();
-  const seen = new Set();
-  const words = [];
-  for (const raw of report.words || []) {
-    const word = String(raw || '').trim();
-    const key = word.toLowerCase();
-    if (!word || seen.has(key)) continue;
-    seen.add(key);
-    words.push(word);
-  }
-  const host = document.createElement('div');
-  host.className = 'update-dialog';
-  host.dataset.wordReport = '';
-  const items = words.map((word) => `
-    <li>
-      <label>
-        <input type="checkbox" value="${escapeHtml(word)}" />
-        <span dir="auto">${escapeHtml(word)}</span>
-      </label>
-    </li>
-  `).join('');
-  host.innerHTML = `
-    <div class="update-dialog-backdrop" data-close></div>
-    <div class="update-dialog-card" role="dialog" aria-modal="true" aria-labelledby="word-report-title">
-      <h2 id="word-report-title">Mark Questionable Words</h2>
-      <ul class="word-report-list">${items || '<li>No words in this game.</li>'}</ul>
-      ${commentField('questionable')}
-      <p class="word-report-error" data-word-report-error hidden></p>
-      <div class="word-report-send-row">
-        ${NAME_INPUT}
-        <button type="button" class="btn primary" data-word-report-send disabled>Send</button>
-      </div>
-    </div>
-  `;
-  const close = () => {
-    document.removeEventListener('keydown', onKey);
-    host.remove();
-  };
-  const onKey = (event) => {
-    if (event.key === 'Escape') close();
-  };
-  host.addEventListener('click', (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    if (target.closest('[data-close]')) close();
-  });
-  const sendBtn = /** @type {HTMLButtonElement | null} */ (host.querySelector('[data-word-report-send]'));
-  const errorEl = host.querySelector('[data-word-report-error]');
-  const nameInput = /** @type {HTMLInputElement | null} */ (host.querySelector('input[name="name"]'));
-  bindNameField(nameInput);
-  const refresh = () => {
-    let any = false;
-    host.querySelectorAll('.word-report-list label').forEach((label) => {
-      const box = label.querySelector('input');
-      const marked = box instanceof HTMLInputElement && box.checked;
-      label.classList.toggle('is-marked', marked);
-      if (marked) any = true;
-    });
-    if (sendBtn) sendBtn.disabled = !any;
-  };
-  host.querySelector('.word-report-list')?.addEventListener('change', refresh);
-  sendBtn?.addEventListener('click', () => {
-    const picked = [];
-    host.querySelectorAll('.word-report-list input:checked').forEach((box) => {
-      if (box instanceof HTMLInputElement && box.value) picked.push(box.value);
-    });
-    if (!picked.length) return;
-    const name = nameInput?.value.trim().replace(/\s+/g, ' ') || '';
-    const commentInput = /** @type {HTMLTextAreaElement | null} */ (host.querySelector('textarea[name="comment"]'));
-    const comment = readComment(commentInput?.value);
-    if (comment == null) {
-      if (errorEl) {
-        errorEl.hidden = false;
-        errorEl.textContent = 'Comment is too long';
-      }
-      return;
-    }
-    void postReport(host, {
-      game: report.game,
-      language: report.language,
-      action: 'questionable',
-      words: picked.join(', '),
-      name,
-      comment,
-    }, sendBtn, errorEl);
-  });
-  document.addEventListener('keydown', onKey);
-  document.body.appendChild(host);
-}
-
 const REPORT_TITLES = {
   questionable: 'Mark Questionable Words',
   missing: 'Report missing words',
 };
 
 /**
- * Letterix end-of-game report. A list with no words is omitted.
- * When both lists have words, two buttons switch between them.
- * Send reports only the open list.
+ * Shared end-of-game word report. Each game passes its own lists.
+ * A list with no words is omitted. When both lists have words, two buttons switch between them.
+ * Send reports only the open list. Name starts as anonymous. Comment starts empty.
  * @param {{
  *   game: string,
  *   language: string,

@@ -8,7 +8,7 @@ import {
 import { getDaily, upsertDaily, listDailies, computeDailyStats } from './daily-store.js';
 import { loadCorpus, loadCorpusText, loadLanguageIndex } from '../shared/wordset.js';
 import { storage } from '../../../app/storage/idb.js';
-import { bindMissingReport, openMissingWordReport, openQuestionableWordReport, placeMissingReport } from '../../../app/shell/word-report.js';
+import { bindMissingReport, openMarkedWordReport, openMissingWordReport, placeMissingReport } from '../../../app/shell/word-report.js';
 import { setSessionActive } from '../../../app/updates/manifest.js';
 import { notifySessionEnded } from '../../../app/shell/update-ui.js';
 import {
@@ -1638,10 +1638,10 @@ async function init() {
   });
   $('#btn-howto')?.addEventListener('click', () => openHelp(helpTopic));
   $('#btn-questionable')?.addEventListener('click', () => {
-    openQuestionableWordReport({
+    openMarkedWordReport({
       game: 'transword',
       language,
-      words: chain.slice(),
+      questionable: chain.slice(),
     });
   });
   const headerBar = $('#header');
@@ -1664,10 +1664,10 @@ async function init() {
     if (action === 'stats') openStats();
     else if (action === 'howto') openHelp(helpTopic);
     else if (action === 'report') {
-      openQuestionableWordReport({
+      openMarkedWordReport({
         game: 'transword',
         language,
-        words: chain.slice(),
+        questionable: chain.slice(),
       });
     }
   });

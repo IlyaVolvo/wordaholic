@@ -15,7 +15,7 @@ import { gameCacheUtils } from '../utils/gameCache';
 import { GAME_ID, refreshGamesFromIndexedDb, STORAGE_IMPORTED_EVENT } from '../storage/platform';
 import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../../app/daily/variantVisit.js';
 import { openHelp, isHelpOpen } from '@wordaholic/help';
-import { openMissingWordReport, openQuestionableWordReport } from '../../../../../app/shell/word-report.js';
+import { openMarkedWordReport, openMissingWordReport } from '../../../../../app/shell/word-report.js';
 import { mountHeaderChrome } from '../../../../../app/play/header-chrome.js';
 import helpTopic from '../../help/topic.js';
 import { reportStats } from '@wordaholic/stats';
@@ -1114,10 +1114,10 @@ export const Game: React.FC<GameProps> = ({
                   type="button"
                   className="help-trigger help-trigger--game header-report-button"
                   aria-label="Report questionable words"
-                  onClick={() => openQuestionableWordReport({
+                  onClick={() => openMarkedWordReport({
                     game: 'polywordlot',
                     language,
-                    words: questionableWords(gameState.guesses, !gameState.isWon, [targetWord]),
+                    questionable: questionableWords(gameState.guesses, !gameState.isWon, [targetWord]),
                   })}
                 >
                   <img src="/brand/word-report.png" alt="" />
@@ -1193,10 +1193,10 @@ export const Game: React.FC<GameProps> = ({
                     <button
                       type="button"
                       role="menuitem"
-                      onClick={() => openQuestionableWordReport({
+                      onClick={() => openMarkedWordReport({
                         game: 'polywordlot',
                         language,
-                        words: questionableWords(gameState.guesses, !gameState.isWon, [targetWord]),
+                        questionable: questionableWords(gameState.guesses, !gameState.isWon, [targetWord]),
                       })}
                     >
                       <img src="/brand/word-report.png" alt="" width={18} height={18} />

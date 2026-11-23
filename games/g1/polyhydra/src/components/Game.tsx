@@ -19,7 +19,7 @@ import {
   typedLetter,
 } from '@wordaholic/wordle-core';
 import { openHelp } from '@wordaholic/help';
-import { openMissingWordReport, openQuestionableWordReport } from '../../../../../app/shell/word-report.js';
+import { openMarkedWordReport, openMissingWordReport } from '../../../../../app/shell/word-report.js';
 import helpTopic from '../../help/topic.js';
 import { reportStats } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
@@ -1023,6 +1023,7 @@ export const Game: React.FC<GameProps> = ({
         e.key === 'ArrowUp' ||
         e.key === 'ArrowDown'
       ) {
+        if (target?.closest('[data-word-report]')) return;
         e.preventDefault();
         if (inField && target) target.blur();
         if (e.key === 'ArrowLeft') setWindowStart((s) => Math.max(0, s - 1));
@@ -1252,10 +1253,10 @@ export const Game: React.FC<GameProps> = ({
                   type="button"
                   className="help-trigger help-trigger--game header-report-button"
                   aria-label="Report questionable words"
-                  onClick={() => openQuestionableWordReport({
+                  onClick={() => openMarkedWordReport({
                     game: 'polyhydra',
                     language,
-                    words: questionableWords(
+                    questionable: questionableWords(
                       boardGuesses.flat(),
                       !isWon,
                       remainingTargets(targets, boardGuesses, language),
@@ -1311,10 +1312,10 @@ export const Game: React.FC<GameProps> = ({
                     <button
                       type="button"
                       role="menuitem"
-                      onClick={() => openQuestionableWordReport({
+                      onClick={() => openMarkedWordReport({
                         game: 'polyhydra',
                         language,
-                        words: questionableWords(
+                        questionable: questionableWords(
                           boardGuesses.flat(),
                           !isWon,
                           remainingTargets(targets, boardGuesses, language),
