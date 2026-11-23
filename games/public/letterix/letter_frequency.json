@@ -171,13 +171,13 @@
       "language": "Russian",
       "code": "ru",
       "source": "games/g3/data/languages/Russian/corpus.txt",
-      "words": 8532,
-      "letters": 49396,
+      "words": 8533,
+      "letters": 49400,
       "distinct": 32,
       "byFrequency": [
         {
           "letter": "а",
-          "count": 5982,
+          "count": 5983,
           "share": 12.11,
           "value": 1
         },
@@ -225,7 +225,7 @@
         },
         {
           "letter": "л",
-          "count": 2380,
+          "count": 2381,
           "share": 4.82,
           "value": 6.4
         },
@@ -243,7 +243,7 @@
         },
         {
           "letter": "у",
-          "count": 1532,
+          "count": 1533,
           "share": 3.1,
           "value": 7.7
         },
@@ -273,7 +273,7 @@
         },
         {
           "letter": "г",
-          "count": 949,
+          "count": 950,
           "share": 1.92,
           "value": 8.6
         },
