@@ -2,11 +2,31 @@ import { dropBlocked, offerPoints, type Sim } from './sim.ts';
 import { PARAMS } from './params.ts';
 import { fieldPixels } from './params.ts';
 
+export type RevealedLine = { axis: 'row' | 'col'; index: number };
+
 export function drawField(
   ctx: CanvasRenderingContext2D,
   sim: Sim,
   now: number,
   tapped: { r: number; c: number } | null = null,
+  reveal: RevealedLine | null = null,
+) {
+  if (sim.paused && reveal) {
+    ctx.save();
+    ctx.filter = 'blur(22px)';
+    paintField(ctx, sim, now, null);
+    ctx.restore();
+    paintRevealedLine(ctx, sim, reveal, tapped);
+    return;
+  }
+  paintField(ctx, sim, now, tapped);
+}
+
+function paintField(
+  ctx: CanvasRenderingContext2D,
+  sim: Sim,
+  now: number,
+  tapped: { r: number; c: number } | null,
 ) {
   const { width, height, wall } = fieldPixels(sim.W, sim.H, sim.A, sim.E);
   ctx.clearRect(0, 0, width, height);
@@ -77,9 +97,11 @@ export function drawField(
     }
   }
 
-  for (const piece of sim.falling) {
-    const blocked = piece.selected && dropBlocked(sim);
-    paintTile(ctx, wall + piece.col * sim.A, floor - (piece.yPx + sim.A), sim.A, piece.letter, piece.selected, false, blocked, Boolean(piece.missing));
+  if (!sim.paused) {
+    for (const piece of sim.falling) {
+      const blocked = piece.selected && dropBlocked(sim);
+      paintTile(ctx, wall + piece.col * sim.A, floor - (piece.yPx + sim.A), sim.A, piece.letter, piece.selected, false, blocked, Boolean(piece.missing));
+    }
   }
 
   if (sim.phase === 'decide') {
@@ -91,6 +113,28 @@ export function drawField(
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(`+${offerPoints(sim)}`, width / 2, 28 + sim.A * 0.35);
+  }
+}
+
+function paintRevealedLine(
+  ctx: CanvasRenderingContext2D,
+  sim: Sim,
+  reveal: RevealedLine,
+  tapped: { r: number; c: number } | null,
+) {
+  const { height, wall } = fieldPixels(sim.W, sim.H, sim.A, sim.E);
+  const floor = height - wall;
+  const onLine = (row: number, col: number) =>
+    reveal.axis === 'row' ? row === reveal.index : col === reveal.index;
+  for (let r = 0; r < sim.H + sim.E; r++) {
+    for (let c = 0; c < sim.W; c++) {
+      if (!onLine(r, c)) continue;
+      const letter = sim.grid[r][c];
+      if (!letter) continue;
+      const selected = sim.held?.row === r && sim.held?.col === c;
+      const pink = Boolean(sim.bonus[r]?.[c]?.missing) || (tapped?.r === r && tapped?.c === c);
+      paintTile(ctx, wall + c * sim.A, floor - (r + 1) * sim.A, sim.A, letter, selected, false, false, pink);
+    }
   }
 }
 

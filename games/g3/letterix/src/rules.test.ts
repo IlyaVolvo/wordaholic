@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { languageHooks, spellInPlace } from '../../../../app/i18n/languages/index.js';
 import { buildLexicon, lettersFromSeed } from './lexicon.ts';
-import { contiguousRowWord, markedMissingRun, swipeRun, toggleMark } from './marks.ts';
+import { cellsKeepingMissingColor, contiguousColumnWord, contiguousRowWord, markedMissingRun, marksColumn, missingUnselect, swipeRun, toggleMark } from './marks.ts';
 import { offeredMatches } from './matches.ts';
 import { drawField } from './render.ts';
 import { PARAMS, pixelInterval } from './params.ts';
@@ -21,6 +21,7 @@ import {
   leaveWords,
   offerPoints,
   placeFrozen,
+  retainMissingColor,
   selectChoice,
   selectTop,
   runUntil,
@@ -791,6 +792,78 @@ test('a marked missing word stays pink when its top letter is pushed', () => {
   assert.equal(sim.bonus[0][4]?.missing, true);
   assert.equal(sim.bonus[0][0]?.missing, undefined);
   assert.deepEqual(sim.marks, [{ word: 'ston', kind: 'missing' }]);
+});
+
+test('two taps in one column mark the letters from the top down', () => {
+  const grid = blankGrid();
+  for (const [row, letter] of ['r', 'a', 'i', 'n'].entries()) grid[3 - row][1] = letter;
+  const run = contiguousColumnWord(grid, { row: 3, col: 1 }, { row: 0, col: 1 });
+  assert.equal(run?.word, 'rain');
+  assert.deepEqual(run?.cells.map((cell) => cell.r), [3, 2, 1, 0]);
+  grid[2][1] = null;
+  assert.equal(contiguousColumnWord(grid, { row: 3, col: 1 }, { row: 0, col: 1 }), null);
+});
+
+test('after the game two taps in one column mark down, and a shown column does too', () => {
+  assert.equal(marksColumn(false, true, 1, 1), true);
+  assert.equal(marksColumn(false, true, 1, 2), false);
+  assert.equal(marksColumn(true, false, 1, 4), true);
+  assert.equal(marksColumn(false, false, 1, 1), false);
+});
+
+test('a double-click inside a vertical missing word selects that column', () => {
+  const grid = blankGrid();
+  for (const [row, letter] of ['r', 'a', 'i', 'n'].entries()) grid[3 - row][1] = letter;
+  const marked = (row: number, col: number) => col === 1 && row <= 3;
+  const run = markedMissingRun(grid, marked, 1, 1, false);
+  assert.equal(run?.word, 'rain');
+  assert.equal(run?.cells.length, 4);
+});
+
+test('pink stays on a moved word and leaves when the letters no longer spell it', () => {
+  const sim = board();
+  sim.phase = 'fall';
+  for (const [col, letter] of ['s', 't', 'o', 'n'].entries()) placeFrozen(sim, 0, col, letter);
+  commitMissingWord(sim, 'ston', [0, 1, 2, 3].map((col) => ({ r: 0, c: col })));
+  assert.equal(selectTop(sim, 0, 0), true);
+  assert.equal(tryMove(sim, 1), true);
+  assert.equal(sim.bonus[0][1]?.missing, true);
+  assert.equal(sim.bonus[0][4]?.missing, true);
+  placeFrozen(sim, 0, 3, null);
+  retainMissingColor(sim);
+  assert.equal(sim.bonus[0][1]?.missing, undefined);
+  assert.equal(sim.bonus[0][4]?.missing, undefined);
+  assert.deepEqual(sim.marks, [{ word: 'ston', kind: 'missing' }]);
+  const keep = cellsKeepingMissingColor(sim.grid, () => false, ['ston'], false, sim);
+  assert.equal(keep.size, 0);
+});
+
+test('crossing words clear apart, and the shared letter clears neither', () => {
+  const sim = board();
+  for (const [col, letter] of ['s', 't', 'o', 'n', 'e'].entries()) placeFrozen(sim, 1, col, letter);
+  for (const [row, letter] of ['r', 'a', 'i'].entries()) placeFrozen(sim, 4 - row, 2, letter);
+  commitMissingWord(sim, 'stone', [0, 1, 2, 3, 4].map((col) => ({ r: 1, c: col })));
+  commitMissingWord(sim, 'raio', [4, 3, 2, 1].map((row) => ({ r: row, c: 2 })));
+  const marked = (row: number, col: number) => Boolean(sim.bonus[row]?.[col]?.missing);
+  assert.equal(missingUnselect(sim.grid, marked, 1, 2, false, sim), null);
+  const across = missingUnselect(sim.grid, marked, 1, 0, false, sim);
+  const down = missingUnselect(sim.grid, marked, 4, 2, false, sim);
+  assert.equal(across?.word, 'stone');
+  assert.deepEqual(across?.cells.map((cell) => `${cell.r},${cell.c}`), ['1,0', '1,1', '1,3', '1,4']);
+  assert.equal(down?.word, 'raio');
+  assert.deepEqual(down?.cells.map((cell) => `${cell.r},${cell.c}`), ['4,2', '3,2', '2,2']);
+  clearMissingWord(sim, across!.word, across!.cells);
+  assert.equal(sim.bonus[1][0]?.missing, undefined);
+  assert.equal(sim.bonus[1][2]?.missing, true);
+  assert.equal(sim.bonus[4][2]?.missing, true);
+  assert.deepEqual(sim.marks.map((mark) => mark.word), ['raio']);
+  commitMissingWord(sim, 'stone', [0, 1, 2, 3, 4].map((col) => ({ r: 1, c: col })));
+  const downAgain = missingUnselect(sim.grid, (row, col) => Boolean(sim.bonus[row]?.[col]?.missing), 4, 2, false, sim);
+  clearMissingWord(sim, downAgain!.word, downAgain!.cells);
+  assert.equal(sim.bonus[1][0]?.missing, true);
+  assert.equal(sim.bonus[1][2]?.missing, true);
+  assert.equal(sim.bonus[4][2]?.missing, undefined);
+  assert.deepEqual(sim.marks.map((mark) => mark.word), ['stone']);
 });
 
 test('a double-click inside a missing word clears that word and leaves the letter beside it', () => {

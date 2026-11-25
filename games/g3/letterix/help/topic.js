@@ -117,7 +117,7 @@ export default {
         {
           x: 48.3,
           y: 80,
-          text: 'Double-click a settled letter to turn it pink. Double-click it again to clear that. Double-click another letter in the same row, with no gap between them, and that word is marked missing: it stays pink and is listed at the end. Double-click any letter in that word to clear it.\nIf a word you take uses one of those letters, the pink word leaves the board and stays on the missing list.\nA top letter still moves when you drag it. Letters it reaches move with it, until a wall or a letter that cannot move.',
+          text: 'Double-click a settled letter to turn it pink. Double-click it again to clear that. Double-click another letter in the same row, with no gap between them, and that word is marked missing: it stays pink and is listed at the end. Double-click a letter that belongs only to that word to clear it. A letter shared with a word on the other line stays pink and clears neither word. After the game, mark across the same way, or down a column, before you report.\nIf a word you take uses one of those letters, the pink word leaves the board and stays on the missing list. Letters stay pink only while they still spell that word.\nA top letter still moves when you drag it. Letters it reaches move with it, until a wall or a letter that cannot move.',
           place: 'top',
         },
       ],
@@ -155,7 +155,7 @@ export default {
         {
           x: 12,
           y: 93.5,
-          text: 'Bonuses scale a letter’s value and count only when that letter is in a word you take.\nA drop from the loss line doubles that letter; a shorter drop is closer to its base value. Speed raises every letter the same way (100% doubles them). Set speed while paused (P), before Start, or after the game.',
+          text: 'Bonuses scale a letter’s value and count only when that letter is in a word you take.\nA drop from the loss line doubles that letter; a shorter drop is closer to its base value. Speed raises every letter the same way (100% doubles them). Set speed while paused (P), before Start, or after the game.\nWhile paused, click a letter to show its row, or an empty cell to show its column. The floor under a column still shows that column. Double-click two letters on the shown line to mark the word. After you resume, those letters stay colored only while they still spell it.',
           place: 'top',
         },
       ],
@@ -166,7 +166,7 @@ export default {
         {
           x: 45.5,
           y: 23.2,
-          text: 'Game over: a column grew past the line at the top of the bucket.',
+          text: 'Game over: a column grew past the line at the top of the bucket. Drag the score aside to mark words it covers.',
           place: 'right',
         },
       ],

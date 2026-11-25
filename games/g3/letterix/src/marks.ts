@@ -126,7 +126,71 @@ export function contiguousRowWord(
 }
 
 /**
- * The pink letters of one missing word: the contiguous marked letters on this row that contain the click.
+ * A shown column marks down. After the game, two taps in one column mark down as well.
+ */
+export function marksColumn(shownColumn: boolean, phaseOver: boolean, anchorCol: number, tapCol: number): boolean {
+  return shownColumn || (phaseOver && anchorCol === tapCol);
+}
+
+/**
+ * Letters from the first tap through the second, when they share a column and have no empty cell between them.
+ * The word is read from the top of the range down to the floor.
+ */
+export function contiguousColumnWord(
+  grid: (string | null)[][],
+  anchor: { row: number; col: number },
+  tap: { row: number; col: number },
+  hooks: SpellHooks = IDENTITY,
+): MarkRun | null {
+  if (anchor.col !== tap.col || anchor.row === tap.row) return null;
+  const lo = Math.min(anchor.row, tap.row);
+  const hi = Math.max(anchor.row, tap.row);
+  const cells: MarkCell[] = [];
+  let text = '';
+  for (let row = hi; row >= lo; row--) {
+    const letter = grid[row]?.[anchor.col];
+    if (!letter) return null;
+    text += letter;
+    cells.push({ r: row, c: anchor.col });
+  }
+  return { word: spellWord(text, hooks), cells };
+}
+
+/**
+ * The word a double-click clears. A letter on both a horizontal and a vertical word clears nothing.
+ * Letters that also belong to the other word stay pink.
+ */
+export function missingUnselect(
+  grid: (string | null)[][],
+  marked: (row: number, col: number) => boolean,
+  row: number,
+  col: number,
+  rtl: boolean,
+  hooks: SpellHooks = IDENTITY,
+): MarkRun | null {
+  if (!grid[row]?.[col] || !marked(row, col)) return null;
+  const horizontal = horizontalPinkRun(grid, marked, row, col, rtl, hooks);
+  const vertical = verticalPinkRun(grid, marked, row, col, hooks);
+  const across = horizontal.cells.length >= 2;
+  const down = vertical.cells.length >= 2;
+  if (across && down) return null;
+  if (across) {
+    return {
+      word: horizontal.word,
+      cells: horizontal.cells.filter((cell) => verticalPinkRun(grid, marked, cell.r, cell.c, hooks).cells.length < 2),
+    };
+  }
+  if (down) {
+    return {
+      word: vertical.word,
+      cells: vertical.cells.filter((cell) => horizontalPinkRun(grid, marked, cell.r, cell.c, rtl, hooks).cells.length < 2),
+    };
+  }
+  return horizontal;
+}
+
+/**
+ * The pink letters of one missing word: the contiguous marked letters on this row or column that contain the click.
  */
 export function markedMissingRun(
   grid: (string | null)[][],
@@ -138,6 +202,24 @@ export function markedMissingRun(
 ): MarkRun | null {
   const line = grid[row];
   if (!line?.[col] || !marked(row, col)) return null;
+  const horizontal = horizontalPinkRun(grid, marked, row, col, rtl, hooks);
+  const vertical = verticalPinkRun(grid, marked, row, col, hooks);
+  if (horizontal && vertical) {
+    return horizontal.cells.length >= vertical.cells.length ? horizontal : vertical;
+  }
+  return horizontal || vertical;
+}
+
+function horizontalPinkRun(
+  grid: (string | null)[][],
+  marked: (row: number, col: number) => boolean,
+  row: number,
+  col: number,
+  rtl: boolean,
+  hooks: SpellHooks,
+): MarkRun | null {
+  const line = grid[row];
+  if (!line?.[col]) return null;
   let lo = col;
   let hi = col;
   while (lo > 0 && line[lo - 1] && marked(row, lo - 1)) lo -= 1;
@@ -153,6 +235,70 @@ export function markedMissingRun(
     cells.reverse();
   }
   return { word: spellWord(text, hooks), cells };
+}
+
+function verticalPinkRun(
+  grid: (string | null)[][],
+  marked: (row: number, col: number) => boolean,
+  row: number,
+  col: number,
+  hooks: SpellHooks,
+): MarkRun | null {
+  let lo = row;
+  let hi = row;
+  while (lo > 0 && grid[lo - 1]?.[col] && marked(lo - 1, col)) lo -= 1;
+  while (grid[hi + 1]?.[col] && marked(hi + 1, col)) hi += 1;
+  const cells: MarkCell[] = [];
+  let text = '';
+  for (let r = hi; r >= lo; r--) {
+    text += grid[r][col];
+    cells.push({ r, c: col });
+  }
+  return { word: spellWord(text, hooks), cells };
+}
+
+/**
+ * Pink cells that still spell a missing word, across or down.
+ * A broken run is absent, so its letters lose the color.
+ */
+export function cellsKeepingMissingColor(
+  grid: (string | null)[][],
+  marked: (row: number, col: number) => boolean,
+  words: readonly string[],
+  rtl: boolean,
+  hooks: SpellHooks = IDENTITY,
+): Set<string> {
+  const wanted = new Set(words.map((word) => hooks.normalize(word)));
+  const keep = new Set<string>();
+  const rows = grid.length;
+  const cols = grid[0]?.length ?? 0;
+  for (let row = 0; row < rows; row++) {
+    let col = 0;
+    while (col < cols) {
+      while (col < cols && !(grid[row]?.[col] && marked(row, col))) col += 1;
+      const start = col;
+      while (col < cols && grid[row]?.[col] && marked(row, col)) col += 1;
+      if (col - start < 2) continue;
+      const run = horizontalPinkRun(grid, marked, row, start, rtl, hooks);
+      if (run && wanted.has(hooks.normalize(run.word))) {
+        for (const cell of run.cells) keep.add(`${cell.r},${cell.c}`);
+      }
+    }
+  }
+  for (let col = 0; col < cols; col++) {
+    let row = rows - 1;
+    while (row >= 0) {
+      while (row >= 0 && !(grid[row]?.[col] && marked(row, col))) row -= 1;
+      const hi = row;
+      while (row >= 0 && grid[row]?.[col] && marked(row, col)) row -= 1;
+      if (hi - row < 2) continue;
+      const run = verticalPinkRun(grid, marked, hi, col, hooks);
+      if (run && wanted.has(hooks.normalize(run.word))) {
+        for (const cell of run.cells) keep.add(`${cell.r},${cell.c}`);
+      }
+    }
+  }
+  return keep;
 }
 
 /** Same kind again removes the word. The other kind moves it. */

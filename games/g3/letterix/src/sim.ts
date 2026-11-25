@@ -3,7 +3,7 @@ import { pickLetter } from './lexicon.ts';
 import { lineGen, matchKey, offeredMatches, type Match, type Suppression } from './matches.ts';
 import { dailySeed, PARAMS, pixelInterval } from './params.ts';
 import { hashSeed, nextUnit } from './rng.ts';
-import { addMark, markedMissingRun, type WordMark } from './marks.ts';
+import { addMark, cellsKeepingMissingColor, markedMissingRun, type WordMark } from './marks.ts';
 import { dropFactor, earlyBonus, scoredWord, type LetterBonus } from './score.ts';
 
 export type PieceKind = 'play' | 'settle';
@@ -317,6 +317,7 @@ function resolve(sim: Sim) {
     sim.phase = 'settle';
     return;
   }
+  retainMissingColor(sim);
   const offer = scanOffer(sim);
   if (offer.length) {
     beginDecide(sim, offer);
@@ -691,6 +692,7 @@ function shiftHeld(sim: Sim, dir: -1 | 1): boolean {
       ? { row: parked.row, col: parked.col }
       : null;
   releaseFloating(sim);
+  retainMissingColor(sim);
   const offer = scanOffer(sim);
   if (offer.length) beginDecide(sim, offer);
   touch(sim);
@@ -810,8 +812,25 @@ export function setPaused(sim: Sim, paused: boolean) {
     sim.paused = false;
     return;
   }
+  const wasPaused = sim.paused;
   sim.paused = paused;
+  if (wasPaused && !paused) retainMissingColor(sim);
   touch(sim);
+}
+
+/** Drop pink from letters that no longer spell a missing word. The word stays on the list. */
+export function retainMissingColor(sim: Sim) {
+  const words = sim.marks.filter((mark) => mark.kind === 'missing').map((mark) => mark.word);
+  const marked = (row: number, col: number) => Boolean(sim.bonus[row]?.[col]?.missing);
+  const keep = cellsKeepingMissingColor(sim.grid, marked, words, sim.rtl, sim);
+  const rows = rowsOf(sim);
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < sim.W; col++) {
+      if (!marked(row, col) || keep.has(`${row},${col}`)) continue;
+      const bonus = sim.bonus[row]?.[col];
+      if (bonus) delete bonus.missing;
+    }
+  }
 }
 
 export function togglePause(sim: Sim) {
@@ -903,7 +922,11 @@ export function clearMissingWord(sim: Sim, word: string, cells: { r: number; c: 
     if (bonus) delete bonus.missing;
   }
   const key = sim.normalize(word);
-  sim.marks = sim.marks.filter((mark) => mark.kind !== 'missing' || sim.normalize(mark.word) !== key);
+  const marked = (row: number, col: number) => Boolean(sim.bonus[row]?.[col]?.missing);
+  const still = cellsKeepingMissingColor(sim.grid, marked, [word], sim.rtl, sim);
+  if (still.size === 0) {
+    sim.marks = sim.marks.filter((mark) => mark.kind !== 'missing' || sim.normalize(mark.word) !== key);
+  }
   touch(sim);
 }
 

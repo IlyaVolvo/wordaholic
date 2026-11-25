@@ -7,10 +7,10 @@ import helpTopic from '../help/topic.js';
 import { reportStats } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import type { Lexicon } from './lexicon.ts';
-import { contiguousRowWord, markedMissingRun } from './marks.ts';
+import { contiguousColumnWord, contiguousRowWord, marksColumn, missingUnselect } from './marks.ts';
 import { fitCell, localCalendarDate, PARAMS } from './params.ts';
 import { Calendar } from './Calendar.tsx';
-import { drawField, pointerToCell } from './render.ts';
+import { drawField, pointerToCell, type RevealedLine } from './render.ts';
 import {
   confirmChoice,
   dropBlocked,
@@ -135,6 +135,11 @@ export const Game: React.FC<{
   const [statsRows, setStatsRows] = useState<ScoreRecord[]>([]);
   const [anchor, setAnchor] = useState<{ r: number; c: number } | null>(null);
   const anchorRef = useRef<{ r: number; c: number } | null>(null);
+  const [reveal, setReveal] = useState<RevealedLine | null>(null);
+  const revealRef = useRef<RevealedLine | null>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const endDragRef = useRef<{ pointerId: number; x: number; y: number; ox: number; oy: number } | null>(null);
+  const [endShift, setEndShift] = useState({ x: 0, y: 0 });
   const tapRef = useRef<{
     row: number;
     col: number;
@@ -151,8 +156,10 @@ export const Game: React.FC<{
     simRef.current = null;
     setHud(null);
     anchorRef.current = null;
+    revealRef.current = null;
     tapRef.current = null;
     setAnchor(null);
+    setReveal(null);
     void (async () => {
       const [saved, record] = await Promise.all([
         loadRun(language, W, H, date, lex),
@@ -230,7 +237,7 @@ export const Game: React.FC<{
           canvas.style.width = `${width}px`;
           canvas.style.height = `${height}px`;
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          drawField(ctx, sim, now, anchorRef.current);
+          drawField(ctx, sim, now, anchorRef.current, revealRef.current);
         }
         const next = readHud(sim);
         const sig = `${next.phase}|${next.paused}|${next.score}|${next.points}|${next.seconds}|${next.column}|${next.letter}|${next.dropBlocked}|${next.choice}|${next.speedPct}`;
@@ -309,6 +316,7 @@ export const Game: React.FC<{
       }
       if (event.key === 'p' || event.key === 'P') {
         event.preventDefault();
+        if (sim.paused) chooseReveal(null);
         setPaused(sim, !sim.paused);
       }
     };
@@ -447,18 +455,30 @@ export const Game: React.FC<{
     setAnchor(cell);
   }
 
+  function chooseReveal(line: RevealedLine | null) {
+    const prev = revealRef.current;
+    const same = Boolean(prev && line && prev.axis === line.axis && prev.index === line.index);
+    revealRef.current = line;
+    setReveal(line);
+    if (!same) chooseAnchor(null);
+  }
+
   function tapSettledLetter(row: number, col: number) {
     const sim = simRef.current;
-    if (!sim || sim.phase === 'ready' || sim.phase === 'over') return;
+    if (!sim || sim.phase === 'ready') return;
+    const line = revealRef.current;
+    if (sim.paused) {
+      if (!line) return;
+      if (line.axis === 'row' && row !== line.index) return;
+      if (line.axis === 'col' && col !== line.index) return;
+    }
     const letter = sim.grid[row]?.[col];
     if (!letter) return;
     if (sim.bonus[row]?.[col]?.missing) {
-      const run = markedMissingRun(sim.grid, (r, c) => Boolean(sim.bonus[r]?.[c]?.missing), row, col, sim.rtl, sim);
-      if (run) {
-        clearMissingWord(sim, run.word, run.cells);
-        chooseAnchor(null);
-        return;
-      }
+      const run = missingUnselect(sim.grid, (r, c) => Boolean(sim.bonus[r]?.[c]?.missing), row, col, sim.rtl, sim);
+      if (run) clearMissingWord(sim, run.word, run.cells);
+      chooseAnchor(null);
+      return;
     }
     const current = anchorRef.current;
     if (current && current.r === row && current.c === col) {
@@ -466,7 +486,10 @@ export const Game: React.FC<{
       return;
     }
     if (current && sim.grid[current.r]?.[current.c]) {
-      const run = contiguousRowWord(sim.grid, { row: current.r, col: current.c }, { row, col }, sim.rtl, sim);
+      const columns = marksColumn(Boolean(sim.paused && line?.axis === 'col'), sim.phase === 'over', current.c, col);
+      const run = columns
+        ? contiguousColumnWord(sim.grid, { row: current.r, col: current.c }, { row, col }, sim)
+        : contiguousRowWord(sim.grid, { row: current.r, col: current.c }, { row, col }, sim.rtl, sim);
       if (run) {
         commitMissingWord(sim, run.word, run.cells);
         chooseAnchor(null);
@@ -512,10 +535,57 @@ export const Game: React.FC<{
     });
   }
 
+  useEffect(() => {
+    if (hud?.phase !== 'over') setEndShift({ x: 0, y: 0 });
+  }, [hud?.phase]);
+
+  function onEndPointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    endDragRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, ox: endShift.x, oy: endShift.y };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function onEndPointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const drag = endDragRef.current;
+    const stage = slotRef.current;
+    const popup = endRef.current;
+    if (!drag || !stage || !popup || drag.pointerId !== event.pointerId) return;
+    const stageRect = stage.getBoundingClientRect();
+    const box = popup.getBoundingClientRect();
+    const limitX = Math.max(0, stageRect.width / 2 - Math.min(28, box.width / 2));
+    const limitY = Math.max(0, stageRect.height / 2 - Math.min(28, box.height / 2));
+    const x = Math.min(limitX, Math.max(-limitX, drag.ox + event.clientX - drag.x));
+    const y = Math.min(limitY, Math.max(-limitY, drag.oy + event.clientY - drag.y));
+    setEndShift({ x, y });
+  }
+
+  function onEndPointerUp(event: React.PointerEvent<HTMLDivElement>) {
+    if (endDragRef.current?.pointerId === event.pointerId) endDragRef.current = null;
+  }
+
   function onPointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
     const sim = simRef.current;
     const canvas = canvasRef.current;
-    if (!sim || !canvas || sim.paused) return;
+    if (!sim || !canvas) return;
+    if (sim.paused) {
+      const hit = pointerToCell(sim, canvas, event.clientX, event.clientY);
+      const rows = sim.H + sim.E;
+      if (hit.columnUnits < 0 || hit.columnUnits >= sim.W) {
+        if (hit.row >= 0 && hit.row < rows) chooseReveal({ axis: 'row', index: hit.row });
+        return;
+      }
+      if (hit.row < 0) {
+        chooseReveal({ axis: 'col', index: hit.col });
+        return;
+      }
+      if (hit.row >= rows) return;
+      const shown = revealRef.current;
+      // Keep a shown column so a double-click can mark the word down that column.
+      if (shown?.axis === 'col' && shown.index === hit.col) return;
+      const letter = Boolean(sim.grid[hit.row]?.[hit.col]);
+      chooseReveal(letter ? { axis: 'row', index: hit.row } : { axis: 'col', index: hit.col });
+      return;
+    }
     const hit = pointerToCell(sim, canvas, event.clientX, event.clientY);
     const inside =
       hit.columnUnits >= 0 &&
@@ -588,8 +658,12 @@ export const Game: React.FC<{
   function onDoubleClick(event: React.MouseEvent<HTMLCanvasElement>) {
     const sim = simRef.current;
     const canvas = canvasRef.current;
-    if (!sim || !canvas || sim.paused || sim.phase === 'ready' || sim.phase === 'over') return;
+    if (!sim || !canvas || sim.phase === 'ready') return;
     const hit = pointerToCell(sim, canvas, event.clientX, event.clientY);
+    if (sim.paused || sim.phase === 'over') {
+      tapSettledLetter(hit.row, hit.col);
+      return;
+    }
     const piece = pieceAt(sim, hit.col, hit.yFromFloor);
     if (piece) {
       if (sim.phase !== 'fall') return;
@@ -905,7 +979,7 @@ export const Game: React.FC<{
         </div>
       </header>
       <div className="stage" ref={slotRef}>
-        <div className={hud?.paused ? 'field is-paused' : 'field'}>
+        <div className={`field${hud?.paused ? ' is-paused' : ''}${hud?.paused && reveal ? ' is-revealed' : ''}`}>
           <canvas
             ref={canvasRef}
             data-falling={hud?.letter || ''}
@@ -922,9 +996,23 @@ export const Game: React.FC<{
           </button>
         )}
         {hud?.phase === 'over' && (
-          <div className="letterix-end" role="status">
-            <span>Game over</span>
-            <strong>{hud.score}</strong>
+          <div
+            ref={endRef}
+            className="letterix-end"
+            role="status"
+            style={{ transform: `translate(calc(-50% + ${endShift.x}px), calc(-50% + ${endShift.y}px))` }}
+          >
+            <div
+              className="letterix-end-handle"
+              title="Drag to move"
+              onPointerDown={onEndPointerDown}
+              onPointerMove={onEndPointerMove}
+              onPointerUp={onEndPointerUp}
+              onPointerCancel={onEndPointerUp}
+            >
+              <span>Game over</span>
+              <strong>{hud.score}</strong>
+            </div>
             {storedWords(scores).length > 0 && (
               <ol className="letterix-end-words">
                 {storedWords(scores).map((word, index) => (
@@ -1017,7 +1105,7 @@ export const Game: React.FC<{
             className="text-btn"
             data-action="pause"
             disabled={!hud || hud.phase === 'ready' || hud.phase === 'over'}
-            onClick={() => { const sim = simRef.current; if (sim) setPaused(sim, !sim.paused); }}
+            onClick={() => { const sim = simRef.current; if (!sim) return; if (sim.paused) chooseReveal(null); setPaused(sim, !sim.paused); }}
           >
             {hud?.paused ? 'Resume' : 'Pause'}
           </button>
