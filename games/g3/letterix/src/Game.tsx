@@ -10,7 +10,7 @@ import type { Lexicon } from './lexicon.ts';
 import { contiguousColumnWord, contiguousRowWord, marksColumn, missingUnselect } from './marks.ts';
 import { fitCell, localCalendarDate, PARAMS } from './params.ts';
 import { Calendar } from './Calendar.tsx';
-import { drawField, pointerToCell, type RevealedLine } from './render.ts';
+import { drawField, drawReveal, pointerToCell, type RevealedLine } from './render.ts';
 import {
   confirmChoice,
   dropBlocked,
@@ -103,6 +103,7 @@ export const Game: React.FC<{
 }) => {
   const headerBarRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const revealCanvasRef = useRef<HTMLCanvasElement>(null);
   const slotRef = useRef<HTMLDivElement>(null);
   const simRef = useRef<Sim | null>(null);
   const scoresRef = useRef<ScoreRecord | null>(null);
@@ -135,7 +136,6 @@ export const Game: React.FC<{
   const [statsRows, setStatsRows] = useState<ScoreRecord[]>([]);
   const [anchor, setAnchor] = useState<{ r: number; c: number } | null>(null);
   const anchorRef = useRef<{ r: number; c: number } | null>(null);
-  const [reveal, setReveal] = useState<RevealedLine | null>(null);
   const revealRef = useRef<RevealedLine | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const endDragRef = useRef<{ pointerId: number; x: number; y: number; ox: number; oy: number } | null>(null);
@@ -159,7 +159,6 @@ export const Game: React.FC<{
     revealRef.current = null;
     tapRef.current = null;
     setAnchor(null);
-    setReveal(null);
     void (async () => {
       const [saved, record] = await Promise.all([
         loadRun(language, W, H, date, lex),
@@ -220,6 +219,8 @@ export const Game: React.FC<{
         tick(sim, now - last);
         last = now;
         const ctx = canvas.getContext('2d');
+        const revealCanvas = revealCanvasRef.current;
+        const revealCtx = revealCanvas?.getContext('2d') ?? null;
         if (ctx) {
           const dpr = window.devicePixelRatio || 1;
           const slot = slotRef.current;
@@ -238,6 +239,16 @@ export const Game: React.FC<{
           canvas.style.height = `${height}px`;
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           drawField(ctx, sim, now, anchorRef.current, revealRef.current);
+          if (revealCanvas && revealCtx) {
+            if (revealCanvas.width !== bw || revealCanvas.height !== bh) {
+              revealCanvas.width = bw;
+              revealCanvas.height = bh;
+            }
+            revealCanvas.style.width = `${width}px`;
+            revealCanvas.style.height = `${height}px`;
+            revealCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            drawReveal(revealCtx, sim, anchorRef.current, revealRef.current);
+          }
         }
         const next = readHud(sim);
         const sig = `${next.phase}|${next.paused}|${next.score}|${next.points}|${next.seconds}|${next.column}|${next.letter}|${next.dropBlocked}|${next.choice}|${next.speedPct}`;
@@ -459,7 +470,6 @@ export const Game: React.FC<{
     const prev = revealRef.current;
     const same = Boolean(prev && line && prev.axis === line.axis && prev.index === line.index);
     revealRef.current = line;
-    setReveal(line);
     if (!same) chooseAnchor(null);
   }
 
@@ -979,9 +989,10 @@ export const Game: React.FC<{
         </div>
       </header>
       <div className="stage" ref={slotRef}>
-        <div className={`field${hud?.paused ? ' is-paused' : ''}${hud?.paused && reveal ? ' is-revealed' : ''}`}>
+        <div className={`field${hud?.paused ? ' is-paused' : ''}`}>
           <canvas
             ref={canvasRef}
+            className="field-base"
             data-falling={hud?.letter || ''}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
@@ -989,6 +1000,7 @@ export const Game: React.FC<{
             onPointerCancel={onPointerUp}
             onDoubleClick={onDoubleClick}
           />
+          <canvas ref={revealCanvasRef} className="field-reveal" aria-hidden="true" />
         </div>
         {(!hud || hud.phase === 'ready') && (
           <button type="button" className="letterix-start" onClick={() => { const sim = simRef.current; if (sim) begin(sim); }}>

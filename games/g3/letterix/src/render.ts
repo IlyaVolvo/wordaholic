@@ -11,15 +11,19 @@ export function drawField(
   tapped: { r: number; c: number } | null = null,
   reveal: RevealedLine | null = null,
 ) {
-  if (sim.paused && reveal) {
-    ctx.save();
-    ctx.filter = 'blur(22px)';
-    paintField(ctx, sim, now, null);
-    ctx.restore();
-    paintRevealedLine(ctx, sim, reveal, tapped);
-    return;
-  }
-  paintField(ctx, sim, now, tapped);
+  paintField(ctx, sim, now, sim.paused && reveal ? null : tapped);
+}
+
+/** Sharp row or column drawn above the CSS-blurred field. Canvas filters do not blur on iPad. */
+export function drawReveal(
+  ctx: CanvasRenderingContext2D,
+  sim: Sim,
+  tapped: { r: number; c: number } | null,
+  reveal: RevealedLine | null,
+) {
+  const { width, height } = fieldPixels(sim.W, sim.H, sim.A, sim.E);
+  ctx.clearRect(0, 0, width, height);
+  if (sim.paused && reveal) paintRevealedLine(ctx, sim, reveal, tapped);
 }
 
 function paintField(
