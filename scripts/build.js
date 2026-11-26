@@ -144,6 +144,9 @@ function main() {
 
   copyDir(path.join(ROOT, 'public'), DIST);
   copyDir(path.join(ROOT, 'app'), path.join(DIST, 'app'));
+  copyDir(path.join(ROOT, 'showcase'), path.join(DIST, 'showcase'), {
+    skipNames: ['.DS_Store', 'movies', 'music'],
+  });
   const commit = gitCommit();
   stampAnnouncements(commit);
   writeCommitOrder();

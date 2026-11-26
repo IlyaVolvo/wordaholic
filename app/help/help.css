@@ -492,6 +492,10 @@
   outline: none;
 }
 
+a.help-trigger {
+  text-decoration: none;
+}
+
 .help-trigger {
   position: relative;
   display: inline-flex;

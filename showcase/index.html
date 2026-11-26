@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Showcase — Wordaholic</title>
+  <link rel="icon" href="/brand/wordaholic-mark.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/showcase/player.css" />
+</head>
+<body>
+  <main class="showcase-player">
+    <header class="showcase-head">
+      <a class="showcase-home" href="/">Wordaholic</a>
+      <h1>Showcase</h1>
+      <p>Each scene plays on the live site. Choose how much of it you want to see.</p>
+    </header>
+    <fieldset class="showcase-detail">
+      <legend>Detail</legend>
+      <label><input type="radio" name="detail" value="glance" /> Glance</label>
+      <label><input type="radio" name="detail" value="tour" checked /> Tour</label>
+      <label><input type="radio" name="detail" value="deep" /> Deep</label>
+    </fieldset>
+    <ol class="showcase-scenes" data-scenes></ol>
+    <p class="showcase-note">
+      Glance is the one defining action. Tour is the path a first visit needs. Deep adds the rest.
+      Recordings and the film are always the deep cut.
+      Keep your music at <code>showcase/music/theme.mp3</code>, then run
+      <code>npm run showcase:record</code> and <code>npm run showcase:film</code>.
+      The videos are rebuilt from these scenes; the music file stays where you left it.
+    </p>
+  </main>
+  <script type="module" src="/showcase/player.js"></script>
+</body>
+</html>

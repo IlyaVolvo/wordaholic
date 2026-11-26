@@ -27,6 +27,8 @@ import { reloadLatestFromServer } from './updates/reload-latest.js';
 import { openHelp } from './help/dialog.js';
 import siteHelp from './help/site/topic.js';
 import { reportStats } from './stats/report.js';
+import { isShowcaseMode } from './storage/showcase-mode.js';
+import { prepareShowcase, startShowcase } from './shell/showcase-boot.js';
 
 const $ = (sel) => document.querySelector(sel);
 
@@ -177,8 +179,10 @@ async function renderGateway() {
         await importSiteBackup(payload);
         await renderGateway();
         showPreparing().catch((err) => console.warn('Offline prep failed', err));
-        runHomeAutoExport().catch((err) => console.warn('Auto export failed', err));
-        alert('Import complete');
+        if (!isShowcaseMode()) {
+          runHomeAutoExport().catch((err) => console.warn('Auto export failed', err));
+        }
+        if (!isShowcaseMode()) alert('Import complete');
       } catch (err) {
         console.error(err);
         alert(err instanceof Error ? err.message : 'Import failed');
@@ -220,6 +224,14 @@ function openGame(gameId, langCodes) {
     lang: primary,
     langs: langCodes.join(','),
   });
+  if (isShowcaseMode()) {
+    const current = new URLSearchParams(location.search);
+    qs.set('showcase', '1');
+    const scene = current.get('scene');
+    const detail = current.get('detail');
+    if (scene) qs.set('scene', scene);
+    if (detail) qs.set('detail', detail);
+  }
   location.href = `${gameUrl(gameId)}?${qs.toString()}`;
 }
 
@@ -228,7 +240,9 @@ async function paintHome() {
   await renderGateway();
   showView('map');
   reportStats({ homeHits: 1 });
-  runHomeAutoExport().catch((err) => console.warn('Auto export failed', err));
+  if (!isShowcaseMode()) {
+    runHomeAutoExport().catch((err) => console.warn('Auto export failed', err));
+  }
 }
 
 let chromeBound = false;
@@ -285,6 +299,7 @@ function bindChrome() {
 }
 
 async function boot() {
+  await prepareShowcase();
   bindChrome();
   await paintHome();
 
@@ -298,9 +313,14 @@ async function boot() {
     console.warn('Favorites init failed', err);
   }
 
-  showPreparing().catch((err) => console.warn('Offline prep failed', err));
+  if (!isShowcaseMode()) {
+    showPreparing().catch((err) => console.warn('Offline prep failed', err));
+  }
   await bindSilentUpdates();
-  showUpgradeAnnouncements().catch((err) => console.warn('Announcements failed', err));
+  if (!isShowcaseMode()) {
+    showUpgradeAnnouncements().catch((err) => console.warn('Announcements failed', err));
+  }
+  await startShowcase();
 }
 
 window.addEventListener('pageshow', (event) => {

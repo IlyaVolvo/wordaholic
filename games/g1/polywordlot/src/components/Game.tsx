@@ -14,6 +14,7 @@ import { apiClient } from '../api/client';
 import { gameCacheUtils } from '../utils/gameCache';
 import { GAME_ID, refreshGamesFromIndexedDb, STORAGE_IMPORTED_EVENT } from '../storage/platform';
 import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../../app/daily/variantVisit.js';
+import { showcasePinnedDate } from '../../../../../app/daily/showcase-date.js';
 import { openHelp, isHelpOpen } from '@wordaholic/help';
 import { openMarkedWordReport, openMissingWordReport } from '../../../../../app/shell/word-report.js';
 import { mountHeaderChrome } from '../../../../../app/play/header-chrome.js';
@@ -367,7 +368,7 @@ export const Game: React.FC<GameProps> = ({
           setSelectedPlayDate(date);
           return;
         }
-        const dateToUse = await openVariant(GAME_ID, [language, wordLength]);
+        const dateToUse = showcasePinnedDate() || (await openVariant(GAME_ID, [language, wordLength]));
         setSelectedPlayDate(dateToUse);
       } catch (err) {
         console.error('Failed to load dictionary:', err);

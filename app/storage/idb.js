@@ -5,8 +5,8 @@ import {
   toExportRecord,
   toStoredRecord,
 } from './export-records.js';
+import { showcaseDbName } from './showcase-mode.js';
 
-const DB_NAME = 'wordaholic';
 const DB_VERSION = 3;
 
 /**
@@ -63,7 +63,7 @@ export class WordaholicStorage {
         reject(new Error('IndexedDB open timed out'));
       }, timeoutMs);
 
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      const req = indexedDB.open(showcaseDbName(), DB_VERSION);
       req.onupgradeneeded = (event) => {
         const db = req.result;
         const tx = req.transaction;

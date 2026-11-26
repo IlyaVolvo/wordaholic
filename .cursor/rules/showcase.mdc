@@ -1,0 +1,16 @@
+---
+description: Keep the showcase scenes in step with user-visible features
+alwaysApply: true
+---
+
+# Showcase scenes
+
+When a change alters a flow a showcase scene already plays, update that scene in the same work. Scenes live in `showcase/scenes/` and are listed in `showcase/registry.js`.
+
+- Languages, backup (export, import, auto-export), and reports cover the home map.
+- PolyWordlot, Hydra, TransWord, and Letterix each have their own scene.
+- A new game gets a new scene module and a registry line.
+- Steps are tagged `glance`, `tour`, or `deep`. The player shows every step up to the chosen level. Recordings are the deep cut.
+- Demo playback uses `?showcase=1` and must keep using the separate storage partition. Do not write the visitor’s real favorites or records.
+- Leave `showcase/movies/` and `showcase/music/` uncommitted. Music stays in `showcase/music/theme.mp3`; `npm run showcase:film` lays it under a freshly built picture.
+- Screenshot manuals stay as they are.

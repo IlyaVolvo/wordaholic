@@ -1,0 +1,118 @@
+:root {
+  color-scheme: light;
+  --ink: #14232b;
+  --bg: #f4f7f8;
+  --card: #fff;
+  --line: #d5e2e8;
+  --accent: #1a3a4a;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font: 16px/1.45 "Iowan Old Style", Palatino, Georgia, serif;
+  color: var(--ink);
+  background:
+    radial-gradient(900px 400px at 0% 0%, #fff9f0 0%, transparent 55%),
+    linear-gradient(180deg, #f7fbfc, var(--bg));
+}
+
+.showcase-player {
+  width: min(720px, calc(100% - 2rem));
+  margin: 2rem auto 3rem;
+}
+
+.showcase-home {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+h1 {
+  margin: 0.2rem 0 0.4rem;
+  font-size: 2rem;
+}
+
+.showcase-head p,
+.showcase-note {
+  margin: 0.4rem 0 0;
+  color: #3d5560;
+}
+
+.showcase-detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem 1.2rem;
+  margin: 1.4rem 0 0.6rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.showcase-detail legend {
+  padding: 0 0.3rem;
+  font-weight: 700;
+}
+
+.showcase-detail label {
+  display: inline-flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.showcase-scenes {
+  list-style: none;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.showcase-scene {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.8rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.showcase-index {
+  font-variant-numeric: tabular-nums;
+  color: #6a8490;
+}
+
+.showcase-scene h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.showcase-scene p {
+  margin: 0.15rem 0 0;
+  color: #3d5560;
+}
+
+.showcase-play {
+  border: none;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.showcase-note {
+  margin-top: 1.4rem;
+  font-size: 0.95rem;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+}

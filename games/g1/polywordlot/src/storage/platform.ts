@@ -3,6 +3,7 @@
  * Games (in-progress and completed) are records; prefs live in gameState.
  */
 import { storage } from '@wordaholic/storage';
+import { isShowcaseMode } from '../../../../../app/storage/showcase-mode.js';
 import { loadKeyboard } from '../data/languageLoader';
 import { isWinningGuessForLanguage } from '../utils/characterNormalization';
 
@@ -76,6 +77,10 @@ export async function ensurePolywordlotMigrated(): Promise<void> {
 
 async function migrateOnce(): Promise<void> {
   await storage.open();
+  if (isShowcaseMode()) {
+    await storage.setMetadata(MIGRATE_META, true);
+    return;
+  }
   if (await storage.getMetadata(MIGRATE_META, false)) return;
 
   const legacy = readLegacyStore();

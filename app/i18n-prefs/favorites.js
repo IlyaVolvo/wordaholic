@@ -1,7 +1,16 @@
 import { storage } from '../storage/idb.js';
+import { showcaseLocalKey } from '../storage/showcase-mode.js';
 
 const LS_FAVORITES_KEY = 'wordaholic.favoriteLanguages';
 const LS_LAST_KEY = 'wordaholic.lastLanguage';
+
+function favoritesKey() {
+  return showcaseLocalKey(LS_FAVORITES_KEY);
+}
+
+function lastKey() {
+  return showcaseLocalKey(LS_LAST_KEY);
+}
 const IDB_FAVORITES_KEY = 'favoriteLanguages';
 const IDB_LAST_KEY = 'lastLanguage';
 const DEFAULT_FAVORITES = ['en'];
@@ -22,7 +31,7 @@ function normalizeFavorites(codes) {
 
 function readLocalFavorites() {
   try {
-    const raw = localStorage.getItem(LS_FAVORITES_KEY);
+    const raw = localStorage.getItem(favoritesKey());
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -31,10 +40,10 @@ function readLocalFavorites() {
 
 function persistLocal() {
   if (favoritesCache) {
-    localStorage.setItem(LS_FAVORITES_KEY, JSON.stringify(favoritesCache));
+    localStorage.setItem(favoritesKey(), JSON.stringify(favoritesCache));
   }
   if (lastLanguageCache) {
-    localStorage.setItem(LS_LAST_KEY, lastLanguageCache);
+    localStorage.setItem(lastKey(), lastLanguageCache);
   }
 }
 
@@ -59,7 +68,7 @@ export async function initFavorites() {
   const epochAtStart = prefsEpoch;
   const fromLs = readLocalFavorites();
   favoritesCache = normalizeFavorites(fromLs);
-  lastLanguageCache = localStorage.getItem(LS_LAST_KEY) || favoritesCache[0] || 'en';
+  lastLanguageCache = localStorage.getItem(lastKey()) || favoritesCache[0] || 'en';
   ready = true;
   persistLocal();
 
@@ -101,7 +110,7 @@ export async function initFavorites() {
 export function getFavoriteLanguages() {
   if (favoritesCache) return [...favoritesCache];
   try {
-    const raw = localStorage.getItem(LS_FAVORITES_KEY);
+    const raw = localStorage.getItem(favoritesKey());
     if (!raw) return [...DEFAULT_FAVORITES];
     return normalizeFavorites(JSON.parse(raw));
   } catch {
@@ -121,7 +130,7 @@ export async function setFavoriteLanguages(codes) {
 
 export function getLastLanguage() {
   if (lastLanguageCache) return lastLanguageCache;
-  return localStorage.getItem(LS_LAST_KEY) || getFavoriteLanguages()[0] || 'en';
+  return localStorage.getItem(lastKey()) || getFavoriteLanguages()[0] || 'en';
 }
 
 /** @param {string} code */

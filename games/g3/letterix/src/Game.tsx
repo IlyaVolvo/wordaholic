@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { calendarMonthForSelection } from '../../../../app/daily/variantVisit.js';
+import { showcasePinnedDate } from '../../../../app/daily/showcase-date.js';
 import { mountHeaderChrome } from '../../../../app/play/header-chrome.js';
 import { openHelp } from '@wordaholic/help';
 import { openMarkedWordReport } from '../../../../app/shell/word-report.js';
@@ -110,7 +111,7 @@ export const Game: React.FC<{
   const savedRev = useRef(-1);
   const [W, setW] = useState(initialW);
   const [H, setH] = useState(initialH);
-  const [date, setDate] = useState(localCalendarDate);
+  const [date, setDate] = useState(() => showcasePinnedDate() || localCalendarDate());
   const [hud, setHud] = useState<Hud | null>(null);
   const [scores, setScores] = useState<ScoreRecord | null>(null);
   const [showCalendar, setShowCalendar] = useState(false);

@@ -24,6 +24,7 @@ import helpTopic from '../../help/topic.js';
 import { reportStats } from '@wordaholic/stats';
 import { setSessionActive } from '@wordaholic/updates';
 import { calendarMonthForSelection, openVariant, selectVariantDate } from '../../../../../app/daily/variantVisit.js';
+import { showcasePinnedDate } from '../../../../../app/daily/showcase-date.js';
 import { mountHeaderChrome } from '../../../../../app/play/header-chrome.js';
 import type { DictionaryEntry, Guess, LanguageConfig, LetterState } from '../types';
 import { GameBoard } from './GameBoard';
@@ -510,7 +511,8 @@ export const Game: React.FC<GameProps> = ({
       let date = selectedPlayDate;
       if (variantVisitRef.current !== variantId) {
         try {
-          const resolved = await openVariant(GAME_ID, [language, wordLength, boardCount]);
+          const resolved =
+            showcasePinnedDate() || (await openVariant(GAME_ID, [language, wordLength, boardCount]));
           if (cancelled) return;
           date = resolved;
         } catch (err) {

@@ -1,5 +1,5 @@
 /* Wordaholic service worker — cache shell + requested wordsets */
-const CACHE_SHELL = 'wordaholic-shell-v72';
+const CACHE_SHELL = 'wordaholic-shell-v73';
 const CACHE_DATA = 'wordaholic-data-v4';
 
 const PRECACHE = [
@@ -9,6 +9,11 @@ const PRECACHE = [
   '/app/main.js',
   '/app/games-contract.js',
   '/app/storage/idb.js',
+  '/app/storage/showcase-mode.js',
+  '/app/daily/showcase-date.js',
+  '/app/daily/daily-word.js',
+  '/app/daily/hydra-words.js',
+  '/app/shell/showcase-boot.js',
   '/app/storage/export-records.js',
   '/app/daily/variantVisit.js',
   '/app/i18n-prefs/favorites.js',
@@ -51,6 +56,19 @@ const PRECACHE = [
   '/games/g2/transword/dailyPuzzle.js',
   '/games/g2/transword/daily-store.js',
   '/games/g2/shared/wordset.js',
+  '/showcase/',
+  '/showcase/index.html',
+  '/showcase/player.css',
+  '/showcase/player.js',
+  '/showcase/runner.js',
+  '/showcase/registry.js',
+  '/showcase/scenes/languages.js',
+  '/showcase/scenes/backup.js',
+  '/showcase/scenes/reports.js',
+  '/showcase/scenes/polywordlot.js',
+  '/showcase/scenes/hydra.js',
+  '/showcase/scenes/transword.js',
+  '/showcase/scenes/letterix.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -228,7 +246,8 @@ self.addEventListener('fetch', (event) => {
             url.pathname.startsWith('/word-data/') ||
             url.pathname.startsWith('/games/') ||
             url.pathname.startsWith('/app/') ||
-            url.pathname.startsWith('/help/'))
+            url.pathname.startsWith('/help/') ||
+            url.pathname.startsWith('/showcase/'))
         ) {
           const cache = await caches.open(
             url.pathname.startsWith('/data/') || url.pathname.startsWith('/word-data/') ? CACHE_DATA : CACHE_SHELL
@@ -237,7 +256,12 @@ self.addEventListener('fetch', (event) => {
         }
         return res;
       } catch {
-        if (req.mode === 'navigate' && !isStatsPagePath(url.pathname) && !isGameShellPath(url.pathname)) {
+        if (
+          req.mode === 'navigate' &&
+          !isStatsPagePath(url.pathname) &&
+          !isGameShellPath(url.pathname) &&
+          !url.pathname.startsWith('/showcase')
+        ) {
           const fallback = await caches.match('/index.html');
           if (fallback) return fallback;
         }

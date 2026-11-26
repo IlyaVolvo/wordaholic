@@ -70,6 +70,9 @@ function stampServiceWorker() {
 function syncStatic(reason) {
   copyDir(path.join(ROOT, 'public'), DIST);
   copyDir(path.join(ROOT, 'app'), path.join(DIST, 'app'));
+  copyDir(path.join(ROOT, 'showcase'), path.join(DIST, 'showcase'), {
+    skipNames: ['.DS_Store', 'movies', 'music'],
+  });
   copyDir(path.join(ROOT, 'word-data'), path.join(DIST, 'word-data'), {
     skipNames: ['.DS_Store', 'master.json'],
   });

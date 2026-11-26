@@ -31,6 +31,9 @@ import {
   openVariant,
   selectVariantDate,
 } from '../../../app/daily/variantVisit.js';
+import { showcasePinnedDate } from '../../../app/daily/showcase-date.js';
+import { isShowcaseMode } from '../../../app/storage/showcase-mode.js';
+import { prepareShowcase, startShowcase } from '../../../app/shell/showcase-boot.js';
 
 mountPortraitGate();
 
@@ -58,7 +61,9 @@ if (investigateRequest.denied) {
 if (investigateSpec) document.body.classList.add('investigate');
 
 const GAME_ID = 'transword';
-const PREFS_KEY = 'wordaholic-transword-prefs';
+const PREFS_KEY = isShowcaseMode()
+  ? 'showcase.wordaholic-transword-prefs'
+  : 'wordaholic-transword-prefs';
 const $ = (sel) => document.querySelector(sel);
 
 const DEFAULT_LAYOUT = [
@@ -864,7 +869,7 @@ async function pauseAndPersist() {
 }
 
 async function beginForCurrentSettings() {
-  selectedGameDate = await openVariant(GAME_ID, dailyVariantParts());
+  selectedGameDate = showcasePinnedDate() || (await openVariant(GAME_ID, dailyVariantParts()));
   await loadDailyForSelection();
 }
 
@@ -1773,7 +1778,10 @@ async function init() {
   await switchLanguage(picked, true);
 }
 
-init().catch((err) => {
-  console.error(err);
-  setLoading(`Error: ${err.message}`);
-});
+prepareShowcase()
+  .then(() => init())
+  .then(() => startShowcase())
+  .catch((err) => {
+    console.error(err);
+    setLoading(`Error: ${err.message}`);
+  });

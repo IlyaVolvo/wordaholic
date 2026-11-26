@@ -357,6 +357,8 @@ const server = http.createServer((req, res) => {
   const headers = { 'Content-Type': TYPES[ext] || 'application/octet-stream' };
   if (
     urlPath === '/sw.js' ||
+    urlPath.startsWith('/showcase/') ||
+    urlPath.startsWith('/app/') ||
     urlPath.startsWith('/games/g2/transword/admin') ||
     /^\/games\/g\d+\/[^/]+\/(index\.html)?$/.test(urlPath) ||
     urlPath.includes('/games/') && urlPath.includes('/assets/')
